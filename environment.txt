@@ -1,0 +1,12 @@
+# python=3.12
+# torch=2.7.1+cu128
+# cupy (optional)
+scipy
+opencv-python
+ipympl
+blessed
+ninja
+pytest
+pyyaml
+tqdm
+scikit-learn
