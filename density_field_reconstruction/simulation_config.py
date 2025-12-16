@@ -4,14 +4,17 @@ import numpy as np
 class SimulationConfig:
     """Holds configuration parameters for the simulation."""
     def __init__(self, config_file):
+        self.cam_poses = None
         self.load_from_file(config_file)
 
     def load_from_file(self, config_file):
         """Load configuration from a YAML file."""
         with open(config_file, 'r') as f:
             config = yaml.safe_load(f)
-            self.cam_pose = np.array(config['cam_pose'])
-            self.cam_pose2 = np.array(config['cam_pose2'])
+            if 'cam_poses' in config.keys():
+                self.cam_poses = np.array(config['cam_poses'])
+            else:
+                raise KeyError("No valid camera configurations.")
             self.intrinsics_params = np.array(config['intrinsics_params'])
             self.H = config['H']
             self.W = config['W']

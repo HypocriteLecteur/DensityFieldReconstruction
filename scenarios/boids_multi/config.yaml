@@ -1,7 +1,8 @@
-data_file: dataset/cluster.npy
+data_file: dataset/spp_simulation_data.npz # directory from root
 cam_poses: [
   [-1000, 500, 0, 1, 0, 0, 0],
-  [-1000, -500, 0, 1, 0, 0, 0]
+  [-1000, -500, 0, 1, 0, 0, 0],
+  [0, 1000, 0, 1, 0, 0, 0]
 ]
 # add a .5 to the principal point so that a point at the center will be projected at (500.5, 500.5) rather than (500, 500)
 # this prevents a bias where the 2d gradient is not zero even when the 3d point is at the center of the image.

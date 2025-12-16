@@ -142,63 +142,78 @@ def run_single_scenario(run_params):
 
     for time_step in (pbar := tqdm(step_range, desc=f"Processing {name}")):
         positions = dataset.trajectories[time_step]
-        poses, _, images = cam_system.simulate_vision(positions, renderer='gaussian')
 
-        camera_states = []    
-        for i, pose in enumerate(poses):
-            camera_states.append(
-                CameraState(i, config.intrinsics_params, pose, device='cuda')
-            )
+        import torch
+        positions_torch = torch.from_numpy(positions).cuda().float()
+
+        sigma = 10
+
+        modes = positions_torch.clone()
+
+        cdist = torch.cdist(positions_torch, modes)
+        W = torch.exp(-0.5 / sigma**2 * cdist**2)
+        D = torch.diag(torch.sum(W, dim=0))
+        Q = W @ torch.inverse(D) # column-stochastic
+        modes = Q.T @ positions_torch
+        print()
+
+    #     poses, _, images = cam_system.simulate_vision(positions, renderer='gaussian')
+
+    #     camera_states = []    
+    #     for i, pose in enumerate(poses):
+    #         camera_states.append(
+    #             CameraState(i, config.intrinsics_params, pose, device='cuda')
+    #         )
         
-        model, scale_spaces = \
-        density_reconstructor.process_frame(camera_states, images, positions=positions,
-                                            initGMM=model,
-                                            is_adaptive_scale=True,
-                                            is_store_intermediate=True, is_log=True,
-                                            output_dir=os.path.join(log_file_path, f"t_{time_step:03d}"),
-                                            debug=True)
+    #     model, scale_spaces = \
+    #     density_reconstructor.process_frame(camera_states, images, positions=positions,
+    #                                         initGMM=model,
+    #                                         is_adaptive_scale=True,
+    #                                         is_store_intermediate=True, is_log=True,
+    #                                         output_dir=os.path.join(log_file_path, f"t_{time_step:03d}"),
+    #                                         debug=True)
     
-        # 6. Collect Metrics
-        for metric_name, value in density_reconstructor.time_metrics.items():
-            time_metrics[metric_name].append(value)
+    #     # 6. Collect Metrics
+    #     for metric_name, value in density_reconstructor.time_metrics.items():
+    #         time_metrics[metric_name].append(value)
         
-        loss_metrics['final_training_loss'].append(model[0].sum_loss)
-        loss_metrics['final_gmm_num'].append(model[0]._xyz.shape[0])
+    #     loss_metrics['final_training_loss'].append(model[0].sum_loss)
+    #     loss_metrics['final_gmm_num'].append(model[0]._xyz.shape[0])
 
-        _, projections, _ = cam_system.simulate_vision(positions, renderer='gaussian')
+    #     _, projections, _ = cam_system.simulate_vision(positions, renderer='gaussian')
 
-        is_visible = np.zeros((positions.shape[0],), dtype=np.bool)
-        for i in range(len(poses)):
-            projection = projections[i]
-            is_visible_ = (projection[:, 0] > 0).squeeze() & (projection[:, 1] > 0).squeeze() & \
-                (projection[:, 0] < config.H).squeeze() & (projection[:, 1] < config.W).squeeze()
-            is_visible = is_visible | is_visible_
-        loss_metrics['final_density_field_loss'].append(
-            calculate_gmm_ise_gpu(
-                positions[is_visible],
-                density_reconstructor.scale, 
-                model[0]._xyz, 
-                model[0]._weights, 
-                model[0]._radius))
+    #     is_visible = np.zeros((positions.shape[0],), dtype=np.bool)
+    #     for i in range(len(poses)):
+    #         projection = projections[i]
+    #         is_visible_ = (projection[:, 0] > 0).squeeze() & (projection[:, 1] > 0).squeeze() & \
+    #             (projection[:, 0] < config.H).squeeze() & (projection[:, 1] < config.W).squeeze()
+    #         is_visible = is_visible | is_visible_
+    #     loss_metrics['final_density_field_loss'].append(
+    #         calculate_gmm_ise_gpu(
+    #             positions[is_visible],
+    #             density_reconstructor.scale, 
+    #             model[0]._xyz, 
+    #             model[0]._weights, 
+    #             model[0]._radius))
     
-    # 7. Logging and Data Saving
-    logger.info(f"Results for {name}:")
-    if time_metrics['train_gaussian_scale_space']:
-        mean_time = np.mean(np.array(time_metrics['train_gaussian_scale_space']))
-        logger.info(f"Mean 'train_gaussian_scale_space' time: {mean_time:.2f} ms")
-    else:
-        logger.info("No time steps processed.")
+    # # 7. Logging and Data Saving
+    # logger.info(f"Results for {name}:")
+    # if time_metrics['train_gaussian_scale_space']:
+    #     mean_time = np.mean(np.array(time_metrics['train_gaussian_scale_space']))
+    #     logger.info(f"Mean 'train_gaussian_scale_space' time: {mean_time:.2f} ms")
+    # else:
+    #     logger.info("No time steps processed.")
 
-    save_data = {key: np.array(val) for key, val in time_metrics.items()}
-    save_data['final_loss_history'] = np.array(loss_metrics['final_training_loss'])
-    save_data['ise_loss_history'] = np.array(loss_metrics['final_density_field_loss'])
-    save_data['final_gmm_num'] = np.array(loss_metrics['final_gmm_num'])
+    # save_data = {key: np.array(val) for key, val in time_metrics.items()}
+    # save_data['final_loss_history'] = np.array(loss_metrics['final_training_loss'])
+    # save_data['ise_loss_history'] = np.array(loss_metrics['final_density_field_loss'])
+    # save_data['final_gmm_num'] = np.array(loss_metrics['final_gmm_num'])
 
-    save_path = os.path.join(log_file_path, "statistics.npz")
-    np.savez(save_path, **save_data)
-    logger.info(f"Statistics saved to: {save_path}")
+    # save_path = os.path.join(log_file_path, "statistics.npz")
+    # np.savez(save_path, **save_data)
+    # logger.info(f"Statistics saved to: {save_path}")
 
-    logger.info(f"Finished scenario {name}")
+    # logger.info(f"Finished scenario {name}")
 
 def run_multi_scenarios():
     for run_params in DATASET_RUNS:

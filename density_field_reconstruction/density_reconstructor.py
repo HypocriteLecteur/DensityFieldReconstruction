@@ -1,6 +1,5 @@
 import torch
 import numpy as np
-from scipy.spatial.transform import Rotation
 import cv2
 import os
 import torch.nn.functional as F
@@ -8,76 +7,11 @@ from scipy.optimize import curve_fit
 from density_field_reconstruction.density_field_model import GaussianModel
 from gaussian_rasterizer_simple_small import rasterize_gaussians
 from density_field_reconstruction.density_peak import match_points, find_local_peaks_simple
-from density_field_reconstruction.utils import find_rightmost_positive_index, solve_transcendental_equation, power_law_exponential_decay
+from density_field_reconstruction.scale_estimation import critical_scale_detection
 from density_field_reconstruction.utils import calculate_fundamental_matrix_pytorch, get_outlier_neighbors
 from density_field_reconstruction.gaussian_mixture_reduction import GMR
+from density_field_reconstruction.camera_state import CameraState
 import time
-
-class CameraState:
-    def __init__(self, cam_id: int, intrinsics_params: np.ndarray, pose: np.ndarray, device: torch.device):
-        self.cam_id = cam_id
-        self.intrinsics_params = intrinsics_params
-        self.pose_np = pose # [x, y, z, qx, qy, qz, qw]
-        self.P_np = CameraState.wrd_to_cam(pose) # (3, 4) extrinsic matrix
-        
-        # Torch tensors on GPU
-        P_torch = torch.tensor(self.P_np, dtype=torch.float, device=device)
-        self.R = P_torch[:, :3].contiguous() # (3, 3) Rotation
-        self.T = P_torch[:, 3].contiguous() # (3) Translation
-        self.K = torch.tensor(intrinsics_params, dtype=torch.float, device=device).contiguous() # (3, 3) Intrinsics
-    
-    @staticmethod
-    def wrd_to_cam(pose):
-        """
-        Convert a world pose to a camera pose in the base frame.
-        Input:
-        - pose: A numpy array of shape (7,) representing the pose in the format [x, y, z, qx, qy, qz, qw].
-        Output:
-        - A numpy array of shape (3, 4) representing the camera pose in the base frame.
-        """
-        rot = Rotation.from_quat(pose[3:]).as_matrix().T
-        t = -rot @ pose[:3]
-
-        base2cam = np.array([
-            [0, -1, 0],
-            [0, 0, -1],
-            [1, 0, 0]
-        ])
-
-        return base2cam @ np.hstack((rot, t.reshape((3, 1))))
-
-class CameraStateUE4:
-    def __init__(self, cam_id: int, W: int, H: int, intrinsics_params: np.ndarray, R: np.ndarray, T: np.ndarray, device: torch.device):
-        self.cam_id = cam_id
-        self.intrinsics_params = intrinsics_params
-        self.T_world = T
-        self.P_np = CameraStateUE4.wrd_to_cam(R, T)
-
-        # Torch tensors on GPU
-        P_torch = torch.tensor(self.P_np, dtype=torch.float, device=device)
-        self.R = P_torch[:, :3].contiguous() # (3, 3) Rotation
-        self.T = P_torch[:, 3].contiguous() # (3) Translation
-        self.K = torch.tensor(intrinsics_params, dtype=torch.float, device=device).contiguous() # (3, 3) Intrinsics
-
-        self.W = W
-        self.H = H
-
-    @staticmethod
-    def wrd_to_cam(R, T):
-        """ Convert a world pose to a camera pose in the base frame."""
-
-        # P_camera = R⋅(P_world + t)
-        T_prime = R @ T
-
-        # UE4 left-handed frame
-        base2cam = np.array([
-            [0, 1, 0],
-            [0, 0, -1],
-            [1, 0, 0]
-        ])
-
-        return base2cam @ np.hstack((R, T_prime.reshape((3, 1))))
-
 
 class DensityReconstructor:
     def __init__(self, intrinsics_params, max_iter=100, W=1000, H=1000, far_clip=2000):
@@ -233,7 +167,7 @@ class DensityReconstructor:
             scale_space = self.generate_scale_space_img_large_scale(img.to(dtype=torch.float32), pixel_scales)
             scale_spaces.append(scale_space)
 
-            per_cam_scale_factors.append(focal_length_pix / dist_cam)
+            per_cam_scale_factors.append((focal_length_pix / dist_cam).item())
 
         return scale_spaces, per_cam_scale_factors
     
@@ -345,28 +279,8 @@ class DensityReconstructor:
         )
 
         peaks_num = [peaks_SP[i].shape[0] for i in range(len(peaks_SP))]
-
-        popt, pcov = curve_fit(power_law_exponential_decay, test_scales, peaks_num, 
-                            p0=[5e2, 1e2, 0.2, 1.0], sigma=peaks_num, absolute_sigma=True,
-                            bounds=([0, 0, 0, 0], [np.inf, np.inf, 10, 5]))
         
-        # import matplotlib.pyplot as plt
-        # plt.figure()
-        # plt.plot(test_scales, peaks_num, 'o', label='Raw Data', alpha=0.6)
-        # y_fit = power_law_exponential_decay(test_scales, *popt)
-        # plt.plot(test_scales, y_fit, '-')
-
-        # get a good initial guess
-        A, B, k, alpha = popt
-        diff = A * np.exp(-k * test_scales) - B * test_scales ** -alpha
-
-        smallest_positive_index = find_rightmost_positive_index(diff)
-
-        if smallest_positive_index == -1:
-            adaptive_scale = test_scales[-1]
-        else:
-            initial_guess = test_scales[smallest_positive_index]
-            adaptive_scale = solve_transcendental_equation(initial_guess, *popt)
+        adaptive_scale, popt = critical_scale_detection(test_scales, peaks_num)
 
         # scale lower bound
         if images is not None:
@@ -378,7 +292,7 @@ class DensityReconstructor:
         adaptive_scale = max(adaptive_scale, adaptive_scale_lower_bound)
 
         self.scale = adaptive_scale
-        self.scaling_law = (A, B, k, alpha)
+        self.scaling_law = popt
     
     def adaptive_scale_selection(self, center, images=None, point_sets=None):
         margin = 0.1
@@ -400,40 +314,23 @@ class DensityReconstructor:
 
         peaks_num = [peaks_SP[i].shape[0] for i in range(len(peaks_SP))]
 
-        try:
-            popt, pcov = curve_fit(power_law_exponential_decay, test_scales, peaks_num, 
-                                p0=self.scaling_law, sigma=peaks_num, absolute_sigma=True,
-                                bounds=([0, 0, 0, 0], [np.inf, np.inf, 10, 5]))
-            
-            # get a good initial guess
-            A, B, k, alpha = popt
-
-            if alpha > 4: # if no power law decay is shown
-                self.scaling_law = (A, B, k, alpha) # keep scale unchanged
-            else:
-                diff = A * np.exp(-k * test_scales) - B * test_scales ** -alpha
-
-                smallest_positive_index = find_rightmost_positive_index(diff)
-                initial_guess = test_scales[smallest_positive_index]
-
-                adaptive_scale = solve_transcendental_equation(initial_guess, *popt)
-                if adaptive_scale is None:
-                    if smallest_positive_index == len(test_scales) - 1:
-                        adaptive_scale = (1 + margin) * self.scale
-                    else:
-                        adaptive_scale = self.scale # keep scale unchanged
-                        # raise ValueError('adaptive scale selection went wrong')
+        adaptive_scale, popt = critical_scale_detection(test_scales, peaks_num, p0=self.scaling_law)
+        A, B, k, alpha = popt
+        if alpha > 4: # if no power law decay is shown
+            self.scaling_law = (A, B, k, alpha) # update scaling law but keep scale unchanged
+        else:
+            if adaptive_scale is None:
+                if adaptive_scale == test_scales[-1]:
+                    adaptive_scale = (1 + margin) * self.scale
                 else:
-                    # prevent sudden large change in adaptive_scale, allow maximum 10% change
-                    if abs(self.scale - adaptive_scale) / self.scale > margin:
-                        adaptive_scale = (1 + margin*np.sign(adaptive_scale - self.scale)) * self.scale
-
-                self.scale = adaptive_scale
-                self.scaling_law = (A, B, k, alpha)
-        except:
-            # keep scale unchanged
-            pass
-
+                    adaptive_scale = self.scale
+            else:
+                # prevent sudden large change in adaptive_scale, allow maximum 10% change
+                if abs(self.scale - adaptive_scale) / self.scale > margin:
+                    adaptive_scale = (1 + margin*np.sign(adaptive_scale - self.scale)) * self.scale
+        
+        self.scale = adaptive_scale
+        self.scaling_law = (A, B, k, alpha)
 
     def estimate_scale_space_peaks_3d(self, scale_spaces: list[torch.Tensor], peaks_SP, peaks2_SP):
         """
@@ -519,12 +416,14 @@ class DensityReconstructor:
         return filtered_peaks3D, filtered_peaks, filtered_peaks2
     
     def setup_gaussian_scale_space(self, peaks3D_SP: list[np.ndarray], peaks_value, peaks2_value, scale_samples, 
-                                   images: list[torch.Tensor], point_sets: list[np.ndarray] ,
+                                   images: list[torch.Tensor], point_sets: list[np.ndarray],
                                    initGMM=None, xyz_lr=None, radius_lr=None, weights_lr=None, xyz_reg=None, radius_reg=None):
         if images is not None:
             num_estim = sum(img.sum().item() for img in images) / len(images) / 255.0
+            num_cams = len(images)
         else:
             num_estim = sum(point_set.shape[0] for point_set in point_sets)/ len(point_sets)
+            num_cams = len(point_sets)
 
         for level in range(self.num_scales):
             peaks3D = peaks3D_SP[level]
@@ -550,15 +449,20 @@ class DensityReconstructor:
             # gmm_radius = np.sqrt(255 * (num_estim / N) / (2*torch.pi)) / self.intrinsics_params[0, 0] * torch.from_numpy(mean3d_cam[:, 2]).float() / torch.sqrt(peaks_value[level]).cpu()
             gmm_radius = gmm_radius.reshape((-1, 1)).float().cuda()
 
-            GM.create_from_guess(gmm_mean, gmm_radius, gmm_weights)
+            GM.create_from_guess(gmm_mean, gmm_radius, gmm_weights, num_cams)
             GM.training_setup(xyz_lr_c=xyz_lr, radius_lr_c=radius_lr, weights_lr_c=weights_lr, xyz_reg=xyz_reg, radius_reg=radius_reg)
 
-    def setup_gaussian_scale_space_initGMM(self, 
-                                   initGMM, xyz_lr=None, radius_lr=None, weights_lr=None, xyz_reg=None, radius_reg=None):
+    def setup_gaussian_scale_space_initGMM(self, initGMM, images: list[torch.Tensor], point_sets: list[np.ndarray], 
+                                           xyz_lr=None, radius_lr=None, weights_lr=None, xyz_reg=None, radius_reg=None):
+        if images is not None:
+            num_cams = len(images)
+        else:
+            num_cams = len(point_sets)
+
         for level in range(self.num_scales):
             GM = self.GSP[level]
 
-            GM.create_from_guess(initGMM[level]._xyz, initGMM[level]._radius, initGMM[level]._weights)
+            GM.create_from_guess(initGMM[level]._xyz, initGMM[level]._radius, initGMM[level]._weights, num_cams)
             GM.training_setup(xyz_lr_c=xyz_lr, radius_lr_c=radius_lr, weights_lr_c=weights_lr, xyz_reg=xyz_reg, radius_reg=radius_reg)
 
     def train_gaussian_scale_space(self, scale_spaces, density=None, is_store_intermediate=False, is_log=False, output_dir="",
@@ -587,62 +491,50 @@ class DensityReconstructor:
 
         if is_store_intermediate:
             for level in range(self.num_scales):
-                save_path = os.path.join(output_dir, f"checkpoint_level_{level}_iter_{-1}.pth")
-                self.GSP[level].save_checkpoint(save_path)
+                GM = self.GSP[level]
+                GM.clear_history()
+                GM.save_checkpoint()
 
             for level in range(self.num_scales):
                 GM = self.GSP[level]
-                GM.clear_history()
                 for iter in range(self.max_iter):
                     # print(f'level {level} iter {iter}')
-                    density_estim, density_estim2, train_time, loss = \
-                        GM.train_iter(iter, self.camera_states[0].R, self.camera_states[0].T, 
-                                      self.camera_states[1].R, self.camera_states[1].T, self.intrinsics_params_cuda, 
-                                        scale_spaces[0][level], scale_spaces[1][level], is_log=is_log,
-                                        debug=debug)
-                    save_path = os.path.join(output_dir, f"checkpoint_level_{level}_iter_{iter}.pth")
-                    self.GSP[level].save_checkpoint(save_path)
+                    scale_space_reconstructed, train_time, loss = \
+                        GM.train_iter(iter, level, self.camera_states, scale_spaces, is_log=is_log, debug=debug)
+
+                    GM.save_checkpoint()
 
                     if iter == self.max_iter - 2:
                         GM.sum_loss = loss
                     elif iter == self.max_iter - 1:
                         GM.sum_loss += loss
-
-                if GM.num_gaussians > 30:
-                    new_means, new_weights, new_cov = GMR.runnalls_algorithm_simple_torch(GM._xyz.detach().clone(), 
-                                                                                        GM._radius.detach().clone(), 
-                                                                                        GM._weights.detach().clone(), 23)
-                    
-                    GM._xyz = new_means
-                    GM._weights = new_weights.reshape((-1, 1))
-                    GM._radius = torch.sqrt(new_cov[:, 0, 0].reshape((-1, 1)))
-
-                    if torch.isnan(GM._xyz).any() or torch.isnan(GM._weights).any() or torch.isnan(GM._radius).any():
-                        pass
+                save_path = os.path.join(output_dir, f"checkpoint_level_{level}.pth")
+                GM.write_checkpoints(save_path)
+        
         else:
             for level in range(self.num_scales):
                 GM = self.GSP[level]
                 GM.clear_history()
                 for iter in range(self.max_iter):
                     # print(f'level {level} iter {iter}')
-                    density_estim, density_estim2, train_time, loss = \
-                        GM.train_iter(iter, self.camera_states[0].R, self.camera_states[0].T, 
-                                      self.camera_states[1].R, self.camera_states[1].T, self.intrinsics_params_cuda, \
-                                        scale_spaces[0][level], scale_spaces[1][level], is_log=is_log,
-                                        debug=debug)
+                    scale_space_reconstructed, train_time, loss = \
+                        GM.train_iter(iter, level, self.camera_states, scale_spaces, is_log=is_log, debug=debug)
+
                     if iter == self.max_iter - 2:
                         GM.sum_loss = loss
                     elif iter == self.max_iter - 1:
                         GM.sum_loss += loss
 
-                if GM.num_gaussians > 30:
-                    new_means, new_weights, new_cov = GMR.runnalls_algorithm_simple_torch(GM._xyz.detach().clone(), 
-                                                                                        GM._radius.detach().clone(), 
-                                                                                        GM._weights.detach().clone(), 23)
-                    
-                    GM._xyz = new_means
-                    GM._weights = new_weights.reshape((-1, 1))
-                    GM._radius = torch.sqrt(new_cov[:, 0, 0].reshape((-1, 1)))
+        if GM.num_gaussians > 30:
+            new_means, new_weights, new_cov = GMR.runnalls_algorithm_simple_torch(GM._xyz.detach().clone(), 
+                                                                                GM._radius.detach().clone(), 
+                                                                                GM._weights.detach().clone(), 23)
+            
+            GM._xyz = new_means
+            GM._weights = new_weights.reshape((-1, 1))
+            GM._radius = torch.sqrt(new_cov[:, 0, 0].reshape((-1, 1)))
+
+            if torch.isnan(GM._xyz).any() or torch.isnan(GM._weights).any() or torch.isnan(GM._radius).any(): pass
 
         if is_log:
             for level in range(self.num_scales):
@@ -660,22 +552,11 @@ class DensityReconstructor:
             'intrinsics_params': self.intrinsics_params_cuda,
             'scale': self.scale
         }, os.path.join(output_dir, f"scene.pth"))
-        # torch.save({
-        #     'density_scale_space': scale_spaces[0],
-        #     'density2_scale_space': scale_spaces[1],
-        #     'R1': self.camera_states[0].R,
-        #     'R2': self.camera_states[1].R,
-        #     'T1': self.camera_states[0].T,
-        #     'T2': self.camera_states[1].T,
-        #     'pose': self.camera_states[0].pose_np,
-        #     'pose2': self.camera_states[1].pose_np,
-        #     'intrinsics_params': self.intrinsics_params_cuda,
-        # }, os.path.join(output_dir, f"scene.pth"))
     
     def process_frame(self, camera_states: list[CameraState], 
                       images: list[torch.Tensor]=None, point_sets: list[np.ndarray]=None, 
                       initGMM=None, is_adaptive_scale=True, 
-                      positions=None, density=None, is_store_intermediate=False, is_log=False, output_dir="",
+                      positions=None, density=None, is_store_intermediate=False, is_log=False, output_dir=None,
                       xyz_lr=None, radius_lr=None, weights_lr=None, xyz_reg=None, radius_reg=None,
                       debug=False):
         """
@@ -689,7 +570,7 @@ class DensityReconstructor:
         Returns:
             tuple: (final_gmm_list, scale_spaces)
         """
-        if ((is_store_intermediate == True) or (is_log == True)) and output_dir == "":
+        if ((is_store_intermediate == True) or (is_log == True)) and output_dir == None:
             raise ValueError("Must provide output_dir if saving")
         if len(camera_states) < 2:
             raise ValueError("Must provide at least two poses and corresponding images.")
@@ -750,7 +631,7 @@ class DensityReconstructor:
             self.setup_gaussian_scale_space(peaks3D_SP, peaks_value, peaks2_value, [self.scale], images, point_sets, initGMM=initGMM,
                                             xyz_lr=xyz_lr, radius_lr=radius_lr, weights_lr=weights_lr, xyz_reg=xyz_reg, radius_reg=radius_reg)
         else:
-            self.setup_gaussian_scale_space_initGMM(initGMM, 
+            self.setup_gaussian_scale_space_initGMM(initGMM, images, point_sets, 
                                                     xyz_lr=xyz_lr, radius_lr=radius_lr, weights_lr=weights_lr, 
                                                     xyz_reg=xyz_reg, radius_reg=radius_reg)
         end = time.perf_counter()

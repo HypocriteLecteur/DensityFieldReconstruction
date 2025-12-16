@@ -4,8 +4,9 @@ from gaussian_rasterizer_simple_small import GaussianRasterizerSimpleSmall
 import cv2
 from density_field_reconstruction.density_peak import match_points, find_local_peaks_simple
 from density_field_reconstruction.utils import calculate_fundamental_matrix_pytorch
+from density_field_reconstruction.camera_state import CameraState
 import os
-from typing import Tuple
+from typing import Tuple, List
 import torch.nn.functional as F
 
 def calculate_size_aware_repulsion_loss_gradient(
@@ -110,9 +111,7 @@ class GaussianModel:
         self.far_clip = 2000
 
         # Rasterizer instance
-        self.GS = None # Will be initialized in create_from_guess or load
-        self.GS2 = None
-
+        self.rasterizer_list = None
         self.sum_loss = None
 
         # Logging history
@@ -123,36 +122,36 @@ class GaussianModel:
             'grad_norm_radius_history': [],
             'grad_norm_weights_history': [],
         }
+
+        self.training_history = []
     
     @property
     def num_gaussians(self) -> int:
         return self._xyz.shape[0]
     
-    def create_from_guess(self, gmm_mean, gmm_radius, gmm_weights):
+    def create_from_guess(self, gmm_mean, gmm_radius, gmm_weights, cam_num):
         self._xyz = torch.nn.Parameter(gmm_mean.reshape((-1, 3)).requires_grad_(True).contiguous())
         self._radius = torch.nn.Parameter(gmm_radius.reshape((-1, 1)).requires_grad_(True).contiguous())
         self._weights = torch.nn.Parameter(gmm_weights.reshape((-1, 1)).requires_grad_(True).contiguous())
-        
-        self.GS = GaussianRasterizerSimpleSmall(
+
+        self.rasterizer_list = [GaussianRasterizerSimpleSmall(
             H=self.rasterizer_h, W=self.rasterizer_w, P_max=self.rasterizer_p_max
-        )
-        self.GS2 = GaussianRasterizerSimpleSmall(
-            H=self.rasterizer_h, W=self.rasterizer_w, P_max=self.rasterizer_p_max
-        )
+            )
+            for _ in range(cam_num)]
     
-    def save_checkpoint(self, path):
+    def save_checkpoint(self):
         """Saves model from a certain iter."""
-        os.makedirs(os.path.dirname(path), exist_ok=True)
+        # os.makedirs(os.path.dirname(path), exist_ok=True)
         
         checkpoint = {
             # --- Model Parameters (detached from graph) ---
-            '_xyz': self._xyz.detach(),
-            '_radius': self._radius.detach(),
-            '_weights': self._weights.detach(),
+            '_xyz': self._xyz.detach().clone(),
+            '_radius': self._radius.detach().clone(),
+            '_weights': self._weights.detach().clone(),
 
-            '_xyz_grad': self._xyz.grad.detach() if self._xyz.grad is not None else None,
-            '_radius_grad': self._radius.grad.detach() if self._radius.grad is not None else None,
-            '_weights_grad': self._weights.grad.detach() if self._weights.grad is not None else None,
+            '_xyz_grad': self._xyz.grad.detach().clone() if self._xyz.grad is not None else None,
+            '_radius_grad': self._radius.grad.detach().clone() if self._radius.grad is not None else None,
+            '_weights_grad': self._weights.grad.detach().clone() if self._weights.grad is not None else None,
 
             'xyz_reg': self.xyz_reg,
             'radius_reg': self.radius_reg,
@@ -170,15 +169,24 @@ class GaussianModel:
             'rasterizer_p_max': self.rasterizer_p_max,
         }
         
-        torch.save(checkpoint, path)
+        self.training_history.append(checkpoint)
+        # torch.save(checkpoint, path)
+    
+    def write_checkpoints(self, path):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        torch.save(self.training_history, path)
     
     def save_history(self, path):
         os.makedirs(os.path.dirname(path), exist_ok=True)
         torch.save(self.metrics_history, path)
     
     @classmethod
-    def load_model(cls, path, device='cuda'):
-        checkpoint = torch.load(path, map_location=device)
+    def load_training_history(cls, path: str, device='cuda'):
+        return torch.load(path, map_location=device)
+
+    @classmethod
+    def load_iter(cls, training_history: list[dict], iter: int, device='cuda'):
+        checkpoint = training_history[iter+1]
 
         # Create a new, empty model instance with the saved configuration
         model = cls(optimizer_type=checkpoint['optimizer_type'])
@@ -309,36 +317,33 @@ class GaussianModel:
 
     #     return helper
 
-    def forward_cost(self, R1, T1, R2, T2, K, density1, density2, mask=None, low_pass=None):
-        '''
-        Keep in mind that all gradient tensors except sum_loss are slices that get updated once another rasterize_foward_backward is called.
-        '''
+    def forward_cost(self, level: int, camera_states: CameraState, scale_spaces: List[torch.Tensor], low_pass=None):
         radius = self._radius.detach()
         if low_pass is not None:
             radius = torch.sqrt(self._radius**2 + low_pass**2)
+        
+        num_cam = len(camera_states)
 
-        if mask is None:
-            grad_gmm_mean, grad_gmm_radius, grad_gmm_weights, density_estim, sum_loss = self.GS.rasterize_forward_backward(
+        _, _, _, density_estim, loss = self.rasterizer_list[0].rasterize_forward_backward(
+            self._xyz, radius, self._weights,
+            camera_states[0].R, camera_states[0].T, camera_states[0].K,
+            scale_spaces[0][level], profile=False
+        )
+        scale_space_reconstructed = [density_estim]
+        for i in range(num_cam-1):
+            _, _, _, density_estim_, loss_ = self.rasterizer_list[i].rasterize_forward_backward(
                 self._xyz, radius, self._weights,
-                R1, T1, K, density1, profile=False
+                camera_states[i].R, camera_states[i].T, camera_states[i].K,
+                scale_spaces[i][level], profile=False
             )
-            grad_gmm_mean2, grad_gmm_radius2, grad_gmm_weights2, density_estim2, sum_loss2 = self.GS2.rasterize_forward_backward(
-                self._xyz, radius, self._weights,
-                R2, T2, K, density2, profile=False
-            )
-        else:
-            mask_ = mask.squeeze()
-            grad_gmm_mean, grad_gmm_radius, grad_gmm_weights, density_estim, sum_loss = self.GS.rasterize_forward_backward(
-                self._xyz[mask_], radius[mask_], self._weights[mask_],
-                R1, T1, K, density1, profile=False
-            )
-            grad_gmm_mean2, grad_gmm_radius2, grad_gmm_weights2, density_estim2, sum_loss2 = self.GS2.rasterize_forward_backward(
-                self._xyz[mask_], radius[mask_], self._weights[mask_],
-                R2, T2, K, density2, profile=False
-            )
-        return density_estim, density_estim2, (sum_loss + sum_loss2).item()
 
-    def forward(self, iter, R1, T1, R2, T2, K, density1, density2, low_pass=None, train_both=False):
+            scale_space_reconstructed.append(density_estim_)
+            loss = loss + loss_
+        
+        loss = loss / num_cam
+        return scale_space_reconstructed, loss.item()
+
+    def forward(self, iter: int, level: int, camera_states: CameraState, scale_spaces: List[torch.Tensor], low_pass=None, train_all=False):
         '''
         Keep in mind that all gradient tensors except sum_loss are slices that get updated once another rasterize_foward_backward is called.
         '''
@@ -346,39 +351,48 @@ class GaussianModel:
         if low_pass is not None:
             radius = torch.sqrt(self._radius**2 + low_pass**2)
         
-        if train_both:
-            grad_gmm_mean, grad_gmm_radius, grad_gmm_weights, density_estim, sum_loss = self.GS.rasterize_forward_backward(
-                self._xyz, radius, self._weights,
-                R1, T1, K, density1, profile=False
-            )
+        if train_all:
+            num_cam = len(camera_states)
 
-            grad_gmm_mean2, grad_gmm_radius2, grad_gmm_weights2, density_estim2, sum_loss2 = self.GS2.rasterize_forward_backward(
+            grad_gmm_mean, grad_gmm_radius, grad_gmm_weights, density_estim, loss = self.rasterizer_list[0].rasterize_forward_backward(
                 self._xyz, radius, self._weights,
-                R2, T2, K, density2, profile=False
+                camera_states[0].R, camera_states[0].T, camera_states[0].K,
+                scale_spaces[0][level], profile=False
             )
-            grad_gmm_mean = (grad_gmm_mean + grad_gmm_mean2) / 2
-            grad_gmm_radius = (grad_gmm_radius + grad_gmm_radius2) / 2
-            grad_gmm_weights = (grad_gmm_weights + grad_gmm_weights2) / 2
+            scale_space_reconstructed = [density_estim]
+            for i in range(num_cam-1):
+                grad_gmm_mean_, grad_gmm_radius_, grad_gmm_weights_, density_estim_, loss_ = self.rasterizer_list[i].rasterize_forward_backward(
+                    self._xyz, radius, self._weights,
+                    camera_states[i].R, camera_states[i].T, camera_states[i].K,
+                    scale_spaces[i][level], profile=False
+                )
 
-            # Regularization
-            self._apply_gradients_and_regularize(
-                grad_gmm_mean, grad_gmm_radius, grad_gmm_weights)
-            return density_estim, density_estim2, ((sum_loss + sum_loss2).item()) / 2
+                grad_gmm_mean = grad_gmm_mean + grad_gmm_mean_
+                grad_gmm_radius = grad_gmm_radius + grad_gmm_radius_
+                grad_gmm_weights = grad_gmm_weights + grad_gmm_weights_
+                scale_space_reconstructed.append(density_estim_)
+                loss = loss + loss_
+            
+            grad_gmm_mean = grad_gmm_mean / num_cam
+            grad_gmm_radius = grad_gmm_radius / num_cam
+            grad_gmm_weights = grad_gmm_weights / num_cam
+            loss = loss / num_cam
         else:
-            if iter % 2 == 0:
-                grad_gmm_mean, grad_gmm_radius, grad_gmm_weights, density_estim, sum_loss = self.GS.rasterize_forward_backward(
-                    self._xyz, radius, self._weights,
-                    R1, T1, K, density1, profile=False
-                )
-            else:
-                grad_gmm_mean, grad_gmm_radius, grad_gmm_weights, density_estim, sum_loss = self.GS2.rasterize_forward_backward(
-                    self._xyz, radius, self._weights,
-                    R2, T2, K, density2, profile=False
-                )
-            self._apply_gradients_and_regularize(
-                grad_gmm_mean, grad_gmm_radius, grad_gmm_weights)
-        return density_estim, None, sum_loss.item()
-    
+            num_cam = len(camera_states)
+            selected_cam = iter % num_cam
+
+            grad_gmm_mean, grad_gmm_radius, grad_gmm_weights, density_estim, loss = self.rasterizer_list[selected_cam].rasterize_forward_backward(
+                self._xyz, radius, self._weights,
+                camera_states[selected_cam].R, camera_states[selected_cam].T, camera_states[selected_cam].K,
+                scale_spaces[selected_cam][level], profile=False
+            )
+
+            scale_space_reconstructed = [None for _ in range(num_cam)]
+            scale_space_reconstructed[selected_cam] = density_estim
+        
+        self._apply_gradients_and_regularize(grad_gmm_mean, grad_gmm_radius, grad_gmm_weights)
+        return scale_space_reconstructed, loss.item()
+
     def _apply_gradients_and_regularize(
             self, 
             grad_mean: torch.Tensor, 
@@ -438,6 +452,7 @@ class GaussianModel:
             self._weights.grad = grad_weights.clone()
     
     def clear_history(self):
+        self.training_history = []
         self.metrics_history = {
             'loss_history': [],
             'grad_norm_history': [],
@@ -445,22 +460,23 @@ class GaussianModel:
             'grad_norm_radius_history': [],
             'grad_norm_weights_history': [],
         }
-
-    def train_iter(self, iter, R1, T1, R2, T2, K, density1, density2, low_pass=None, is_log=False, debug=False):
+    
+    def train_iter(self, iter: int, level: int, camera_states: CameraState, scale_spaces: List[torch.Tensor], low_pass=None, is_log=False, debug=False):
+        num_of_cams = len(scale_spaces)
+        
         if debug:
             xyz_old = self._xyz.detach().clone()
             radius_old = self._radius.detach().clone()
             weight_old = self._weights.detach().clone()
 
         if self.num_gaussians == 0:
-            current_loss = torch.sum(torch.abs(density1 if iter % 2 == 0 else density2)).item()
+            current_loss = torch.sum(torch.abs(scale_spaces[iter % num_of_cams][level])).item()
             return None, None, None, current_loss
         
-        # density_estim, density_estim2, loss = self.forward(iter, R1, T1, R2, T2, K, density1, density2, low_pass=low_pass, train_both=False)
         if iter >= 20 and iter % 30 == 0:
-            density_estim, density_estim2, loss = self.forward(iter, R1, T1, R2, T2, K, density1, density2, low_pass=low_pass, train_both=True)
+            scale_space_reconstructed, loss = self.forward(iter, level, camera_states, scale_spaces, low_pass=low_pass, train_all=True)
         else:
-            density_estim, density_estim2, loss = self.forward(iter, R1, T1, R2, T2, K, density1, density2, low_pass=low_pass, train_both=False)
+            scale_space_reconstructed, loss = self.forward(iter, level, camera_states, scale_spaces, low_pass=low_pass, train_all=False)
         self.optimizer.step()
 
         if is_log:
@@ -480,31 +496,22 @@ class GaussianModel:
                 self.prune(prune_mask)
         
         if iter % 40 == 0 or iter == 99:
-            mean3d_cam = (R1 @ self._xyz.T).T + T1
-            u = K[0, 0] * mean3d_cam[:, 0] / mean3d_cam[:, 2] + K[0, 2]
-            v = K[1, 1] * mean3d_cam[:, 1] / mean3d_cam[:, 2] + K[1, 2]
-            prune_u = torch.logical_or(u < 0, u > self.rasterizer_w)
-            prune_v = torch.logical_or(v < 0, v > self.rasterizer_h)
-            prune_depth = mean3d_cam[:, 2] > self.far_clip
+            prune_mask = torch.ones((self.num_gaussians,), dtype=torch.bool, device='cuda')
+            for i in range(num_of_cams):
+                K = camera_states[i].K
 
-            prune_mask = torch.logical_or(prune_u, prune_v)
-            prune_mask = torch.logical_or(prune_mask, prune_depth)
+                mean3d_cam = (camera_states[i].R @ self._xyz.T).T + camera_states[i].T
+                u = K[0, 0] * mean3d_cam[:, 0] / mean3d_cam[:, 2] + K[0, 2]
+                v = K[1, 1] * mean3d_cam[:, 1] / mean3d_cam[:, 2] + K[1, 2]
+                prune_u = torch.logical_or(u < 0, u > self.rasterizer_w)
+                prune_v = torch.logical_or(v < 0, v > self.rasterizer_h)
+                prune_depth = mean3d_cam[:, 2] > self.far_clip
 
-            mean3d_cam = (R2 @ self._xyz.T).T + T2
-            u = K[0, 0] * mean3d_cam[:, 0] / mean3d_cam[:, 2] + K[0, 2]
-            v = K[1, 1] * mean3d_cam[:, 1] / mean3d_cam[:, 2] + K[1, 2]
-            prune_u = torch.logical_or(u < 0, u > self.rasterizer_w)
-            prune_v = torch.logical_or(v < 0, v > self.rasterizer_h)
-            prune_depth = mean3d_cam[:, 2] > self.far_clip
-            prune_mask2 = torch.logical_or(prune_u, prune_v)
+                prune_mask = prune_mask & (prune_u | prune_v | prune_depth)
+            
+            if prune_mask.any():
+                self.prune(prune_mask)
 
-            prune_mask2 = torch.logical_or(prune_u, prune_v)
-            prune_mask2 = torch.logical_or(prune_mask2, prune_depth)
-
-            prune_mask_all = torch.logical_or(prune_mask, prune_mask2)
-            if prune_mask_all.any():
-                self.prune(prune_mask_all)
-        
         # if iter >= 20 and iter % 30 == 0:
         #     # if self.num_gaussians < 4:
         #     #     split_mask = self._weights > 0.
@@ -581,6 +588,16 @@ class GaussianModel:
         #     # ax6 = fig.add_subplot(236)
         #     # ax6.imshow((density2 - density_estim2).cpu())
         #     # ax6.scatter(pnts_right[0, :], pnts_right[1, :])
+
+        #     # peaks_3d_left = peaks_3d @ P1_proj_np[:, :3].T + P1_proj_np[:, 3].T
+        #     # peaks_3d_left = peaks_3d_left[:, :2] / peaks_3d_left[:, 2].reshape((-1, 1))
+        #     # peaks_3d_left = peaks_3d_left.T
+        #     # ax3.scatter(peaks_3d_left[0, :], peaks_3d_left[1, :])
+
+        #     # peaks_3d_right = peaks_3d @ P2_proj_np[:, :3].T + P2_proj_np[:, 3].T
+        #     # peaks_3d_right = peaks_3d_right[:, :2] / peaks_3d_right[:, 2].reshape((-1, 1))
+        #     # peaks_3d_right = peaks_3d_right.T
+        #     # ax6.scatter(peaks_3d_right[0, :], peaks_3d_right[1, :])
         #     # plt.show()
 
         #     mean3d_cam = (R1 @ torch.from_numpy(peaks_3d).cuda().T).T + T1
@@ -590,15 +607,16 @@ class GaussianModel:
         #     new_weights = 2*torch.pi * (K[0, 0] / D)**2 * torch.median(self._radius).item()**2 * (residual1)[pnts_left[1, :], pnts_left[0, :]] / 255
         #     new_weights = new_weights.reshape((-1, 1))
 
-        #     self.density_preserving_spawn(
-        #         torch.from_numpy(peaks_3d).cuda(), 
-        #         new_radius, 
-        #         new_weights,
-        #         R1, T1, K
-        #     )
-        if torch.isnan(torch.sum(self._xyz)):
-            pass
-        return density_estim, density_estim2, None, loss
+        #     # self.density_preserving_spawn(
+        #     #     torch.from_numpy(peaks_3d).cuda(), 
+        #     #     new_radius, 
+        #     #     new_weights,
+        #     #     R1, T1, K
+        #     # )
+        #     self.densification_postfix(torch.from_numpy(peaks_3d).cuda(), new_radius, new_weights)
+        # if torch.isnan(torch.sum(self._xyz)):
+        #     pass
+        return scale_space_reconstructed, None, loss
     
     def _find_maxima_in_residual(self, residual: torch.Tensor) -> torch.Tensor:
             """Finds local maxima in the residual image above a threshold."""
@@ -924,7 +942,7 @@ class GaussianModel:
         def eval_gaussian_2d(uv_points, mu, radius_2d):
             dist_sq = torch.sum((uv_points.unsqueeze(1) - mu.unsqueeze(0))**2, dim=-1)
             # Add epsilon to avoid division by zero
-            return torch.exp(-0.5 * dist_sq / (radius_2d.pow(2).T + 1e-8))
+            return torch.exp(-0.5 * dist_sq / (radius_2d.pow(2).T + 1e-8)) / radius_2d.pow(2).T
 
         # =================== Vectorized Implementation ===================
 
@@ -972,7 +990,7 @@ class GaussianModel:
         
         # Calculate C_new for each new Gaussian at its own tile center
         dist_sq_new = torch.sum((valid_new_uv - tile_centers_new)**2, dim=-1)
-        gaussian_vals_new = torch.exp(-0.5 * dist_sq_new / (valid_new_r2d.squeeze().pow(2) + 1e-8))
+        gaussian_vals_new = torch.exp(-0.5 * dist_sq_new / (valid_new_r2d.squeeze().pow(2) + 1e-8)) / valid_new_r2d.squeeze().pow(2)
         C_new_per_new = valid_new_weights.squeeze() * gaussian_vals_new
         
         # Step 8: Calculate the scaling factor for each new Gaussian's tile

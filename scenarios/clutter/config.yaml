@@ -1,5 +1,8 @@
-cam_pose: [-1000, 500, 0, 1, 0, 0, 0]
-cam_pose2: [-1000, -500, 0, 1, 0, 0, 0]
+data_file: dataset/clutter.npy
+cam_poses: [
+  [-1000, 500, 0, 1, 0, 0, 0],
+  [-1000, -500, 0, 1, 0, 0, 0]
+]
 # add a .5 to the principal point so that a point at the center will be projected at (500.5, 500.5) rather than (500, 500)
 # this prevents a bias where the 2d gradient is not zero even when the 3d point is at the center of the image.
 intrinsics_params: [[2500, 0, 500.5], [0, 2500, 500.5], [0, 0, 1]]
@@ -12,4 +15,3 @@ size: 1
 save_video: false
 fps: 30
 dpi: 100
-data_file: dataset/clutter.npy

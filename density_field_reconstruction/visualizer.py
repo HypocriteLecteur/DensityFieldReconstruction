@@ -1,5 +1,7 @@
 import matplotlib.pyplot as plt
+from matplotlib.gridspec import GridSpec
 import numpy as np
+import math
 from itertools import cycle
 import torch
 import os
@@ -269,7 +271,7 @@ def compute_fov_frustum(intrinsics, width, height, near=10.0, far=1000.0):
 
 def frustum_to_world(vertices, cam_pose, R=None, T=None):
     if R is None:
-        from density_field_reconstruction.density_reconstructor import CameraState
+        from density_field_reconstruction.camera_state import CameraState
         P = CameraState.wrd_to_cam(cam_pose)
         vertices_world = []
         for v in vertices:
@@ -329,7 +331,7 @@ class GMMInteractivePlotter:
     """
     Encapsulates the state and logic for the interactive GMM and Loss history visualization.
     """
-    def __init__(self, config_path: str, log_file_path: str):
+    def __init__(self, config_path: str, log_file_path: str, log_file2_path: str=None):
         # --- Configuration and Data Setup ---
         
         # Load config and main data
@@ -338,12 +340,13 @@ class GMMInteractivePlotter:
         self.data = factory.get_dataset(self.config.data_file)
         self.positions_all = self.data.trajectories
         self.log_file_path = log_file_path
+        self.log_file2_path = log_file2_path
 
         # Initialize core components
-        self.stereo_vision = MultiCameraSystem.create_stereo(
-            intrinsics=self.config.intrinsics_params, 
+        self.cam_system = MultiCameraSystem.create_system(
+            intrinsics=self.config.intrinsics_params,
             H=self.config.H, W=self.config.W, 
-            pose1=self.config.cam_pose, pose2=self.config.cam_pose2,
+            poses=self.config.cam_poses,
             near_clip=self.config.near_clip, far_clip=self.config.far_clip, size=self.config.size)
         self.density_reconstructor = DensityReconstructor(self.config.intrinsics_params, max_iter=self.config.iter)
 
@@ -361,6 +364,9 @@ class GMMInteractivePlotter:
         self.gmm3_id = None
         self.current_time_step = -1 # Sentinel for history loading
         self.history_line = None # Line object for current iteration marker
+
+        self.training_history = None
+        self.training_history2 = None
 
         # Define limits
         self.MIN_ITER, self.MAX_ITER, self.STEP_ITER = 0, self.config.iter-1, 1
@@ -397,12 +403,21 @@ class GMMInteractivePlotter:
 
         # 1. --- History Plot Update (Only when time_step changes) ---
         if time_step != self.current_time_step:
+            # load training history
+            checkpoint_path = os.path.join(self.log_file_path, f"t_{time_step:03d}", f"checkpoint_level_0.pth")
+            checkpoint_path2 = os.path.join(self.log_file2_path, f"t_{time_step:03d}", f"checkpoint_level_0.pth")
+            self.training_history = GaussianModel.load_training_history(checkpoint_path)
+            self.training_history2 = GaussianModel.load_training_history(checkpoint_path2)
+
             self.current_time_step = time_step
             history_path = os.path.join(self.log_file_path, f"t_{time_step:03d}", "history_level_0.pth")
+            history2_path = os.path.join(self.log_file2_path, f"t_{time_step:03d}", "history_level_0.pth")
             
             try:
                 loaded_history = torch.load(history_path, weights_only=False)
                 loss_history = loaded_history['loss_history']
+                loaded_history2 = torch.load(history2_path, weights_only=False)
+                loss_history2 = loaded_history2['loss_history']
                 
                 self.ax_history.clear()
                 iter = self.config.iter
@@ -412,6 +427,13 @@ class GMMInteractivePlotter:
                     loss_history, 
                     color='k', 
                     label='Loss History'
+                )
+                self.ax_history.plot(
+                    np.arange(0, iter, 1),
+                    loss_history2, 
+                    color='k',
+                    linestyle='dashed',
+                    label='Loss History 2'
                 )
                 # self.ax_history.plot(
                 #     np.arange(
@@ -462,21 +484,18 @@ class GMMInteractivePlotter:
             pass
 
         # Handle data visibility
-        _, projections, _ = self.stereo_vision.simulate_vision(self.positions_all[time_step], renderer='gaussian')
-        swarm_projection, swarm_projection2 = projections
-        is_visible = (swarm_projection[:, 0] > 0).squeeze() & (swarm_projection[:, 1] > 0).squeeze() & \
-            (swarm_projection[:, 0] < self.config.H).squeeze() & (swarm_projection[:, 1] < self.config.W).squeeze()
-        is_visible2 = (swarm_projection2[:, 0] > 0).squeeze() & (swarm_projection2[:, 1] > 0).squeeze() & \
-            (swarm_projection2[:, 0] < self.config.H).squeeze() & (swarm_projection2[:, 1] < self.config.W).squeeze()
-        is_visible = np.logical_and(is_visible, is_visible2)
+        _, projections, _ = self.cam_system.simulate_vision(self.positions_all[time_step], renderer='gaussian')
+        is_visible = np.zeros((self.positions_all[time_step].shape[0],), dtype=np.bool)
+        for i in range(len(projections)):
+            projection = projections[i]
+            is_visible_ = (projection[:, 0] > 0).squeeze() & (projection[:, 1] > 0).squeeze() & \
+                (projection[:, 0] < self.config.H).squeeze() & (projection[:, 1] < self.config.W).squeeze()
+            is_visible = is_visible | is_visible_
         real_means_visible = self.positions_all[time_step][is_visible]
-
-        # Load Gaussian Models
-        checkpoint_path = os.path.join(self.log_file_path, f"t_{time_step:03d}", f"checkpoint_level_0_iter_{iter_val}.pth")
         
         try:
-            GM_1 = GaussianModel.load_model(checkpoint_path)
-            GM_2 = GaussianModel.load_model(checkpoint_path)
+            GM_1 = GaussianModel.load_iter(self.training_history, iter_val)
+            GM_2 = GaussianModel.load_iter(self.training_history2, iter_val)
         except Exception:
             self.gmm_visualizer.clear_data()
             self.fig.canvas.draw_idle()
@@ -570,16 +589,38 @@ class GMMInteractivePlotter:
         self.update_plot(None)
         plt.show()
 
+def calculate_grid_dims(N):
+    """Calculates near-square (Rows, Cols) for N items."""
+    if N <= 0:
+        return 1, 1
+    
+    # Calculate the number of columns (C) as the ceiling of sqrt(N)
+    C = math.ceil(math.sqrt(N))
+    
+    # Calculate the number of rows (R)
+    R = math.ceil(N / C)
+     
+    return R, C
+
 class SimulationVisualizer:
     # Modes for visualization:
     MODE_3D_ONLY = '3d_only'  # Use only the first (3D) axis
     MODE_ALL = 'all'          # Use all three axes (3D + 2 camera views)
 
-    def __init__(self, intrinsics_params: np.ndarray, mode: str=MODE_ALL, 
+    def __init__(self, 
+                 intrinsics_params: np.ndarray, 
+                 H: int, W: int, 
+                 cam_num: int, 
+                 mode: str=MODE_ALL, 
                  save_video: bool=False, 
                  video_filename: str='animation.mp4', 
-                 fps: int=30, dpi: int=100, positions_all: np.ndarray=None):
+                 fps: int=30, dpi: int=100, 
+                 positions_all: np.ndarray=None):
         self.intrinsics_params = intrinsics_params
+        self.H = H
+        self.W = W
+
+        self.cam_num = cam_num
         self.mode = mode.lower()
         if self.mode not in [self.MODE_3D_ONLY, self.MODE_ALL]:
              raise ValueError(f"Mode must be '{self.MODE_3D_ONLY}' or '{self.MODE_ALL}'")
@@ -596,7 +637,7 @@ class SimulationVisualizer:
             self.min_positions = np.min(positions_all, axis=(0, 1))
             self.max_positions = np.max(positions_all, axis=(0, 1))
             
-        self.fig, self.axes = self._setup_plots()
+        self.fig, self.axes, self.image_artists = self._setup_plots()
         
         self.writer = FFMpegWriter(fps=fps) if save_video else None
         if save_video:
@@ -605,6 +646,8 @@ class SimulationVisualizer:
 
     def _setup_plots(self):
         """Sets up the matplotlib figure and axes based on the selected mode."""
+        image_artists = None
+
         if self.mode == self.MODE_3D_ONLY:
             fig = plt.figure(figsize=(8, 8)) # Use a squarer figure for a single plot
             # Single 3D subplot
@@ -621,36 +664,60 @@ class SimulationVisualizer:
             axes = (ax,) # Tuple containing only the 3D axis
             
         elif self.mode == self.MODE_ALL:
-            fig = plt.figure(figsize=(12, 5))
-            # First subplot is 3D (1/3 width)
-            ax = fig.add_subplot(131, projection='3d')
+            num_2d_axes = self.cam_num
+            R_2D, C_2D = calculate_grid_dims(num_2d_axes)
+
+            R_Total = R_2D
+            C_Total = C_2D + 1 # +1 for the 3D plot
+
+            fig = plt.figure(figsize=(4 * C_Total, 4 * R_Total))
+
+            width_ratios = [2] + [1] * C_2D
+            gs = GridSpec(nrows=R_Total, ncols=C_Total, figure=fig, width_ratios=width_ratios)
+
+            ax = fig.add_subplot(gs[:, 0], projection='3d')
+            ax.set_title("3D Subplot (Spans All Rows)")
             ax.set_xlabel('X-axis')
             ax.set_ylabel('Y-axis')
             ax.set_zlabel('Z-axis')
-            # Remaining two are 2D image views
-            ax2 = fig.add_subplot(132)
-            ax2.set_title('Left Camera')
-            ax3 = fig.add_subplot(133)
-            ax3.set_title('Right Camera')
-            axes = (ax, ax2, ax3) # Tuple containing all three axes
 
-        plt.subplots_adjust(left=0.0, right=1.0, top=1.0, bottom=0.0)
-        return fig, axes
+            ax2d = []
+            image_artists = []
+            for k in range(num_2d_axes):
+                # Calculate the row and column index within the right-side grid (starting at column 1)
+                row_idx = k // C_2D
+                col_idx = (k % C_2D) + 1 # +1 because column 0 is for the 3D plot
+                
+                # If we run out of rows, stop (shouldn't happen with the ceiling calculation, but safe check)
+                if row_idx >= R_2D:
+                    break 
+                    
+                ax_2d = fig.add_subplot(gs[row_idx, col_idx])
+                ax_2d.set_title(f"2D Plot {k+1}", fontsize=10)
+                ax2d.append(ax_2d)
+
+                initial_data = np.zeros((self.H, self.W))
+                im = ax_2d.imshow(initial_data, cmap='gray')
+                
+                im.set_clim(vmin=0, vmax=20)
+                
+                image_artists.append(im)
+
+            axes = (ax, *ax2d)
+
+        # plt.subplots_adjust(left=0.0, right=1.0, top=1.0, bottom=0.0)
+        return fig, axes, image_artists
 
 
-    def update(self, time_step=None, positions=None, 
-               cam_pose=None, R1=None, T1=None, 
-               cam_pose2=None, R2=None, T2=None, img=None, img2=None, 
-               cam_poses=None):
+    def update(self, time_step=None, positions=None,
+               cam_poses=None, imgs=None, near_clip=5, far_clip=300):
         """Updates the plots with new data."""
         
         # Determine which axes are available based on the mode
         ax = self.axes[0]
-        ax2 = self.axes[1] if self.mode == self.MODE_ALL else None
-        ax3 = self.axes[2] if self.mode == self.MODE_ALL else None
         
         # --- 3D Plot Update (ax) ---
-        if time_step is not None or positions is not None or cam_pose is not None or cam_pose2 is not None:
+        if time_step is not None or positions is not None or cam_poses is not None:
             ax.clear()
             # The cuboid is plotted only if bounds were initialized in __init__
             if self.min_positions is not None and self.max_positions is not None:
@@ -663,16 +730,7 @@ class SimulationVisualizer:
             # Plot camera frustums if provided
             if cam_poses is not None:
                 for cam_pose in cam_poses:
-                    plot_frustum(ax, cam_pose, self.intrinsics_params, far=300, near=5)
-            else:
-                if cam_pose is not None:
-                    plot_frustum(ax, cam_pose, self.intrinsics_params)
-                elif R1 is not None:
-                    plot_frustum(ax, None, R=R1, T=T1, intrinsics_params=self.intrinsics_params)
-                if cam_pose2 is not None:
-                    plot_frustum(ax, cam_pose2, self.intrinsics_params)
-                elif R2 is not None:
-                    plot_frustum(ax, None, R=R2, T=T2, intrinsics_params=self.intrinsics_params)
+                    plot_frustum(ax, cam_pose, self.intrinsics_params, far=far_clip, near=near_clip)
             
             ax.set_aspect('equal', 'box')
             
@@ -684,27 +742,16 @@ class SimulationVisualizer:
         
         # The following image updates only run if in MODE_ALL
         if self.mode == self.MODE_ALL:
-            # --- Camera Image Update (ax2) ---
-            if img is not None:
-                ax2.clear()
-                # Check for .cpu() method and call it if available, otherwise assume numpy array
-                img_data = img.cpu() if hasattr(img, 'cpu') else img
-                ax2.imshow(img_data, cmap='gray')
-                ax2.set_title('Left Camera')
-
-            # --- Camera Image Update (ax3) ---
-            if img2 is not None:
-                ax3.clear()
-                # Check for .cpu() method and call it if available, otherwise assume numpy array
-                img2_data = img2.cpu() if hasattr(img2, 'cpu') else img2
-                ax3.imshow(img2_data, cmap='gray')
-                ax3.set_title('Right Camera')
+            ax, *ax_2d = self.axes
+            for i in range(len(ax_2d)):
+                img_data = imgs[i].cpu() if hasattr(imgs[i], 'cpu') else imgs[i]
+                self.image_artists[i].set_clim(vmin=0, vmax=torch.max(imgs[i]))
+                self.image_artists[i].set_data(img_data)
         
         # ax.set_axis_off()
 
         if self.save_video:
             self.writer.grab_frame()
-        plt.draw()
         plt.pause(0.001)
 
     def close(self):

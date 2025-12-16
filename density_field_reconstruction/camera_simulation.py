@@ -58,11 +58,15 @@ class RenderStrategy:
     """Namespace for different rendering implementations."""
     
     @staticmethod
-    def gaussian_rasterizer(camera, swarm_positions, scale=None):
+    def gaussian_rasterizer(camera, swarm_positions, scale=None, near_clip=None, far_clip=None):
         """
         Renders using the imported rasterize_gaussians function.
         """
-        N = swarm_positions.shape[0]
+        points_2d, depth, mask = camera.project_world_to_image(swarm_positions)
+
+        valid_swarm_positions = swarm_positions[mask]
+
+        N = valid_swarm_positions.shape[0]
         
         # Get Camera Extrinsics (R, T)
         P1 = camera.get_view_matrix_numpy()
@@ -71,7 +75,7 @@ class RenderStrategy:
         T1 = P1_torch[:, 3].contiguous()
 
         # Prepare Swarm Data
-        positions_torch = torch.tensor(swarm_positions, dtype=torch.float32).cuda()
+        positions_torch = torch.tensor(valid_swarm_positions, dtype=torch.float32).cuda()
         
         if scale is not None:
             simulated_scale = np.sqrt(camera.size**2 + scale**2)
@@ -90,8 +94,6 @@ class RenderStrategy:
             camera.W,
             False
         )
-
-        points_2d, depth = camera.project_world_to_image(swarm_positions)
         
         # Return standard format: (2D Projections, Image)
         # Note: Gaussian rasterizer does projection internally, so we return None for 2D points 
@@ -107,7 +109,7 @@ class RenderStrategy:
             raise RuntimeError("CuPy is required for 'cuda_circles' renderer.")
 
         # 1. Manually project 3D -> 2D using Camera math
-        points_2d, depth = camera.project_world_to_image(swarm_positions)
+        points_2d, depth, mask = camera.project_world_to_image(swarm_positions)
         
         # 2. Calculate radii based on depth
         radii = camera.depth_to_radii(depth)
@@ -226,7 +228,7 @@ class Camera:
         # Perspective divide
         points_2d = projected[:, :2] / projected[:, 2].reshape((-1, 1))
 
-        return points_2d, depth
+        return points_2d, depth, mask
 
     def depth_to_radii(self, depth):
         """Calculates screen-space radius based on depth."""
@@ -243,7 +245,7 @@ class Camera:
         start = time.perf_counter()
         
         if renderer_type == 'gaussian':
-            proj_2d, image = RenderStrategy.gaussian_rasterizer(self, swarm_positions, scale)
+            proj_2d, image = RenderStrategy.gaussian_rasterizer(self, swarm_positions, scale, near_clip=self.near_clip, far_clip=self.far_clip)
         elif renderer_type == 'cuda_circles':
             proj_2d, image = RenderStrategy.cuda_circles(self, swarm_positions, scale)
         else:
@@ -261,6 +263,11 @@ class MultiCameraSystem:
             cameras_list: A list of Camera objects.
         """
         self.cameras = cameras_list
+
+    @classmethod
+    def create_system(cls, intrinsics, H, W, poses, near_clip, far_clip, size):
+        cams = [Camera(intrinsics, poses[i], near_clip, far_clip, size, H, W, name=f"cam_{i}") for i in range(poses.shape[0])]
+        return cls(cams)
 
     @classmethod
     def create_stereo(cls, intrinsics, H, W, pose1, pose2, near_clip, far_clip, size):

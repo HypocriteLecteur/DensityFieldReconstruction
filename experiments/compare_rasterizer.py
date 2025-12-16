@@ -6,7 +6,7 @@ import time
 def main():
     H = 1000
     W = 1000
-    P = 50
+    P = 60
 
     gs = GaussianRasterizerSimpleSmall(H=H, W=W, P_max=200)
     GS = GaussianRasterizerSimpleLarge(H=H, W=W, P_max=200)
@@ -26,7 +26,7 @@ def main():
     density = torch.zeros((H, W), dtype=torch.float, device='cuda')
     profile = False
 
-    total_run = 50
+    total_run = 10
 
     # warm-up run
     grad_gmm_mean, grad_gmm_radius, grad_gmm_weights, density_estim, sum_loss = \
@@ -42,6 +42,9 @@ def main():
         )
     start = time.perf_counter()
     for i in range(total_run):
+        gmm_mean_contig = ((torch.rand((P, 3), dtype=torch.float, device='cuda') - 0.5) * 20).contiguous()
+        gmm_radius_contig = ((torch.rand((P, 1), dtype=torch.float, device='cuda') + 0.5) * 2).contiguous()
+        gmm_weights_contig = (torch.rand((P, 1), dtype=torch.float, device='cuda') + 0.5).contiguous()
         grad_gmm_mean, grad_gmm_radius, grad_gmm_weights, density_estim, sum_loss = \
             gs.rasterize_forward_backward(
             gmm_mean_contig,
@@ -68,6 +71,9 @@ def main():
     )
     start2 = time.perf_counter()
     for i in range(total_run):
+        gmm_mean_contig = ((torch.rand((P, 3), dtype=torch.float, device='cuda') - 0.5) * 20).contiguous()
+        gmm_radius_contig = ((torch.rand((P, 1), dtype=torch.float, device='cuda') + 0.5) * 2).contiguous()
+        gmm_weights_contig = (torch.rand((P, 1), dtype=torch.float, device='cuda') + 0.5).contiguous()
         grad_gmm_mean, grad_gmm_radius, grad_gmm_weights, density_estim, sum_loss = GS.rasterize_forward_backward(
             gmm_mean_contig, 
             gmm_radius_contig, 

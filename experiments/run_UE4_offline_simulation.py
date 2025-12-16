@@ -4,7 +4,8 @@ import os
 sys.path.append(os.getcwd()) # To get around relative import issues, I hate Python.
 
 import numpy as np
-from density_field_reconstruction.density_reconstructor import DensityReconstructor, CameraStateUE4
+from density_field_reconstruction.density_reconstructor import DensityReconstructor
+from density_field_reconstruction.camera_state import CameraStateUE4
 from density_field_reconstruction.utils import calculate_gmm_ise_gpu
 from density_field_reconstruction.visualizer import SimulationVisualizer, MultiGMMVisualizer
 from density_field_reconstruction.gaussian_mixture_reduction import GMR
@@ -125,6 +126,8 @@ def main():
     H = 480
 
     visualizer = SimulationVisualizer(intrinsics_params=intrinsics_params,
+                                      H=H, W=W, 
+                                      cam_num=2,
                                       mode='3d_only',
                                       save_video=False, fps=30, dpi=100)
     mgmm_visualizer = MultiGMMVisualizer(H=H, W=W)
@@ -222,11 +225,17 @@ def main():
                 model[0]._weights, 
                 model[0]._radius))
 
+        # visualizer.update(time_step=time_step,
+        #                   positions=positions_all[time_step],
+        #                   R1=camera_states[0].P_np[:, :3], T1=camera_states[0].P_np[:, 3], 
+        #                   R2=camera_states[1].P_np[:, :3], T2=camera_states[1].P_np[:, 3], 
+        #                   img=scale_spaces[0][0], img2=scale_spaces[1][0])
+        
+        # CameraState and CameraStateUE4 has differnt frames
         visualizer.update(time_step=time_step,
-                          positions=positions_all[time_step],
-                          R1=camera_states[0].P_np[:, :3], T1=camera_states[0].P_np[:, 3], 
-                          R2=camera_states[1].P_np[:, :3], T2=camera_states[1].P_np[:, 3], 
-                          img=scale_spaces[0][0], img2=scale_spaces[1][0])
+                    positions=positions_all[time_step],
+                    cam_poses=poses,
+                    imgs=scale_spaces)
         
         r_means, r_weights, r_covs = GMR.kmeans_numpy(
             positions_all[time_step], 
