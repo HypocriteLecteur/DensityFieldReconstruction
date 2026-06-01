@@ -167,21 +167,55 @@ def compute_scaling_law(dataset, step_range, save_path):
     # Compute Modes: Now iterating over trials
     if force_update or not os.path.exists(paths["modes"]):
         all_modes = np.zeros((len(step_range), num_test_scale))
-        
+        num_low_extensions = 0
+
         for i, time_step in enumerate(tqdm(step_range, desc=f"Computing #mode")):
             pos_gpu = torch.from_numpy(dataset.positions_at_time_step(time_step)).cuda().float()
             nn_dist = torch.cdist(pos_gpu, pos_gpu) + torch.eye(pos_gpu.shape[0], device='cuda') * 1e10
             avg_nn_dist = torch.median(torch.min(nn_dist, dim=1).values).item()
 
             s_start, s_end = scale_range[i]
-            test_scales = np.logspace(np.log10(s_start), np.log10(s_end), num_test_scale)
-            
+            N = pos_gpu.shape[0]
+
+            # --- Fix: extend s_start downward if plateau is truncated ---
+            # Check if the first scale is too coarse: if modes[0] is far from N,
+            # the scale range missed the plateau. Extend s_start until we capture it.
+            modes_pos = None
+            test_s_start = s_start
+            test_scales = np.logspace(np.log10(test_s_start), np.log10(s_end), num_test_scale)
+
+            # Quick probe at the current s_start
+            probe_s = float(test_s_start)
+            curr_pos_first = pos_gpu.clone()
+            probe_modes, _ = mc_mod_func(pos_gpu, curr_pos_first, probe_s, max_iter=2500, tol=avg_nn_dist*1e-3)
+
+            # If modes at s_start are already far below N, extend downward
+            if probe_modes < 0.9 * N:
+                # Binary-search style: halve s_start until modes come close to N
+                for _ in range(10):
+                    test_s_start /= 2.0
+                    probe_modes, _ = mc_mod_func(pos_gpu, pos_gpu.clone(), test_s_start,
+                                                  max_iter=2500, tol=avg_nn_dist*1e-3)
+                    if probe_modes >= 0.95 * N:
+                        break
+                # Update the stored scale_range
+                scale_range[i, 0] = test_s_start
+                num_low_extensions += 1
+
+            # Recompute full logspace with (possibly extended) s_start
+            test_scales = np.logspace(np.log10(scale_range[i, 0]), np.log10(s_end), num_test_scale)
+
             modes_pos = None
             for idx, s in enumerate(test_scales):
                 curr_pos = modes_pos.clone() if modes_pos is not None else pos_gpu.clone()
                 mode_num, tmp = mc_mod_func(pos_gpu, curr_pos, s, max_iter=2500, tol=avg_nn_dist*1e-3)
                 modes_pos = torch.from_numpy(tmp).cuda().float()
                 all_modes[i, idx] = mode_num
+
+        if num_low_extensions > 0:
+            print(f"  [FIX] Extended s_start downward for {num_low_extensions}/{len(step_range)} steps "
+                  f"(scale range was truncated, missing the plateau)")
+            np.save(paths["range"], scale_range)
         np.save(paths["modes"], all_modes)
     else:
         all_modes = np.load(paths["modes"])
