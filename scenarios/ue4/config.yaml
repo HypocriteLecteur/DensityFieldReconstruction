@@ -1,0 +1,14 @@
+data_file: D:/WindowsNoEditor/drone_positions.csv
+cam_poses_file: D:/WindowsNoEditor/camera_extrinsics.csv
+# add a .5 to the principal point so that a point at the center will be projected at (500.5, 500.5) rather than (500, 500)
+# this prevents a bias where the 2d gradient is not zero even when the 3d point is at the center of the image.
+intrinsics_params: [[7329, 0, 320], [0, 7329, 240], [0, 0, 1]]
+H: 480
+W: 640
+near_clip: 1
+far_clip: 2000
+iter: 100
+size: 1
+save_video: false
+fps: 30
+dpi: 100

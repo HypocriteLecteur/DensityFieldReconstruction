@@ -11,12 +11,12 @@ def test_gaussian_rasterizer_simple_small():
     gs = GaussianRasterizerSimpleSmall(H=H, W=W, P_max=100)
 
     torch.manual_seed(12345)
-    gmm_mean_contig = (torch.rand((P, 3), dtype=torch.float, device='cuda') - 5) * 20
+    gmm_mean_contig = (torch.rand((P, 3), dtype=torch.float, device='cuda') - 0.5) * 20
     gmm_radius_contig = (torch.rand((P, 1), dtype=torch.float, device='cuda') + 0.5) * 2
     gmm_weights_contig = torch.rand((P, 1), dtype=torch.float, device='cuda') + 0.5
     R_contig = torch.eye(3, dtype=torch.float, device='cuda')
     T_contig = torch.zeros((3, 1), dtype=torch.float, device='cuda')
-    T_contig[2] = 30
+    T_contig[2] = 50
     intrinsics_contig = torch.eye(3, dtype=torch.float, device='cuda') * 1000
     intrinsics_contig[0, 2] = 500
     intrinsics_contig[1, 2] = 500
@@ -35,6 +35,10 @@ def test_gaussian_rasterizer_simple_small():
             density,
             profile
         )
+
+    plt.imshow(density_estim.detach().cpu())
+    plt.show()
+test_gaussian_rasterizer_simple_small()
 
 def test_rasterize():
     H = 1000

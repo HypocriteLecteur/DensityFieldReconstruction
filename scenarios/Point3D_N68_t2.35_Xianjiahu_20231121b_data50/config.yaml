@@ -1,0 +1,18 @@
+data_file: dataset/mobbing_flock_06.npz # directory from root
+cam_poses: [
+  [-125, 62.5, 0, 1, 0, 0, 0],
+  [-125, -62.5, 0, 1, 0, 0, 0],
+  [0, 125, 0, 1, 0, 0, 0]
+]
+# add a .5 to the principal point so that a point at the center will be projected at (500.5, 500.5) rather than (500, 500)
+# this prevents a bias where the 2d gradient is not zero even when the 3d point is at the center of the image.
+intrinsics_params: [[2500, 0, 500.5], [0, 2500, 500.5], [0, 0, 1]]
+H: 1000
+W: 1000
+near_clip: 50
+far_clip: 1000
+iter: 100
+size: 1
+save_video: false
+fps: 30
+dpi: 100
