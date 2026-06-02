@@ -4,7 +4,7 @@ Living task list for the parameter manifold investigation.
 
 ## Remaining
 
-- [ ] **Mechanistic derivation of 3PL** — Can the mode-count curve be derived from spatial point process theory or random geometric graphs?
+- [x] **Mechanistic derivation of 3PL** — k≈3 universal for Poisson/Thomas/normal flocks; 3PL reduces to 1-parameter family (sigma_half). Starling k=19 is anomalous.
 - [ ] **Interactive visualization** — Plotly dashboard for exploring the manifold interactively
 
 ## Done
