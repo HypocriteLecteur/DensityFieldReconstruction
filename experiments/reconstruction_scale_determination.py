@@ -156,8 +156,10 @@ def compute_scaling_law(dataset, step_range, save_path):
             nn_dist = torch.cdist(pos_gpu, pos_gpu) + torch.eye(pos_gpu.shape[0], device='cuda') * 1e10
             avg_nn_dist = torch.median(torch.min(nn_dist, dim=1).values).item()
             
-            f = lambda s: mc_func(pos_gpu, pos_gpu.clone(), s, max_iter=1000, tol=avg_nn_dist*1e-3)
+            f = lambda s: mc_func(pos_gpu, pos_gpu.clone(), s, max_iter=500, tol=avg_nn_dist*1e-3)
             s_start, s_end = find_scale_interval(f, pos_gpu.shape[0], s_initial_guess=avg_nn_dist*5, atol=avg_nn_dist*1e-2)
+            # Clamp: DBSCAN requires eps > 0, and s_start=0 means binary search failed
+            s_start = max(s_start, avg_nn_dist * 1e-2)
             scale_range.append([s_start, s_end])
         scale_range = np.array(scale_range)
         np.save(paths["range"], scale_range)
@@ -184,10 +186,10 @@ def compute_scaling_law(dataset, step_range, save_path):
             test_s_start = s_start
             test_scales = np.logspace(np.log10(test_s_start), np.log10(s_end), num_test_scale)
 
-            # Quick probe at the current s_start
+            # Quick probe at the current s_start (use small max_iter: near N = fast convergence)
             probe_s = float(test_s_start)
             curr_pos_first = pos_gpu.clone()
-            probe_modes, _ = mc_mod_func(pos_gpu, curr_pos_first, probe_s, max_iter=2500, tol=avg_nn_dist*1e-3)
+            probe_modes, _ = mc_mod_func(pos_gpu, curr_pos_first, probe_s, max_iter=200, tol=avg_nn_dist*1e-3)
 
             # If modes at s_start are already far below N, extend downward
             if probe_modes < 0.9 * N:
@@ -195,22 +197,42 @@ def compute_scaling_law(dataset, step_range, save_path):
                 for _ in range(10):
                     test_s_start /= 2.0
                     probe_modes, _ = mc_mod_func(pos_gpu, pos_gpu.clone(), test_s_start,
-                                                  max_iter=2500, tol=avg_nn_dist*1e-3)
+                                                  max_iter=200, tol=avg_nn_dist*1e-3)
                     if probe_modes >= 0.95 * N:
                         break
                 # Update the stored scale_range
-                scale_range[i, 0] = test_s_start
+                scale_range[i, 0] = max(test_s_start, avg_nn_dist * 1e-2)
                 num_low_extensions += 1
 
             # Recompute full logspace with (possibly extended) s_start
             test_scales = np.logspace(np.log10(scale_range[i, 0]), np.log10(s_end), num_test_scale)
 
             modes_pos = None
+            prev_mode_num = N
             for idx, s in enumerate(test_scales):
+                # Optimization: skip at very small scales where no merging happens
+                if s < avg_nn_dist * 0.5:
+                    all_modes[i, idx] = N
+                    continue
+
+                # Optimization: if we already reached 1 mode, all subsequent scales are 1
+                if prev_mode_num <= 1:
+                    all_modes[i, idx] = 1
+                    continue
+
+                # Adaptive max_iter: fewer iters when near N (minimal movement)
+                if prev_mode_num > 0.95 * N:
+                    mi = 200
+                elif prev_mode_num > 0.5 * N:
+                    mi = 500
+                else:
+                    mi = 1500
+
                 curr_pos = modes_pos.clone() if modes_pos is not None else pos_gpu.clone()
-                mode_num, tmp = mc_mod_func(pos_gpu, curr_pos, s, max_iter=2500, tol=avg_nn_dist*1e-3)
+                mode_num, tmp = mc_mod_func(pos_gpu, curr_pos, s, max_iter=mi, tol=avg_nn_dist*1e-3)
                 modes_pos = torch.from_numpy(tmp).cuda().float()
                 all_modes[i, idx] = mode_num
+                prev_mode_num = mode_num
 
         if num_low_extensions > 0:
             print(f"  [FIX] Extended s_start downward for {num_low_extensions}/{len(step_range)} steps "

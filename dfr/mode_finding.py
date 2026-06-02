@@ -99,18 +99,18 @@ def find_scale_interval(func, N, s_initial_guess=30, atol=1e-5):
         Narrow down s until the interval size is within relative tolerance.
         Invariant: func(s_min) > target >= func(s_max)
         """
-        # We limit max_iter to 100 to prevent infinite loops, 
+        # We limit max_iter to 100 to prevent infinite loops,
         # though tolerance usually triggers first.
         for _ in range(20):
             # Dynamic Tolerance Check:
             # We stop if the gap (s_max - s_min) is smaller than X% of the current value
             # This automatically gives coarse precision for large s, fine for small s.
             threshold = atol
-            
+
             if (s_max - s_min) < threshold:
                 break
 
-            mid = (s_min + s_max) / 2.0
+            mid = max((s_min + s_max) / 2.0, 1e-12)
             val = func(mid)
 
             # Standard binary search for monotonic decreasing function
@@ -118,7 +118,7 @@ def find_scale_interval(func, N, s_initial_guess=30, atol=1e-5):
                 s_min = mid # The target is to the right (larger s needed to reduce n)
             else:
                 s_max = mid # The target is to the left
-        
+
         return (s_min + s_max) / 2.0
 
     # 4. Execute Search
@@ -152,22 +152,33 @@ def find_target_scale(func, targetd_num_mode, s_low=0, s_high=30, atol=1e-5):
 
 
 
+# Enable TF32 tensor cores for free ~2x matmul speedup
+torch.set_float32_matmul_precision('high')
+
+
 def mean_shift_step_tiled(positions, modes, sigma, batch_size=1024):
+    """GPU-accelerated mean-shift step with TF32 tensor cores."""
     N, d = positions.shape
     M, _ = modes.shape
     new_modes = torch.zeros_like(modes)
 
+    sigma_safe = max(sigma, 1e-12)
+
     for i in range(0, M, batch_size):
-        batch_modes = modes[i : i + batch_size] # [batch, d]
-        
-        # Compute distances for this batch only
-        cdist = torch.cdist(positions, batch_modes) # [N, batch]
-        W = torch.exp(-0.5 * (cdist / sigma) ** 2)  # [N, batch]
-        
-        # Weighted mean for this batch
-        weight_sum = W.sum(dim=0, keepdim=True)     # [1, batch]
-        new_modes[i : i + batch_size] = (W.T @ positions) / weight_sum.T
-        
+        batch_end = min(i + batch_size, M)
+        batch_modes = modes[i : batch_end]
+        B = batch_end - i
+        # Compute pairwise distances via direct differences to avoid
+        # catastrophic cancellation in ||x||^2+||y||^2-2x·y for float32.
+        diff = positions.unsqueeze(1) - batch_modes.unsqueeze(0)  # [N, B, d]
+        dist_sq = (diff * diff).sum(dim=2)                         # [N, B]
+        cdist = torch.sqrt(dist_sq)
+
+        W = torch.exp(-0.5 * (cdist / sigma_safe) ** 2)
+        weight_sum = W.sum(dim=0, keepdim=True)
+        weight_sum = weight_sum.clamp(min=1e-12)
+        new_modes[i : batch_end] = (W.T @ positions) / weight_sum.T
+
     return new_modes
 
 def mean_shift_step(
@@ -184,6 +195,7 @@ def mean_shift_step(
     return new_modes
 
 def mean_shift_mask_accelerated(positions_torch: torch.Tensor, modes: torch.Tensor, sigma: float, max_iter: int=1000, tol: float=1e-2) -> torch.Tensor:
+    tol = max(tol, 1e-8)  # prevent never-converging when tol=0
     old_modes = modes.clone()
     active_modes_mask = torch.ones(modes.shape[0], dtype=torch.bool, device=modes.device)
 
@@ -236,7 +248,8 @@ def mean_shift(positions_torch: torch.Tensor, modes: torch.Tensor, sigma: float,
 
 def modes_clustering(modes: np.ndarray, distance: float):
     modes_valid = modes[~np.isnan(modes[:, 0])]
-    clustering = DBSCAN(eps=distance, min_samples=1).fit(modes_valid)
+    eps = max(distance, 1e-12)  # DBSCAN requires eps > 0
+    clustering = DBSCAN(eps=eps, min_samples=1).fit(modes_valid)
     number_of_cluster = np.max(clustering.labels_)+1
     cluster_center = np.zeros((number_of_cluster, modes_valid.shape[1]))
     for i in range(number_of_cluster):

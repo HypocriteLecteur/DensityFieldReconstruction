@@ -21,15 +21,18 @@ sys.path.append(os.getcwd())
 
 import numpy as np
 from scipy.optimize import curve_fit
+from scipy.spatial.distance import cdist as scipy_cdist
 from scipy.special import expm1
 from tqdm import tqdm
 import warnings
+import torch
 
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 
 from dfr.simulation_config import SimulationConfig
 from dfr.dataset_io import DatasetFactory
+from dfr.mode_finding import mode_counting, mode_counting_modified, find_scale_interval
 from experiments.power_law import move_figure
 
 
@@ -58,15 +61,22 @@ P0 = lambda med: [2.0, med, 0.0]
 BOUNDS = ([0.1, 1e-6, -2.0], [20.0, np.inf, 5.0])
 
 
+def compute_avg_nn_dist(pos_np):
+    """Compute median nearest-neighbor distance on CPU (robust, avoids CUDA races)."""
+    d = scipy_cdist(pos_np, pos_np)
+    np.fill_diagonal(d, 1e10)
+    return max(float(np.median(np.min(d, axis=1))), 1e-8)
+
+
 # ======================================================================
 # 1. Data loading
 # ======================================================================
 
 DATASET_RUNS = [
-    {"name": "swift",    "start_step": 0,    "end_step": None, "step_length": 200},
+    {"name": "swift",    "start_step": 0,    "end_step": None, "step_length": 20},
     {"name": "starling", "start_step": 0,    "end_step": None, "step_length": 1},
-    {"name": "jackdaw",  "start_step": 350,  "end_step": 550,  "step_length": 10},
-    {"name": "jackdaw2", "start_step": 2700, "end_step": 3460, "step_length": 20},
+    {"name": "jackdaw",  "start_step": 350,  "end_step": 550,  "step_length": 1},
+    {"name": "jackdaw2", "start_step": 2700, "end_step": 3460, "step_length": 5},
 ]
 
 DATASET_COLORS = {
@@ -85,18 +95,15 @@ def set_style():
 
 
 def load_cached_data(run_params):
-    """Load cached modes.npy and scale_range.npy for a dataset."""
+    """Load cached modes.npy and scale_range.npy for a dataset.
+    If cache is missing, compute the scaling law on-the-fly and save it.
+    """
     name = run_params["name"]
     sp = os.path.join(os.getcwd(), "scenarios", name)
+    os.makedirs(sp, exist_ok=True)
 
     mp = os.path.join(sp, "modes.npy")
     srp = os.path.join(sp, "scale_range.npy")
-    if not os.path.exists(mp) or not os.path.exists(srp):
-        print(f"  [WARN] No cache for '{name}'")
-        return None, None, None, None
-
-    all_modes = np.load(mp)
-    scale_range = np.load(srp)
 
     config = SimulationConfig(os.path.join(sp, "config.yaml"))
     dataset = DatasetFactory().get_dataset(config.data_file)
@@ -106,13 +113,98 @@ def load_cached_data(run_params):
     eff_end = end if end is not None and end <= max_steps else max_steps
     step_range = list(range(run_params["start_step"], eff_end, run_params["step_length"]))
 
-    n_eff = min(all_modes.shape[0], scale_range.shape[0], len(step_range))
-    if all_modes.shape[0] != scale_range.shape[0] or scale_range.shape[0] != len(step_range):
-        print(f"  [INFO] Aligning -> n={n_eff}")
+    cache_exists = os.path.exists(mp) and os.path.exists(srp)
 
-    step_range = step_range[:n_eff]
-    scale_range = scale_range[:n_eff]
-    all_modes = all_modes[:n_eff]
+    if not cache_exists:
+        print(f"  [CACHE MISS] Computing scaling law for '{name}' on-the-fly ({len(step_range)} steps)...")
+        num_test_scale = 40
+
+        # --- Phase 1: find scale_range for each time step ---
+        scale_range = np.zeros((len(step_range), 2))
+        for i, s in enumerate(tqdm(step_range, desc=f"  Scale range [{name}]")):
+            pos_np = dataset.positions_at_time_step(s)
+            pos = torch.from_numpy(pos_np).cuda().float()
+            N = pos.shape[0]
+            avg_nn_dist = compute_avg_nn_dist(pos_np)
+            tol = max(avg_nn_dist * 1e-3, 1e-8)
+
+            def f(sc):
+                if sc < avg_nn_dist * 0.1:
+                    return N
+                return mode_counting(pos, pos.clone(), sc, max_iter=500, tol=tol)
+            s_start, s_end = find_scale_interval(
+                f, N, s_initial_guess=avg_nn_dist * 5, atol=max(avg_nn_dist * 1e-2, 1e-8))
+            s_start = max(s_start, max(avg_nn_dist * 1e-2, 1e-8))
+            scale_range[i] = [s_start, s_end]
+
+        np.save(srp, scale_range)
+
+        # --- Phase 2: mode counting at each scale for each time step ---
+        all_modes = np.zeros((len(step_range), num_test_scale))
+        for i, s in enumerate(tqdm(step_range, desc=f"  Mode counting [{name}]")):
+            pos_np = dataset.positions_at_time_step(s)
+            pos = torch.from_numpy(pos_np).cuda().float()
+            N = pos.shape[0]
+            avg_nn_dist = compute_avg_nn_dist(pos_np)
+            tol = max(avg_nn_dist * 1e-3, 1e-8)
+
+            s_start, s_end = scale_range[i]
+
+            # Extend s_start downward if plateau is truncated
+            probe_s = float(s_start)
+            probe_modes, _ = mode_counting_modified(pos, pos.clone(), probe_s,
+                                                      max_iter=200, tol=tol)
+            if probe_modes < 0.9 * N:
+                for _ in range(10):
+                    s_start /= 2.0
+                    probe_modes, _ = mode_counting_modified(pos, pos.clone(), s_start,
+                                                              max_iter=200, tol=tol)
+                    if probe_modes >= 0.95 * N:
+                        break
+                s_start = max(s_start, max(avg_nn_dist * 1e-2, 1e-8))
+                scale_range[i, 0] = s_start
+
+            test_scales = np.logspace(np.log10(max(s_start, 1e-12)),
+                                      np.log10(max(s_end, 1e-11)), num_test_scale)
+
+            modes_pos = None
+            prev_mode_num = N
+            for j, sc in enumerate(test_scales):
+                if sc < avg_nn_dist * 0.5:
+                    all_modes[i, j] = N
+                    continue
+                if prev_mode_num <= 1:
+                    all_modes[i, j] = 1
+                    continue
+
+                if prev_mode_num > 0.95 * N:
+                    mi = 200
+                elif prev_mode_num > 0.5 * N:
+                    mi = 500
+                else:
+                    mi = 1500
+
+                curr_pos = modes_pos.clone() if modes_pos is not None else pos.clone()
+                mode_num, tmp = mode_counting_modified(pos, curr_pos, sc,
+                                                        max_iter=mi, tol=tol)
+                modes_pos = torch.from_numpy(tmp).cuda().float()
+                all_modes[i, j] = mode_num
+                prev_mode_num = mode_num
+
+        np.save(mp, all_modes)
+        np.save(srp, scale_range)  # re-save in case s_start was extended
+        print(f"  [CACHE SAVED] {name}: modes={all_modes.shape}, scales={scale_range.shape}")
+
+    else:
+        all_modes = np.load(mp)
+        scale_range = np.load(srp)
+
+        n_eff = min(all_modes.shape[0], scale_range.shape[0], len(step_range))
+        if all_modes.shape[0] != scale_range.shape[0] or scale_range.shape[0] != len(step_range):
+            print(f"  [INFO] Aligning -> n={n_eff}")
+        step_range = step_range[:n_eff]
+        scale_range = scale_range[:n_eff]
+        all_modes = all_modes[:n_eff]
 
     print(f"  Loading N for {name} ({len(step_range)} steps)...")
     N_array = np.array([dataset.positions_at_time_step(s).shape[0] for s in tqdm(step_range)])
@@ -488,6 +580,119 @@ def print_manifold_summary(all_params, all_N, all_names, labels):
 
 
 # ======================================================================
+# 6b. Intrinsic manifold: shape curve + scale axis
+# ======================================================================
+
+def fit_shape_curve(k_vals, log_gamma_vals, degree=3):
+    """Fit log10_gamma = poly(k) to capture the 1D shape curve.
+
+    Returns:
+        coeffs: polynomial coefficients (highest degree first)
+        k_grid, lg_grid: dense sampling of the fitted curve
+        arc_length: arc length at each grid point
+    """
+    # Fit polynomial: log10_gamma = f(k)
+    coeffs = np.polyfit(k_vals, log_gamma_vals, degree)
+    poly = np.poly1d(coeffs)
+
+    # Dense sampling of the fitted curve
+    k_grid = np.linspace(k_vals.min(), k_vals.max(), 500)
+    lg_grid = poly(k_grid)
+
+    # Arc length along the curve: s(k) = integral of sqrt(1 + (df/dk)^2)
+    d_poly = np.polyder(poly)
+    d_lg = d_poly(k_grid)
+    integrand = np.sqrt(1.0 + d_lg**2)
+    arc_length = np.concatenate([[0.0], np.cumsum(np.diff(k_grid) * 0.5 * (integrand[:-1] + integrand[1:]))])
+
+    return coeffs, k_grid, lg_grid, arc_length
+
+
+def project_to_shape_curve(k, log_gamma, k_grid, lg_grid, arc_length):
+    """Project each point (k, log_gamma) onto the nearest point of the shape curve.
+
+    Returns:
+        s: arc-length coordinate along the shape curve
+        k_proj, lg_proj: projected point on the curve
+    """
+    s = np.zeros(len(k))
+    k_proj = np.zeros(len(k))
+    lg_proj = np.zeros(len(k))
+
+    for i in range(len(k)):
+        # Find nearest point on the dense grid
+        dist2 = (k_grid - k[i])**2 + (lg_grid - log_gamma[i])**2
+        idx = np.argmin(dist2)
+        s[i] = arc_length[idx]
+        k_proj[i] = k_grid[idx]
+        lg_proj[i] = lg_grid[idx]
+
+    return s, k_proj, lg_proj
+
+
+def plot_intrinsic_manifold(all_params, all_names, all_N, shape_fit, s_coord):
+    """The intrinsic 2D manifold: shape coordinate (arc length) vs sigma_half.
+
+    This replaces the learned UMAP embedding with physically interpretable axes:
+      - X-axis: position along the k--log10_gamma shape curve (steepness)
+      - Y-axis: sigma_half (characteristic scale of substructure)
+    """
+    coeffs, k_grid, lg_grid, arc_length = shape_fit
+
+    set_style()
+    fig, axes = plt.subplots(1, 3, figsize=(20, 5.5))
+    move_figure(fig, 100, 100)
+    datasets = sorted(set(all_names))
+
+    # --- Left: the fitted shape curve ---
+    ax = axes[0]
+    for ds in datasets:
+        m = all_names == ds
+        ax.scatter(all_params[m, 0], all_params[m, 2], c=DATASET_COLORS[ds],
+                   label=ds, s=15, alpha=0.6, edgecolors="none")
+    ax.plot(k_grid, lg_grid, "k-", lw=2.5, label="Fitted shape curve")
+    ax.set_xlabel("k")
+    ax.set_ylabel("log10_gamma")
+    ax.set_title("Shape curve: k vs log10_gamma")
+    ax.legend(frameon=False, fontsize=7)
+
+    # --- Center: intrinsic manifold (shape coord vs sigma_half) ---
+    ax = axes[1]
+    sigma_half = all_params[:, 1]
+    for ds in datasets:
+        m = all_names == ds
+        ax.scatter(s_coord[m], sigma_half[m], c=DATASET_COLORS[ds],
+                   label=ds, s=20, alpha=0.7, edgecolors="none")
+    ax.set_xlabel("Shape coordinate (arc length along k--log_g curve)")
+    ax.set_ylabel("sigma_half (characteristic scale)")
+    ax.set_title("Intrinsic 2D manifold\n(shape curve arc length vs scale)")
+    ax.legend(frameon=False, fontsize=7)
+
+    # --- Right: intrinsic manifold colored by N ---
+    ax = axes[2]
+    sc = ax.scatter(s_coord, sigma_half, c=all_N, cmap="plasma",
+                    s=20, alpha=0.7, edgecolors="none")
+    ax.set_xlabel("Shape coordinate (arc length)")
+    ax.set_ylabel("sigma_half")
+    ax.set_title("Colored by N (# agents)")
+    plt.colorbar(sc, ax=ax, label="N")
+
+    # Print summary
+    print(f"\n  Shape curve: log10_gamma = {coeffs[0]:.4f}*k^3 + {coeffs[1]:.4f}*k^2 + "
+          f"{coeffs[2]:.4f}*k + {coeffs[3]:.4f}")
+    print(f"  Arc length range: [{np.min(s_coord):.2f}, {np.max(s_coord):.2f}]")
+    print(f"  Per-dataset mean (shape_coord, sigma_half):")
+    for ds in datasets:
+        m = all_names == ds
+        print(f"    {ds:<12} shape={np.mean(s_coord[m]):.2f}, sigma_half={np.mean(sigma_half[m]):.3f}")
+
+    plt.tight_layout()
+    plt.savefig("figs/manifold_intrinsic.png", bbox_inches="tight", dpi=300)
+    plt.show()
+    print("  -> Saved figs/manifold_intrinsic.png")
+
+
+# ======================================================================
 # 7. Main
 # ======================================================================
 
@@ -554,9 +759,19 @@ def main():
     nc = len(set(labels)) - (1 if -1 in labels else 0)
     print(f"  {method}: {nc} clusters, {int(sum(labels == -1))} noise")
 
+    # --- Shape curve fitting ---
+    print(f"\n{'='*60}\nFitting shape curve (k vs log10_gamma)\n{'='*60}")
+    k_vals = all_params[:, 0]
+    lg_vals = all_params[:, 2]
+    shape_fit = fit_shape_curve(k_vals, lg_vals, degree=3)
+    _, k_grid, lg_grid, arc_len = shape_fit
+    s_coord, k_proj, lg_proj = project_to_shape_curve(k_vals, lg_vals,
+                                                       k_grid, lg_grid, arc_len)
+
     # --- Figures ---
     print(f"\n{'='*60}\nGenerating figures\n{'='*60}")
     plot_pca_scree(embeddings["pca_model"], embeddings["scaler"])
+    plot_intrinsic_manifold(all_params, all_names, all_N, shape_fit, s_coord)
     plot_parameter_space(all_params, all_names)
     plot_embeddings(embeddings, all_names, all_N, labels)
     plot_cluster_curves(all_params, all_N, all_names, labels)
