@@ -186,13 +186,8 @@ def mean_shift_step(
     modes: torch.Tensor,
     sigma: float
 ) -> torch.Tensor:
-    cdist = torch.cdist(positions, modes) # [N, M]
-    W = torch.exp(-0.5 * (cdist / sigma) ** 2) # [N, M]
-    # column-wise normalization
-    weight_sum = W.sum(dim=0, keepdim=True)  # [1, M]
-    # weighted mean
-    new_modes = (W.T @ positions) / weight_sum.T  # [M, d]
-    return new_modes
+    # Delegate to tiled version with direct-diff (avoids torch.cdist bugs)
+    return mean_shift_step_tiled(positions, modes, sigma)
 
 def mean_shift_mask_accelerated(positions_torch: torch.Tensor, modes: torch.Tensor, sigma: float, max_iter: int=1000, tol: float=1e-2) -> torch.Tensor:
     tol = max(tol, 1e-8)  # prevent never-converging when tol=0
@@ -200,41 +195,46 @@ def mean_shift_mask_accelerated(positions_torch: torch.Tensor, modes: torch.Tens
     active_modes_mask = torch.ones(modes.shape[0], dtype=torch.bool, device=modes.device)
 
     for iter in range(max_iter):
-        new_modes_ = mean_shift_step_tiled(positions_torch, old_modes, sigma)
+        # Only process active modes — saves O(N * (M - M_active)) per iteration
+        active_indices = torch.where(active_modes_mask)[0]
+        old_active = old_modes[active_indices]
+        new_active = mean_shift_step_tiled(positions_torch, old_active, sigma)
 
-        # Standard mean-shift (relaxation=1.0): guaranteed convergence without
-        # oscillation. Over-relaxation (1.9) caused modes to oscillate around
-        # peaks, preventing convergence and wasting iterations.
-        new_modes = old_modes + 1.0*(new_modes_ - old_modes)
+        shift_dist = torch.norm(new_active - old_active, dim=1)
+        still_active = shift_dist >= tol
 
-        mean_shift_dist = torch.norm(new_modes[active_modes_mask] - old_modes[active_modes_mask], dim=1).reshape((-1,))
+        # Update: mark converged modes as inactive
+        active_modes_mask[active_indices[~still_active]] = False
 
-        active_modes_mask[active_modes_mask.clone()] = mean_shift_dist >= tol
+        # Update positions of still-active modes
+        active_modes_mask_copy = active_modes_mask.clone()
+        old_modes[active_indices[still_active]] = new_active[still_active]
 
-        num_active = torch.sum(active_modes_mask).item()
-        if num_active == 0:
+        if not active_modes_mask.any():
             break
 
-        old_modes[active_modes_mask] = new_modes[active_modes_mask]
-    return new_modes, iter
+    return old_modes, iter
 
 def mean_shift_mask(positions_torch: torch.Tensor, modes: torch.Tensor, sigma: float, max_iter: int=1000, tol: float=1e-2) -> torch.Tensor:
+    tol = max(tol, 1e-8)
     old_modes = modes.clone()
     active_modes_mask = torch.ones(modes.shape[0], dtype=torch.bool, device=modes.device)
 
     for iter in range(max_iter):
-        new_modes = mean_shift_step(positions_torch, old_modes, sigma)
+        active_indices = torch.where(active_modes_mask)[0]
+        old_active = old_modes[active_indices]
+        new_active = mean_shift_step_tiled(positions_torch, old_active, sigma)
 
-        mean_shift_dist = torch.norm(new_modes[active_modes_mask] - old_modes[active_modes_mask], dim=1).reshape((-1,))
+        shift_dist = torch.norm(new_active - old_active, dim=1)
+        still_active = shift_dist >= tol
 
-        active_modes_mask[active_modes_mask.clone()] = mean_shift_dist >= tol
+        active_modes_mask[active_indices[~still_active]] = False
+        old_modes[active_indices[still_active]] = new_active[still_active]
 
-        num_active = torch.sum(active_modes_mask).item()
-        if num_active == 0:
+        if not active_modes_mask.any():
             break
 
-        old_modes[active_modes_mask] = new_modes[active_modes_mask]
-    return new_modes, iter
+    return old_modes, iter
 
 def mean_shift(positions_torch: torch.Tensor, modes: torch.Tensor, sigma: float, max_iter: int=1000, tol: float=1e-2) -> torch.Tensor:
     old_modes = modes.clone()
