@@ -951,7 +951,73 @@ def plot_N_dependence(all_params, all_N, all_names, shape_fit):
 
 
 # ======================================================================
-# 8. Main
+# 8. Cluster stability via bootstrapping
+# ======================================================================
+
+def bootstrap_cluster_stability(all_params, n_boot=100):
+    """Bootstrap resampling to assess cluster stability.
+
+    Resamples the 3PL fit parameters with replacement, re-runs HDBSCAN
+    directly on standardized 3D parameter space (not UMAP), and measures
+    per-cluster preservation. This is more conservative than UMAP-HDBSCAN
+    and reveals which clusters are robust to sampling noise.
+
+    Returns: stability dict {cluster_id: [fraction_preserved, ...]}
+    """
+    from sklearn.preprocessing import StandardScaler
+    try:
+        import hdbscan
+    except ImportError:
+        print("  [SKIP] hdbscan not installed")
+        return {}
+
+    scaler = StandardScaler()
+    X = scaler.fit_transform(all_params)
+    n_total = len(all_params)
+
+    clusterer = hdbscan.HDBSCAN(min_cluster_size=5, min_samples=3,
+                                cluster_selection_epsilon=0.5, metric="euclidean")
+    ref_labels = clusterer.fit_predict(X)
+    ref_clusters = [c for c in sorted(set(ref_labels)) if c >= 0]
+    n_noise = int(sum(ref_labels == -1))
+
+    stability = {c: [] for c in ref_clusters}
+    for _ in range(n_boot):
+        idx = np.random.choice(n_total, n_total, replace=True)
+        labels_boot = clusterer.fit_predict(X[idx])
+        for ref_c in ref_clusters:
+            ref_mask = ref_labels == ref_c
+            boot_in_ref = labels_boot[ref_mask]
+            boot_in_ref = boot_in_ref[boot_in_ref >= 0]
+            if len(boot_in_ref) > 0:
+                majority = int(np.bincount(boot_in_ref).max())
+                stability[ref_c].append(majority / ref_mask.sum())
+
+    print(f"\n  Bootstrap stability ({n_boot} resamples, raw param space):")
+    print(f"    Reference: {len(ref_clusters)} clusters + {n_noise} noise (UMAP-HDBSCAN: more clusters)")
+    print(f"    {'Cluster':>8} {'Size':>6} {'Stability':>10}")
+
+    all_scores = []
+    for ref_c in sorted(stability.keys()):
+        scores = stability[ref_c]
+        mean_s = np.mean(scores)
+        all_scores.extend(scores)
+        n = (ref_labels == ref_c).sum()
+        flag = " !!" if mean_s < 0.5 else ""
+        print(f"    {ref_c:>8} {n:>6} {mean_s:>10.3f}{flag}")
+
+    print(f"    Overall: {np.mean(all_scores):.3f} +- {np.std(all_scores):.3f}")
+
+    # Flag unstable
+    n_unstable = sum(1 for s in stability.values() if np.mean(s) < 0.5)
+    if n_unstable > 0:
+        print(f"    WARNING: {n_unstable}/{len(ref_clusters)} clusters are unstable (<0.5)")
+
+    return stability
+
+
+# ======================================================================
+# 9. Main
 # ======================================================================
 
 def main():
@@ -1020,6 +1086,9 @@ def main():
     labels, method = run_clustering(emb)
     nc = len(set(labels)) - (1 if -1 in labels else 0)
     print(f"  {method}: {nc} clusters, {int(sum(labels == -1))} noise")
+
+    # --- Cluster stability ---
+    bootstrap_cluster_stability(all_params)
 
     # --- Shape curve fitting ---
     print(f"\n{'='*60}\nFitting shape curve (k vs log10_gamma)\n{'='*60}")
