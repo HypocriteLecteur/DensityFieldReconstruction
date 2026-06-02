@@ -677,7 +677,12 @@ def fit_shape_curve(k_vals, log_gamma_vals, s=5.0):
     lg_sort = log_gamma_vals[sort_idx]
     spline = UnivariateSpline(k_sort, lg_sort, s=s)
 
-    k_grid = np.linspace(k_vals.min(), k_vals.max(), 500)
+    # Clip to stable range: the spline extrapolates wildly (1e7+) outside
+    # the data-dense region. k in [1.3, 19.5] is empirically stable;
+    # the boundary cluster at k=20 causes derivative explosion to ~1700.
+    k_lo = max(np.percentile(k_vals, 1), 1.3)
+    k_hi = min(np.percentile(k_vals, 99), 19.5)
+    k_grid = np.linspace(k_lo, k_hi, 500)
     lg_grid = spline(k_grid)
 
     return spline, k_grid, lg_grid
