@@ -932,6 +932,34 @@ def plot_N_dependence(all_params, all_N, all_names, shape_fit):
         r_k = np.corrcoef(all_N[m], k_proj_all[m])[0, 1]
         print(f"    {ds:<12} r(k_proj, N)={r_k:+.3f}   r(sigma_half, N)={r_sh:+.3f}")
 
+    # --- sigma_half vs physical nearest-neighbor distance ---
+    print("\n  sigma_half vs physical nearest-neighbor distance:")
+    nn_by_species = {}
+    for rp in DATASET_RUNS:
+        name = rp["name"]
+        config = SimulationConfig(os.path.join(os.getcwd(), "scenarios", name, "config.yaml"))
+        dataset = DatasetFactory().get_dataset(config.data_file)
+        nn_list = []
+        for s in rp["step_range"] if rp["end_step"] is None else range(rp["start_step"], min(rp["end_step"], dataset.trajectories.shape[0]), rp["step_length"]):
+            pos = dataset.positions_at_time_step(s)
+            d = scipy_cdist(pos, pos)
+            np.fill_diagonal(d, 1e10)
+            nn_list.append(float(np.median(np.min(d, axis=1))))
+        nn_by_species[name] = np.array(nn_list)
+
+    print(f"    {'Species':<12} {'mean_sh':>8} {'mean_nn':>8} {'ratio':>8} {'r(sh,nn)':>10}")
+    all_sh, all_nn_cross = [], []
+    for ds in datasets:
+        m = all_names == ds
+        sh = all_params[m, 1]
+        nn = nn_by_species[ds][:len(sh)]
+        ratio = sh / (nn + 1e-10)
+        r = np.corrcoef(sh, nn)[0, 1]
+        all_sh.extend(sh); all_nn_cross.extend(nn)
+        print(f"    {ds:<12} {np.mean(sh):>8.3f} {np.mean(nn):>8.3f} {np.mean(ratio):>8.3f} {r:>10.3f}")
+    r_cross = np.corrcoef(all_sh, all_nn_cross)[0, 1]
+    print(f"    {'Cross-species':<12} r(sigma_half, avg_nn) = {r_cross:.3f}")
+
 
 # ======================================================================
 # 8. Main
