@@ -10,7 +10,7 @@ Living task list for the parameter manifold investigation. Prioritized by impact
 
 - [ ] **Validate mode_counting on synthetic data** — Generate point clouds with known cluster counts, measure accuracy vs scale and N
 - [ ] **What drives k dynamics?** — Correlate k(t) transitions with known behavioral events (turns, mergers, polarization changes)
-- [ ] **Bootstrap cluster stability** — Resample fits, re-run HDBSCAN, measure cluster overlap scores
+- [x] **Bootstrap cluster stability** — 7 robust clusters (0.886±0.082), UMAP inflates
 
 ## Medium Priority
 

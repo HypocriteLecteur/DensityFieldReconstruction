@@ -81,6 +81,28 @@ Within-species: r(sigma_half, avg_nn_dist) = 0.55–0.97.
 
 ---
 
+## 5. Cluster Stability (Bootstrap)
+
+HDBSCAN on the raw 3D standardized parameter space (not UMAP) finds **7 robust clusters** + 9 noise points:
+
+| Cluster | Size | Stability | Composition |
+|---------|------|-----------|-------------|
+| 0 | 39 | 0.885 | swift (39) |
+| 1 | 21 | 0.880 | jackdaw2 (21) |
+| 2 | 10 | 0.887 | jackdaw (9), jackdaw2 (1) |
+| 3 | 13 | 0.889 | swift (13) |
+| 4 | 25 | 0.886 | jackdaw (13), jackdaw2 (11) |
+| 5 | 6 | 0.892 | swift (6) |
+| 6 | 996 | 0.884 | swift (699), jackdaw (178), others |
+
+**Overall stability: 0.886 ± 0.082** (100 bootstrap resamples).
+
+**UMAP inflates cluster count.** The UMAP embedding amplifies local structure, splitting the data into 15 clusters. Bootstrap on the original parameter space reveals only 7 clusters are robust to resampling. The UMAP clusters are useful for exploration but overstate the true number of behavioral archetypes.
+
+One mega-cluster (996/1119 fits) contains the majority of all data across species, plus six small species-specific clusters. Clusters are dominated by species, suggesting the manifold captures inter-species differences more than intra-species behavioral states.
+
+---
+
 ## 5. Clustering: 15 Behavioral Archetypes
 
 HDBSCAN on UMAP embedding of (k, sigma_half, log10_gamma) finds 15 clusters + 4 noise points. Clusters are strongly species-specific:
@@ -112,4 +134,4 @@ All implemented and committed (see git log for details):
 2. **What drives k dynamics?** Steepness varies wildly within species — what behavioral event does a k-transition correspond to?
 3. **Validation on synthetic data**: Run mode_counting on point clouds with known cluster counts to measure accuracy vs scale.
 4. **Mechanistic derivation**: Can the 3PL form be derived from spatial point process theory or active matter physics?
-5. **Cluster stability**: Bootstrap the 15 clusters — are they robust to subsampling?
+5. ~~Cluster stability~~: Confirmed — 7 robust clusters (0.886±0.082), UMAP inflates to 15.
