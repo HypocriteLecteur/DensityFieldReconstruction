@@ -4,7 +4,7 @@ Living task list for the parameter manifold investigation. Prioritized by impact
 
 ## In Progress
 
-- [ ] **Cache nn_dists** — Compute once and save to `scenarios/{name}/nn_dists.npy` so the sigma_half vs nn analysis runs instantly on re-runs
+## High Priority
 
 ## High Priority
 
@@ -27,6 +27,7 @@ Living task list for the parameter manifold investigation. Prioritized by impact
 
 ## Done
 
+- [x] Cache nn_dists — saves to `scenarios/{name}/nn_dists.npy`, loaded on re-runs
 - [x] Fix DBSCAN eps=0 crash
 - [x] Fix float32 catastrophic cancellation in mean-shift
 - [x] Fix mean-shift non-convergence (relaxation factor)
