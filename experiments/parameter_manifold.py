@@ -131,7 +131,7 @@ def load_cached_data(run_params):
             def f(sc):
                 if sc < avg_nn_dist * 0.1:
                     return N
-                return mode_counting(pos, pos.clone(), sc, max_iter=500, tol=tol)
+                return mode_counting(pos, pos.clone(), sc, max_iter=200, tol=tol)
             s_start, s_end = find_scale_interval(
                 f, N, s_initial_guess=avg_nn_dist * 5, atol=max(avg_nn_dist * 1e-2, 1e-8))
             s_start = max(s_start, max(avg_nn_dist * 1e-2, 1e-8))
@@ -178,11 +178,11 @@ def load_cached_data(run_params):
                     continue
 
                 if prev_mode_num > 0.95 * N:
-                    mi = 200
+                    mi = 100
                 elif prev_mode_num > 0.5 * N:
-                    mi = 500
+                    mi = 200
                 else:
-                    mi = 1500
+                    mi = 400
 
                 curr_pos = modes_pos.clone() if modes_pos is not None else pos.clone()
                 mode_num, tmp = mode_counting_modified(pos, curr_pos, sc,

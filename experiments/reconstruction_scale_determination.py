@@ -222,11 +222,11 @@ def compute_scaling_law(dataset, step_range, save_path):
 
                 # Adaptive max_iter: fewer iters when near N (minimal movement)
                 if prev_mode_num > 0.95 * N:
-                    mi = 200
+                    mi = 100
                 elif prev_mode_num > 0.5 * N:
-                    mi = 500
+                    mi = 200
                 else:
-                    mi = 1500
+                    mi = 400
 
                 curr_pos = modes_pos.clone() if modes_pos is not None else pos_gpu.clone()
                 mode_num, tmp = mc_mod_func(pos_gpu, curr_pos, s, max_iter=mi, tol=avg_nn_dist*1e-3)
