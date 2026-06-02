@@ -771,6 +771,69 @@ def plot_intrinsic_manifold(all_params, all_names, all_N, shape_fit, k_proj):
     print("  -> Saved figs/manifold_intrinsic.png")
 
 
+def plot_shape_curve_mode_curves(shape_fit, all_params, N_typical=300):
+    """Visualize 3PL mode-count curves sampled along the shape curve.
+
+    Each point on the (k, log10_gamma) curve defines a full 3PL model.
+    Sampling along the curve shows how the mode-count-vs-scale shape
+    evolves with position on the manifold (fixing sigma_half).
+
+    Args:
+        shape_fit: (popt, lg_grid, k_grid) from fit_shape_curve
+        all_params: [n_fits, 3] array of (k, sigma_half, log10_gamma)
+        N_typical: fixed N for mode count curves
+    """
+    popt, lg_grid, k_grid = shape_fit
+    a, d, s, p, c = popt
+
+    # Pick a fixed sigma_half (median across all fits)
+    sigma_half_fixed = np.median(all_params[:, 1])
+
+    # Sample points along the shape curve
+    lg_samples = np.linspace(lg_grid.min(), lg_grid.max(), 6)
+
+    def hill_model(lg, a, d, s, p, c):
+        return c + a / (1.0 + np.power(np.maximum((lg - d) / s, 1e-10), p))
+    k_samples = hill_model(lg_samples, *popt)
+
+    # Generate mode count curves
+    sigma_range = np.logspace(-2, 2, 300)
+    colors = cm.viridis(np.linspace(0.05, 0.95, len(lg_samples)))
+
+    set_style()
+    fig, (ax0, ax1) = plt.subplots(1, 2, figsize=(14, 5.5))
+    move_figure(fig, 100, 600)
+
+    # --- Left: shape curve with sampled points ---
+    ax0.plot(k_grid, lg_grid, "k-", lw=2)
+    ax0.scatter(k_samples, lg_samples, c=colors, s=80, zorder=5, edgecolors="white", linewidths=1)
+    for i, (lg_i, k_i) in enumerate(zip(lg_samples, k_samples)):
+        ax0.annotate(f"{chr(65+i)}", (k_i, lg_i), textcoords="offset points",
+                     xytext=(8, -4), fontsize=9, fontweight="bold", color=colors[i])
+    ax0.set_xlabel("k"); ax0.set_ylabel("log10_gamma")
+    ax0.set_title(f"Shape curve with sample points\n(sigma_half = {sigma_half_fixed:.2f})")
+
+    # --- Right: mode count curves for each sample ---
+    for i, (lg_i, k_i) in enumerate(zip(lg_samples, k_samples)):
+        gamma_i = 10.0 ** lg_i
+        mc = 1.0 + (N_typical - 1.0) / np.power(
+            1.0 + ((2.0 ** (1.0 / max(gamma_i, 1e-6)) - 1.0) *
+                   (sigma_range / sigma_half_fixed) ** k_i),
+            gamma_i)
+        ax1.loglog(sigma_range, mc, color=colors[i], lw=2,
+                   label=f"{chr(65+i)}: k={k_i:.1f}, lg={lg_i:.2f}")
+
+    ax1.set_xlabel("sigma / sigma_half")
+    ax1.set_ylabel("# Modes")
+    ax1.set_title(f"3PL mode-count curves along shape curve\n(N={N_typical}, sigma_half={sigma_half_fixed:.2f})")
+    ax1.legend(frameon=False, fontsize=7)
+
+    plt.tight_layout()
+    plt.savefig("figs/manifold_shape_mode_curves.png", bbox_inches="tight", dpi=300)
+    plt.show()
+    print("  -> Saved figs/manifold_shape_mode_curves.png")
+
+
 # ======================================================================
 # 7. Main
 # ======================================================================
@@ -850,6 +913,7 @@ def main():
     print(f"\n{'='*60}\nGenerating figures\n{'='*60}")
     plot_pca_scree(embeddings["pca_model"], embeddings["scaler"])
     plot_intrinsic_manifold(all_params, all_names, all_N, shape_fit, k_proj)
+    plot_shape_curve_mode_curves(shape_fit, all_params)
     plot_parameter_space(all_params, all_names)
     plot_embeddings(embeddings, all_names, all_N, labels)
     plot_cluster_curves(all_params, all_N, all_names, labels)
