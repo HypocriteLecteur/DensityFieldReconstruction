@@ -79,6 +79,13 @@ Within-species: r(sigma_half, avg_nn_dist) = 0.55–0.97.
 
 **k (steepness) is highly dynamic** — it tracks behavioral state transitions (e.g., milling → polarized → milling).
 
+**Temporal autocorrelation** reveals k(t) is not white noise. Characteristic decorrelation times (ACF zero-crossing):
+- jackdaw: ~39 frames (dt=1)
+- jackdaw2: ~190 frames (dt=5, 38 lags)
+- swift: >100 lags at dt=20 (>2000 frames)
+
+k has species-specific "memory" — behavioral states persist for tens to hundreds of frames before decorrelating.
+
 ---
 
 ## 5. Cluster Stability (Bootstrap)

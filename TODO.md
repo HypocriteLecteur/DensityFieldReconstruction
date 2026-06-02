@@ -9,7 +9,7 @@ Living task list for the parameter manifold investigation. Prioritized by impact
 ## Medium Priority
 
 - [ ] **Starling data acquisition** — Only 2 frames; need more to characterize the species
-- [ ] **Temporal autocorrelation of k(t)** — Compute ACF to see if steepness has characteristic timescales
+- [x] **Temporal autocorrelation of k(t)** — jackdaw tau0~39fr, not white noise, species-specific memory
 - [ ] **sigma_half vs body size** — Correlate with known physical measurements (body length, wingspan) across species
 - [ ] **Cross-species sigma_half/avg_nn ratio stability** — Test if the 0.55 ratio holds across more datasets
 
