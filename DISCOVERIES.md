@@ -139,8 +139,6 @@ All implemented and committed (see git log for details):
 
 ## 7. Open Questions
 
-1. **Starling is severely undersampled** (2 frames). Cannot characterize the species.
-2. **What drives k dynamics?** Steepness varies wildly within species — what behavioral event does a k-transition correspond to?
-3. ~~Validation on synthetic data~~: 12/16 perfect recoveries (mean err 6.4%), only fails at separation ≤ 1× cluster_std where clusters physically overlap. For separation ≥ 2× std, perfect across N=50-500. Best scale consistently 1.0-1.3× avg_nn_dist.
-4. **Mechanistic derivation**: Can the 3PL form be derived from spatial point process theory or active matter physics?
-5. ~~Cluster stability~~: Confirmed — 7 robust clusters (0.886±0.082), UMAP inflates to 15.
+1. **Mechanistic derivation**: Can the 3PL form (or the Hill shape curve) be derived from spatial point process theory, random geometric graphs, or active matter physics?
+2. **Why species-specific ratios?** The sigma_half/nn ratio varies significantly across species (0.52–0.62). What biological or physical factor sets this prefactor?
+3. **k dynamics without labels**: Steepness varies wildly within species with characteristic memory timescales. What behavioral events correspond to k-transitions? (Requires behavioral annotation — not possible with current data.)
