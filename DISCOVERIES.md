@@ -46,24 +46,24 @@ R² = 0.95. This captures the steep decay from high asymmetry (low k) to near-sy
 
 ---
 
-## 3. sigma_half = 0.55 × Physical Nearest-Neighbor Distance
+## 3. sigma_half ~ 0.55 × Physical Nearest-Neighbor Distance
 
-**This is the key discovery.** Across all 4 species, the 3PL parameter `sigma_half` is directly proportional to the median physical nearest-neighbor distance in the point cloud:
+The 3PL parameter `sigma_half` is proportional to the median physical nearest-neighbor distance, but the ratio is **species-specific, not universal**:
 
-| Species | mean sigma_half | mean avg_nn_dist | ratio |
-|---------|----------------|------------------|-------|
-| starling | 0.375 | 0.702 | 0.534 |
-| jackdaw | 0.838 | 1.361 | 0.617 |
-| jackdaw2 | 1.141 | 2.187 | 0.522 |
-| swift | 2.211 | 4.012 | 0.550 |
+| Species | mean sigma_half | mean avg_nn_dist | ratio | 95% CI |
+|---------|----------------|------------------|-------|--------|
+| starling | 0.375 | 0.702 | 0.534 | [0.530, 0.538] |
+| jackdaw | 0.838 | 1.361 | 0.617 | [0.613, 0.620] |
+| jackdaw2 | 1.141 | 2.187 | 0.522 | [0.516, 0.528] |
+| swift | 2.211 | 4.012 | 0.550 | [0.548, 0.552] |
 
 **Cross-species correlation: r = 0.988**
 
-Within-species: r(sigma_half, avg_nn_dist) = 0.55–0.97.
+Bootstrap CIs are tight (width ~0.004–0.013) and do not overlap between species. The ratio is stable within species but significantly different across species — jackdaw's 0.62 is far from jackdaw2's 0.52 despite both being corvids.
 
-**Implication:** The "characteristic scale of substructure" from the 3PL model is not a separate behavioral parameter — it directly reads out the physical inter-agent spacing. Species separate on this axis because they fly at different densities, not because of different collective dynamics.
+**Implication:** sigma_half captures a species-specific "effective clustering scale" that scales with physical spacing but with a species-dependent prefactor. This prefactor may reflect differences in perceptual range, interaction rules, or flock structure beyond just density. The cross-species r=0.988 is driven by the wide range of physical scales (0.7–4.0) rather than a universal constant.
 
-**Partial correlation**: After controlling for avg_nn_dist, sigma_half has negligible residual correlation with flock size N (swift r = −0.06, jackdaw2 r = −0.22). The apparent N-dependence is spurious and entirely mediated by physical spacing.
+**Partial correlation**: After controlling for avg_nn_dist, sigma_half has negligible residual correlation with N. The apparent N-dependence is entirely mediated by physical spacing.
 
 ---
 
@@ -107,6 +107,8 @@ HDBSCAN on the raw 3D standardized parameter space (not UMAP) finds **7 robust c
 **UMAP inflates cluster count.** The UMAP embedding amplifies local structure, splitting the data into 15 clusters. Bootstrap on the original parameter space reveals only 7 clusters are robust to resampling. The UMAP clusters are useful for exploration but overstate the true number of behavioral archetypes.
 
 One mega-cluster (996/1119 fits) contains the majority of all data across species, plus six small species-specific clusters. Clusters are dominated by species, suggesting the manifold captures inter-species differences more than intra-species behavioral states.
+
+**Clustering is method-dependent.** GMM with BIC selection finds 10 components; HDBSCAN finds 7. ARI=0.119 between them — the two methods find fundamentally different structures. Any claims about the "number of behavioral archetypes" must be qualified by the clustering method used.
 
 ---
 
