@@ -4,7 +4,7 @@ Living task list for the parameter manifold investigation.
 
 ## Remaining
 
-- [x] **Mechanistic derivation of 3PL** — k≈3 universal for Poisson/Thomas/normal flocks; 3PL reduces to 1-parameter family (sigma_half). Starling k=19 is anomalous.
+- [x] **Mechanistic derivation of 3PL** — k≈3 follows from dimensional analysis (d=3), not a discovery. 3PL form, shape curve, and log10_gamma remain empirical facts without theory.
 - [ ] **Interactive visualization** — Plotly dashboard for exploring the manifold interactively
 
 ## Done

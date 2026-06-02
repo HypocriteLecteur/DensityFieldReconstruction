@@ -122,30 +122,31 @@ HDBSCAN on UMAP embedding of (k, sigma_half, log10_gamma) finds 15 clusters + 4 
 
 ---
 
-## 6. Mechanistic Derivation: 3PL from Point Process Theory
+## 6. What Is and Isn't Explained
 
-The mode-count curve was compared across synthetic point processes and empirical flocks:
+### Empirically established
 
-| Process | k | sigma_half | log10_gamma |
-|---------|---|------------|-------------|
-| **Poisson (uniform)** | 3.4–5.9 | 0.53–0.55 | −0.2 to +0.2 |
-| **Thomas (clustered)** | 2.3–3.9 | 0.20–1.07 | 0.0–5.0 |
-| **Empirical: jackdaw** | 3.06 | 0.84 | −0.13 |
-| **Empirical: jackdaw2** | 2.56 | 1.13 | 0.06 |
-| **Empirical: swift** | 2.79 | 2.16 | 0.21 |
-| **Empirical: starling** | 18.78 | 0.38 | −0.77 |
+1. **sigma_half ∝ avg_nn_dist** (r = 0.988 cross-species, tight bootstrap CIs). The 3PL characteristic scale is anchored to physical inter-agent spacing. This is the single most robust finding.
 
-**Key finding: k ≈ 3 is UNIVERSAL.** Uniform Poisson, Thomas clustered, and normal bird flocks all have k ≈ 3 with log10_gamma ≈ 0 (symmetric sigmoid). The 3PL mode-count curve collapses to a **1-parameter family**: only sigma_half varies meaningfully across systems.
+2. **k ≈ 3 for most systems** (Poisson, Thomas clustered, jackdaw, jackdaw2, swift). This follows from dimensional analysis: for a homogeneous point process in d=3 dimensions, the number of KDE modes at bandwidth σ scales as (σ/σ₀)^(−d) in the intermediate regime, giving a sigmoid with effective steepness ~d.
 
-**sigma_half is the sufficient statistic.** It scales with cluster std in Thomas processes and with physical NN-distance in flocks (r=0.988). The steepness k is NOT what distinguishes collective motion from random geometry — both give k≈3.
+3. **The shape curve k = f(log10_gamma) exists** — k and log10_gamma are not independent but trace a 1D manifold fit by a Hill model.
 
-**Starling is the exception** with k=19, log10_gamma=−0.77. This extreme steepness, if real, would indicate genuine non-Poisson collective structure (tightly synchronized flock that shatters at a critical scale). However, with only 2 frames, this could be a fitting artifact.
+### Not explained (open theoretical problems)
 
-**Theoretical interpretation:**
-- For a uniform Poisson process in d dimensions, mode-count vs bandwidth follows a sigmoid with k ≈ d (here d=3, observed k≈3–4)
-- The 3PL form nests this prediction: k reflects effective dimensionality, sigma_half reflects density
-- Clustered processes have the same k but smaller sigma_half (set by cluster scale rather than global density)
-- The k–log10_gamma manifold mostly collapses to a single point (k≈3, lg≈0) for Poisson-like systems; deviations from this point indicate genuine departures from spatial randomness
+1. **Why the 3PL form?** The centered 3PL `m(σ) = 1 + (N−1)/(1 + (2^(1/γ)−1)(σ/σ_half)^k)^γ` is a 4-parameter sigmoid that fits the data well, but no derivation from first principles exists. Why this specific parameterization rather than, say, a gamma CDF or a Hill function directly on m(σ)?
+
+2. **What is log10_gamma physically?** It controls asymmetry of the sigmoid. For Poisson processes, γ≈1 (symmetric). For some Thomas processes, γ deviates. There is no theoretical prediction for what sets γ in a given point process.
+
+3. **Why the Hill shape curve?** The empirical relationship `k = c + a/(1+((lg−d)/s)^p)` is purely descriptive. There is no theory predicting why k and log10_gamma should be coupled in this specific functional form, or what sets the parameters (a, d, s, p, c).
+
+4. **Starling** (k=19, only 2 frames) is either a genuine departure from Poisson-like behavior or a fitting artifact. Cannot distinguish without more data.
+
+### What this means
+
+The 3PL model is a **phenomenological success but a theoretical puzzle**. It compresses the mode-count curve into 3 interpretable parameters, reveals a 2D intrinsic manifold, and anchors one axis (sigma_half) to physical spacing. But the specific functional form, the shape curve, and the physical meaning of log10_gamma remain empirical facts without theoretical foundation.
+
+The k≈3 universality is **not a discovery** — it's the null expectation from dimensional analysis of a 3D homogeneous Poisson process. The discovery would be if real flocks showed k significantly different from 3, which would indicate non-Poisson collective structure. Currently, only starling hints at this (and the evidence is thin).
 
 ---
 
@@ -164,8 +165,10 @@ All implemented and committed (see git log for details):
 
 ---
 
-## 7. Open Questions
+## 8. Open Questions
 
-1. **Mechanistic derivation**: Can the 3PL form (or the Hill shape curve) be derived from spatial point process theory, random geometric graphs, or active matter physics?
-2. **Why species-specific ratios?** The sigma_half/nn ratio varies significantly across species (0.52–0.62). What biological or physical factor sets this prefactor?
-3. **k dynamics without labels**: Steepness varies wildly within species with characteristic memory timescales. What behavioral events correspond to k-transitions? (Requires behavioral annotation — not possible with current data.)
+1. **Why the 3PL form?** The centered 3PL fits well but has no theoretical derivation. Is there a point-process argument for this specific sigmoid family?
+2. **What is log10_gamma physically?** It controls sigmoid asymmetry. For Poisson γ≈1 (symmetric). What process generates γ≠1?
+3. **Why the Hill shape curve?** k and log10_gamma trace a 1D manifold but the functional form is purely empirical.
+4. **Is starling real?** k=19 is the only evidence for non-Poisson collective structure. With 2 frames, it could be artifact. More data needed.
+5. **Why species-specific sigma_half/nn ratios?** (0.52–0.62, CIs don't overlap). What sets the prefactor?
