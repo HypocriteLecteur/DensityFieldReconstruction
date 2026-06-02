@@ -46,7 +46,7 @@ R² = 0.95. This captures the steep decay from high asymmetry (low k) to near-sy
 
 ---
 
-## 3. sigma_half ~ 0.55 × Physical Nearest-Neighbor Distance
+## 3. sigma_half Anchored to Physical Spacing
 
 The 3PL parameter `sigma_half` is proportional to the median physical nearest-neighbor distance, but the ratio is **species-specific, not universal**:
 
@@ -61,7 +61,7 @@ The 3PL parameter `sigma_half` is proportional to the median physical nearest-ne
 
 Bootstrap CIs are tight (width ~0.004–0.013) and do not overlap between species. The ratio is stable within species but significantly different across species — jackdaw's 0.62 is far from jackdaw2's 0.52 despite both being corvids.
 
-**Implication:** sigma_half captures a species-specific "effective clustering scale" that scales with physical spacing but with a species-dependent prefactor. This prefactor may reflect differences in perceptual range, interaction rules, or flock structure beyond just density. The cross-species r=0.988 is driven by the wide range of physical scales (0.7–4.0) rather than a universal constant.
+**Implication:** sigma_half captures a species-specific "effective clustering scale" that scales with physical spacing but with a species-dependent prefactor. This prefactor may reflect differences in perceptual range, interaction rules, or flock structure beyond just density.
 
 **Partial correlation**: After controlling for avg_nn_dist, sigma_half has negligible residual correlation with N. The apparent N-dependence is entirely mediated by physical spacing.
 
@@ -88,7 +88,7 @@ k has species-specific "memory" — behavioral states persist for tens to hundre
 
 ---
 
-## 5. Cluster Stability (Bootstrap)
+## 5. Cluster Stability
 
 HDBSCAN on the raw 3D standardized parameter space (not UMAP) finds **7 robust clusters** + 9 noise points:
 
@@ -104,53 +104,59 @@ HDBSCAN on the raw 3D standardized parameter space (not UMAP) finds **7 robust c
 
 **Overall stability: 0.886 ± 0.082** (100 bootstrap resamples).
 
-**UMAP inflates cluster count.** The UMAP embedding amplifies local structure, splitting the data into 15 clusters. Bootstrap on the original parameter space reveals only 7 clusters are robust to resampling. The UMAP clusters are useful for exploration but overstate the true number of behavioral archetypes.
+**UMAP inflates cluster count.** The UMAP embedding amplifies local structure, splitting the data into 15 clusters. Bootstrap on the original parameter space reveals only 7 clusters are robust to resampling.
 
-One mega-cluster (996/1119 fits) contains the majority of all data across species, plus six small species-specific clusters. Clusters are dominated by species, suggesting the manifold captures inter-species differences more than intra-species behavioral states.
+**Clustering is method-dependent.** GMM with BIC selection finds 10 components; HDBSCAN finds 7. ARI=0.119 — the two methods find fundamentally different structures. Any claims about the "number of behavioral archetypes" must be qualified by the clustering method used.
 
-**Clustering is method-dependent.** GMM with BIC selection finds 10 components; HDBSCAN finds 7. ARI=0.119 between them — the two methods find fundamentally different structures. Any claims about the "number of behavioral archetypes" must be qualified by the clustering method used.
-
----
-
-## 5. Clustering: 15 Behavioral Archetypes
-
-HDBSCAN on UMAP embedding of (k, sigma_half, log10_gamma) finds 15 clusters + 4 noise points. Clusters are strongly species-specific:
-
-- **swift** dominates large clusters (455, 176, 41, 40, 28, 21 points) — highest diversity
-- **jackdaw** and **jackdaw2** form tight, well-separated clusters by k and sigma_half
-- **starling** (2 frames) clusters with high-k jackdaw frames — insufficient data for generalization
+One mega-cluster (996/1119 fits) contains the majority of all data across species, plus six small species-specific clusters.
 
 ---
 
-## 6. What Is and Isn't Explained
+## 6. Computational Validation
 
-### Empirically established
+### 6.1 Mode-counting accuracy (synthetic benchmarks)
 
-1. **sigma_half ∝ avg_nn_dist** (r = 0.988 cross-species, tight bootstrap CIs). The 3PL characteristic scale is anchored to physical inter-agent spacing. This is the single most robust finding.
+Validated on 3D Gaussian cluster processes with known ground truth:
 
-2. **k ≈ 3 for most systems** (Poisson, Thomas clustered, jackdaw, jackdaw2, swift). This follows from dimensional analysis: for a homogeneous point process in d=3 dimensions, the number of KDE modes at bandwidth σ scales as (σ/σ₀)^(−d) in the intermediate regime, giving a sigmoid with effective steepness ~d.
+| N | separation/std | true clusters | best scale/nn_dist | error |
+|---|---------------|---------------|-------------------|-------|
+| 50–500 | 1× | 2–25 | 1.08 | 1–3 |
+| 50–500 | ≥2× | 2–25 | 1.08–1.55 | **0** |
 
-3. **The shape curve k = f(log10_gamma) exists** — k and log10_gamma are not independent but trace a 1D manifold fit by a Hill model.
+12/16 configurations perfectly recovered. Failures only at separation ≤ 1× cluster_std where clusters physically overlap. For separation ≥ 2× std, recovery is perfect across all N. Best scale consistently 1.0–1.3× avg_nn_dist.
 
-### Not explained (open theoretical problems)
+### 6.2 Synthetic vs empirical 3PL parameters
 
-1. **Why the 3PL form?** The centered 3PL `m(σ) = 1 + (N−1)/(1 + (2^(1/γ)−1)(σ/σ_half)^k)^γ` is a 4-parameter sigmoid that fits the data well, but no derivation from first principles exists. Why this specific parameterization rather than, say, a gamma CDF or a Hill function directly on m(σ)?
+| Process | k | sigma_half | log10_gamma |
+|---------|---|------------|-------------|
+| **Poisson (uniform, N=200)** | 3.4–5.9 | 0.53–0.55 | −0.2 to +0.2 |
+| **Thomas (clustered, N=200)** | 2.3–3.9 | 0.20–1.07 | 0.0–5.0 |
+| **jackdaw** | 3.06 | 0.84 | −0.13 |
+| **jackdaw2** | 2.56 | 1.13 | 0.06 |
+| **swift** | 2.79 | 2.16 | 0.21 |
+| **starling** | 18.78 | 0.38 | −0.77 |
 
-2. **What is log10_gamma physically?** It controls asymmetry of the sigmoid. For Poisson processes, γ≈1 (symmetric). For some Thomas processes, γ deviates. There is no theoretical prediction for what sets γ in a given point process.
-
-3. **Why the Hill shape curve?** The empirical relationship `k = c + a/(1+((lg−d)/s)^p)` is purely descriptive. There is no theory predicting why k and log10_gamma should be coupled in this specific functional form, or what sets the parameters (a, d, s, p, c).
-
-4. **Starling** (k=19, only 2 frames) is either a genuine departure from Poisson-like behavior or a fitting artifact. Cannot distinguish without more data.
-
-### What this means
-
-The 3PL model is a **phenomenological success but a theoretical puzzle**. It compresses the mode-count curve into 3 interpretable parameters, reveals a 2D intrinsic manifold, and anchors one axis (sigma_half) to physical spacing. But the specific functional form, the shape curve, and the physical meaning of log10_gamma remain empirical facts without theoretical foundation.
-
-The k≈3 universality is **not a discovery** — it's the null expectation from dimensional analysis of a 3D homogeneous Poisson process. The discovery would be if real flocks showed k significantly different from 3, which would indicate non-Poisson collective structure. Currently, only starling hints at this (and the evidence is thin).
+k ≈ 3 is the null expectation from dimensional analysis of a 3D homogeneous point process (mode count scales as σ^(−d) in the intermediate regime). Most systems, synthetic and real, cluster around this value. sigma_half scales with point density / cluster size. Starling (k=19) is the only departure from the null — but with 2 frames, this could be artifact.
 
 ---
 
-## 7. Methodological Improvements (see git log)
+## 7. What Remains Unexplained (Open Theoretical Problems)
+
+These are empirical facts without theoretical foundation:
+
+1. **Why the 3PL form?** The centered 3PL is a flexible sigmoid that fits well, but there is no first-principles derivation. Why this parameterization rather than a gamma CDF, Hill function, or other sigmoid family?
+
+2. **What is log10_gamma physically?** It controls sigmoid asymmetry. Poisson processes give γ≈1 (symmetric). Some Thomas processes produce γ≠1, but there is no theory predicting its value from point process parameters.
+
+3. **Why the Hill shape curve?** k and log10_gamma are coupled along `k = c + a/(1+((lg−d)/s)^p)`. This is purely descriptive — no theory predicts this functional form or its parameters.
+
+4. **Why species-specific sigma_half/nn ratios?** The prefactor varies from 0.52 (jackdaw2) to 0.62 (jackdaw) with non-overlapping CIs. What biological or physical parameter sets this?
+
+5. **Is starling real?** k=19 is the only departure from the k≈3 null. With 2 frames, it could be a fitting artifact or a genuine signature of non-Poisson collective structure.
+
+---
+
+## 8. Methodological Improvements
 
 All implemented and committed (see git log for details):
 
@@ -162,13 +168,3 @@ All implemented and committed (see git log for details):
 | Slow iterations (>60s/frame) | tol=0 causes infinite iteration; relax=1.9 causes oscillation | Standard mean-shift (1.0×), reduced max_iter |
 | Cache loss on crash | No incremental saving | Save every 50 steps during Phase 2, resume on restart |
 | Shape curve oscillation | Spline overfitting (R²=0.997 spurious) | Hill model (R²=0.95, honest) |
-
----
-
-## 8. Open Questions
-
-1. **Why the 3PL form?** The centered 3PL fits well but has no theoretical derivation. Is there a point-process argument for this specific sigmoid family?
-2. **What is log10_gamma physically?** It controls sigmoid asymmetry. For Poisson γ≈1 (symmetric). What process generates γ≠1?
-3. **Why the Hill shape curve?** k and log10_gamma trace a 1D manifold but the functional form is purely empirical.
-4. **Is starling real?** k=19 is the only evidence for non-Poisson collective structure. With 2 frames, it could be artifact. More data needed.
-5. **Why species-specific sigma_half/nn ratios?** (0.52–0.62, CIs don't overlap). What sets the prefactor?
