@@ -202,7 +202,10 @@ def mean_shift_mask_accelerated(positions_torch: torch.Tensor, modes: torch.Tens
     for iter in range(max_iter):
         new_modes_ = mean_shift_step_tiled(positions_torch, old_modes, sigma)
 
-        new_modes = old_modes + 1.9*(new_modes_ - old_modes)
+        # Standard mean-shift (relaxation=1.0): guaranteed convergence without
+        # oscillation. Over-relaxation (1.9) caused modes to oscillate around
+        # peaks, preventing convergence and wasting iterations.
+        new_modes = old_modes + 1.0*(new_modes_ - old_modes)
 
         mean_shift_dist = torch.norm(new_modes[active_modes_mask] - old_modes[active_modes_mask], dim=1).reshape((-1,))
 
@@ -328,8 +331,8 @@ def mean_shift_mask_accelerated_pbc(positions_torch: torch.Tensor, modes: torch.
         # Calculate the SHIFT vector, not the new position directly
         shift_vector = mean_shift_step_tiled_pbc(positions_torch, old_modes[active_modes_mask], sigma, domain_size)
 
-        # Apply acceleration (1.9x) to the shift
-        total_shift = 1.9 * shift_vector
+        # Standard mean-shift step (no over-relaxation, to avoid oscillation)
+        total_shift = 1.0 * shift_vector
         
         # Update modes and wrap around the domain (Modulus operator)
         # Note: We update strictly based on the shift to preserve toroidal topology
