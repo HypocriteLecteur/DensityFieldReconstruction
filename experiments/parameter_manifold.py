@@ -835,7 +835,106 @@ def plot_shape_curve_mode_curves(shape_fit, all_params, N_typical=300):
 
 
 # ======================================================================
-# 7. Main
+# 7. Scientific analysis: temporal dynamics & N-dependence
+# ======================================================================
+
+def plot_temporal_trajectories(raw_data, all_params, all_names):
+    """Plot k_proj(t) and sigma_half(t) for each dataset with dense time sampling.
+
+    Reveals how flocks move through the intrinsic manifold over time —
+    transitions, trends, and stability of behavioral states.
+    """
+    set_style()
+    datasets_with_time = [name for name, rd in raw_data.items()
+                          if len(rd["step_range"]) > 5 and rd["valid"].sum() > 5]
+    n_ds = len(datasets_with_time)
+    if n_ds == 0:
+        return
+
+    fig, axes = plt.subplots(n_ds, 2, figsize=(14, 3.5 * n_ds), squeeze=False)
+    move_figure(fig, 100, 600)
+
+    for row, name in enumerate(datasets_with_time):
+        rd = raw_data[name]
+        sr = np.array(rd["step_range"])
+        valid = rd["valid"]
+        t = sr[valid]
+        params = np.array([rd["params"][i] for i in range(len(valid)) if valid[i]])
+
+        k = params[:, 0]
+        sh = params[:, 1]
+        lg = params[:, 2]
+
+        # k_proj over time
+        ax = axes[row, 0]
+        ax.plot(t, k, "o-", color=DATASET_COLORS[name], markersize=3, lw=0.8, alpha=0.7)
+        ax.set_ylabel("k (steepness)"); ax.set_xlabel("Frame")
+        ax.set_title(f"{name}: k(t) — steepness over time")
+
+        # sigma_half over time
+        ax = axes[row, 1]
+        ax.plot(t, sh, "o-", color=DATASET_COLORS[name], markersize=3, lw=0.8, alpha=0.7)
+        ax.set_ylabel("sigma_half (scale)"); ax.set_xlabel("Frame")
+        ax.set_title(f"{name}: sigma_half(t) — characteristic scale over time")
+
+        # Annotate variability
+        print(f"  {name}: k CV={np.std(k)/np.mean(k):.3f}, sigma_half CV={np.std(sh)/np.mean(sh):.3f}")
+
+    plt.tight_layout()
+    plt.savefig("figs/manifold_temporal.png", bbox_inches="tight", dpi=300)
+    plt.show()
+    print("  -> Saved figs/manifold_temporal.png")
+
+
+def plot_N_dependence(all_params, all_N, all_names, shape_fit):
+    """Analyze how k_proj and sigma_half depend on flock size N.
+
+    Within each species, does the manifold position shift systematically
+    with N? Tests the hypothesis that larger flocks are steeper or denser.
+    """
+    popt, lg_grid, k_grid = shape_fit
+
+    def hill_model(lg, a, d, s, p, c):
+        return c + a / (1.0 + np.power(np.maximum((lg - d) / s, 1e-10), p))
+
+    k_proj_all = np.zeros(len(all_params))
+    lg_all = all_params[:, 2]
+    for i in range(len(all_params)):
+        k_pred = hill_model(lg_all[i], *popt)
+        k_proj_all[i] = k_pred
+
+    set_style()
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+    move_figure(fig, 100, 600)
+    datasets = sorted(set(all_names))
+
+    for ax, y_val, y_label in [
+        (axes[0], all_params[:, 1], "sigma_half"),
+        (axes[1], k_proj_all, "k_proj")]:
+        for ds in datasets:
+            m = all_names == ds
+            ax.scatter(all_N[m], y_val[m], c=DATASET_COLORS[ds],
+                       label=ds, s=10, alpha=0.6, edgecolors="none")
+        ax.set_xlabel("N (flock size)"); ax.set_ylabel(y_label)
+        ax.set_title(f"{y_label} vs N")
+        ax.legend(frameon=False, fontsize=7)
+
+    plt.tight_layout()
+    plt.savefig("figs/manifold_N_dependence.png", bbox_inches="tight", dpi=300)
+    plt.show()
+    print("  -> Saved figs/manifold_N_dependence.png")
+
+    # Console: correlation coefficients
+    print("\n  N-dependence (Pearson r):")
+    for ds in datasets:
+        m = all_names == ds
+        r_sh = np.corrcoef(all_N[m], all_params[m, 1])[0, 1]
+        r_k = np.corrcoef(all_N[m], k_proj_all[m])[0, 1]
+        print(f"    {ds:<12} r(k_proj, N)={r_k:+.3f}   r(sigma_half, N)={r_sh:+.3f}")
+
+
+# ======================================================================
+# 8. Main
 # ======================================================================
 
 def main():
@@ -866,6 +965,9 @@ def main():
         res = fit_all_steps(sr, Na, scr, am, saturation=args.saturation)
         n_ok = res["success"].sum()
         print(f"  OK: {n_ok}/{len(sr)}")
+
+        raw_data[name]["valid"] = res["success"]
+        raw_data[name]["params"] = res["params"]
 
         valid = res["success"]
         if valid.sum() > 0:
@@ -918,6 +1020,11 @@ def main():
     plot_embeddings(embeddings, all_names, all_N, labels)
     plot_cluster_curves(all_params, all_N, all_names, labels)
     plot_param_distributions(all_params, all_names, labels)
+
+    # --- Scientific analyses ---
+    print(f"\n{'='*60}\nScientific analyses\n{'='*60}")
+    plot_temporal_trajectories(raw_data, all_params, all_names)
+    plot_N_dependence(all_params, all_N, all_names, shape_fit)
 
     # --- Summary ---
     print_manifold_summary(all_params, all_N, all_names, labels)
