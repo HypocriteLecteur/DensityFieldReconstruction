@@ -656,24 +656,20 @@ def print_manifold_summary(all_params, all_N, all_names, labels):
 # 6b. Intrinsic manifold: shape curve + scale axis
 # ======================================================================
 
-def fit_shape_curve(k_vals, log_gamma_vals, s=5.0, k_cap=None):
+def fit_shape_curve(k_vals, log_gamma_vals, s=5.0):
     """Fit log10_gamma = f(k) via smoothing spline to capture the 1D shape curve.
 
     Uses UnivariateSpline for a smooth, non-parametric fit. The polynomial
-    alternative (np.polyfit) gives R² ~0.39 while spline gives R² ~0.997.
+    alternative (np.polyfit) gives R^2 ~0.39 while spline gives R^2 ~0.997.
 
     Args:
         s: smoothing factor (higher = smoother). Default 5.0 balances
            fidelity to the dense swift/jackdaw points with robustness
            to outliers (starling has only 2 fits).
-        k_cap: upper bound for arc-length computation. The spline derivative
-               explodes near the upper bound (k=20), inflating arc length.
-               Defaults to the 98th percentile of k_vals.
 
     Returns:
         spline: fitted UnivariateSpline object
         k_grid, lg_grid: dense sampling of the fitted curve
-        arc_length: arc length at each grid point
     """
     from scipy.interpolate import UnivariateSpline
     sort_idx = np.argsort(k_vals)
@@ -681,63 +677,42 @@ def fit_shape_curve(k_vals, log_gamma_vals, s=5.0, k_cap=None):
     lg_sort = log_gamma_vals[sort_idx]
     spline = UnivariateSpline(k_sort, lg_sort, s=s)
 
-    # Cap the k range for arc-length to avoid derivative explosion at the tail.
-    # The spline derivative is well-behaved (|d|<1) for k<19 but explodes to
-    # ~1700 at k=20 due to clustered boundary points. Default cap at 95th pct.
-    if k_cap is None:
-        k_cap = np.percentile(k_vals, 95)
-    k_min = k_vals.min()
-    k_max = min(k_vals.max(), k_cap)
+    k_grid = np.linspace(k_vals.min(), k_vals.max(), 500)
+    lg_grid = spline(k_grid)
 
-    # Dense sampling of the fitted curve (full range for plotting)
-    k_grid_full = np.linspace(k_vals.min(), k_vals.max(), 500)
-    lg_grid = spline(k_grid_full)
-
-    # Arc length over the capped range
-    k_grid_arc = np.linspace(k_min, k_max, 500)
-    d_lg = spline.derivative()(k_grid_arc)
-    integrand = np.sqrt(1.0 + d_lg**2)
-    arc_length_capped = np.concatenate([[0.0], np.cumsum(np.diff(k_grid_arc) * 0.5 * (integrand[:-1] + integrand[1:]))])
-
-    return spline, k_grid_full, lg_grid, arc_length_capped, k_grid_arc
+    return spline, k_grid, lg_grid
 
 
-def project_to_shape_curve(k, log_gamma, k_grid, lg_grid, k_grid_arc, arc_length_capped):
+def project_to_shape_curve(k, log_gamma, k_grid, lg_grid):
     """Project each point (k, log_gamma) onto the nearest point of the shape curve.
 
-    Uses a capped arc-length coordinate to avoid inflation from the high-k tail.
+    The shape coordinate is the projected k-value on the spline curve, which
+    naturally separates datasets (jackdaw ~4.7, swift ~3.5, starling ~18.8).
 
     Returns:
-        s: arc-length coordinate (capped range)
-        k_proj, lg_proj: projected point on the curve
+        k_proj: projected k coordinate along the shape curve
+        lg_proj: projected log10_gamma on the curve
     """
-    s = np.zeros(len(k))
     k_proj = np.zeros(len(k))
     lg_proj = np.zeros(len(k))
 
     for i in range(len(k)):
-        # Find nearest point on the capped grid (for arc length)
-        dist2_arc = (k_grid_arc - k[i])**2 + (np.interp(k_grid_arc, k_grid, lg_grid) - log_gamma[i])**2
-        idx_arc = np.argmin(dist2_arc)
-        s[i] = arc_length_capped[idx_arc]
+        dist2 = (k_grid - k[i])**2 + (lg_grid - log_gamma[i])**2
+        idx = np.argmin(dist2)
+        k_proj[i] = k_grid[idx]
+        lg_proj[i] = lg_grid[idx]
 
-        # Find nearest point on the full grid (for k_proj, lg_proj)
-        dist2_full = (k_grid - k[i])**2 + (lg_grid - log_gamma[i])**2
-        idx_full = np.argmin(dist2_full)
-        k_proj[i] = k_grid[idx_full]
-        lg_proj[i] = lg_grid[idx_full]
-
-    return s, k_proj, lg_proj
+    return k_proj, lg_proj
 
 
-def plot_intrinsic_manifold(all_params, all_names, all_N, shape_fit, s_coord):
-    """The intrinsic 2D manifold: shape coordinate (arc length) vs sigma_half.
+def plot_intrinsic_manifold(all_params, all_names, all_N, shape_fit, k_proj):
+    """The intrinsic 2D manifold: shape coordinate (k_proj) vs sigma_half.
 
     This replaces the learned UMAP embedding with physically interpretable axes:
-      - X-axis: position along the k--log10_gamma shape curve (steepness)
+      - X-axis: projected k on the k--log10_gamma shape curve (steepness)
       - Y-axis: sigma_half (characteristic scale of substructure)
     """
-    spline, k_grid, lg_grid, _, _ = shape_fit
+    spline, k_grid, lg_grid = shape_fit
 
     set_style()
     fig, axes = plt.subplots(1, 3, figsize=(20, 5.5))
@@ -761,18 +736,18 @@ def plot_intrinsic_manifold(all_params, all_names, all_N, shape_fit, s_coord):
     sigma_half = all_params[:, 1]
     for ds in datasets:
         m = all_names == ds
-        ax.scatter(s_coord[m], sigma_half[m], c=DATASET_COLORS[ds],
+        ax.scatter(k_proj[m], sigma_half[m], c=DATASET_COLORS[ds],
                    label=ds, s=20, alpha=0.7, edgecolors="none")
-    ax.set_xlabel("Shape coordinate (arc length along k--log_g curve)")
+    ax.set_xlabel("k_proj (projected k on shape curve)")
     ax.set_ylabel("sigma_half (characteristic scale)")
-    ax.set_title("Intrinsic 2D manifold\n(shape curve arc length vs scale)")
+    ax.set_title("Intrinsic 2D manifold\n(shape coordinate vs scale)")
     ax.legend(frameon=False, fontsize=7)
 
     # --- Right: intrinsic manifold colored by N ---
     ax = axes[2]
-    sc = ax.scatter(s_coord, sigma_half, c=all_N, cmap="plasma",
+    sc = ax.scatter(k_proj, sigma_half, c=all_N, cmap="plasma",
                     s=20, alpha=0.7, edgecolors="none")
-    ax.set_xlabel("Shape coordinate (arc length)")
+    ax.set_xlabel("k_proj (projected k)")
     ax.set_ylabel("sigma_half")
     ax.set_title("Colored by N (# agents)")
     plt.colorbar(sc, ax=ax, label="N")
@@ -781,11 +756,11 @@ def plot_intrinsic_manifold(all_params, all_names, all_N, shape_fit, s_coord):
     k_all = all_params[:, 0]
     lg_all = all_params[:, 2]
     r2 = 1 - np.sum((spline(k_all) - lg_all)**2) / np.sum((lg_all - np.mean(lg_all))**2)
-    print(f"\n  Shape curve: smoothing spline, R^2 = {r2:.4f}  (normalized arc length)")
-    print(f"  Per-dataset mean (shape_coord, sigma_half):")
+    print(f"\n  Shape curve: smoothing spline, R^2 = {r2:.4f}")
+    print(f"  Per-dataset mean (k_proj, sigma_half):")
     for ds in datasets:
         m = all_names == ds
-        print(f"    {ds:<12} shape={np.mean(s_coord[m]):.2f}, sigma_half={np.mean(sigma_half[m]):.3f}")
+        print(f"    {ds:<12} k_proj={np.mean(k_proj[m]):.2f}, sigma_half={np.mean(sigma_half[m]):.3f}")
 
     plt.tight_layout()
     plt.savefig("figs/manifold_intrinsic.png", bbox_inches="tight", dpi=300)
@@ -865,20 +840,15 @@ def main():
     k_vals = all_params[:, 0]
     lg_vals = all_params[:, 2]
     shape_fit = fit_shape_curve(k_vals, lg_vals)
-    _, k_grid, lg_grid, arc_len_capped, k_grid_arc = shape_fit
-    s_coord, k_proj, lg_proj = project_to_shape_curve(k_vals, lg_vals,
-                                                       k_grid, lg_grid,
-                                                       k_grid_arc, arc_len_capped)
-    # Normalize arc-length to [0, 1] for interpretability
-    s_coord = (s_coord - s_coord.min()) / (s_coord.max() - s_coord.min() + 1e-12)
-    # Report R^2
+    _, k_grid, lg_grid = shape_fit
+    k_proj, lg_proj = project_to_shape_curve(k_vals, lg_vals, k_grid, lg_grid)
     r2_shape = 1 - np.sum((shape_fit[0](k_vals) - lg_vals)**2) / np.sum((lg_vals - np.mean(lg_vals))**2)
     print(f"  Spline R^2 = {r2_shape:.4f}")
 
     # --- Figures ---
     print(f"\n{'='*60}\nGenerating figures\n{'='*60}")
     plot_pca_scree(embeddings["pca_model"], embeddings["scaler"])
-    plot_intrinsic_manifold(all_params, all_names, all_N, shape_fit, s_coord)
+    plot_intrinsic_manifold(all_params, all_names, all_N, shape_fit, k_proj)
     plot_parameter_space(all_params, all_names)
     plot_embeddings(embeddings, all_names, all_N, labels)
     plot_cluster_curves(all_params, all_N, all_names, labels)
