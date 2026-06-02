@@ -657,35 +657,34 @@ def print_manifold_summary(all_params, all_N, all_names, labels):
 # ======================================================================
 
 def fit_shape_curve(k_vals, log_gamma_vals):
-    """Fit log10_gamma = f(k) via sigmoid: lg = a/(1+exp((k-b)/c)) + d.
+    """Fit k = f(log10_gamma) via Hill model: k = c + a/(1+((lg-d)/s)^p).
 
-    The sigmoid captures the physical trend: at low k (shallow mode-count
-    curves), log10_gamma is high (strong asymmetry); at high k (steep curves),
-    it approaches a near-symmetric asymptote. Smooth, monotonic, bounded —
-    avoids the oscillation/explosion of splines and polynomials.
+    The Hill model captures the physical shape: steep decay from high k
+    (at low log10_gamma) down to a flat asymptote ~1-2 (at high log10_gamma).
+    Naturally bounded at both ends, more flexible than sigmoid, no oscillation.
 
     Returns:
-        params: (a, b, c, d) sigmoid parameters
-        k_grid, lg_grid: dense sampling of the fitted curve
+        params: (a, d, s, p, c) Hill parameters
+        lg_grid, k_grid: dense sampling of the fitted curve (x=lg, y=k)
     """
     from scipy.optimize import curve_fit
 
-    def sigmoid(k, a, b, c, d):
-        return a / (1.0 + np.exp((k - b) / c)) + d
+    def hill_model(lg, a, d, s, p, c):
+        return c + a / (1.0 + np.power(np.maximum((lg - d) / s, 1e-10), p))
 
-    popt, _ = curve_fit(sigmoid, k_vals, log_gamma_vals,
-                        p0=[6, 3, 2, -1], maxfev=5000)
+    popt, _ = curve_fit(hill_model, log_gamma_vals, k_vals,
+                        p0=[20, -1, 0.5, 2, 0], maxfev=10000)
 
-    k_grid = np.linspace(k_vals.min(), k_vals.max(), 500)
-    lg_grid = sigmoid(k_grid, *popt)
+    lg_grid = np.linspace(log_gamma_vals.min(), log_gamma_vals.max(), 500)
+    k_grid = hill_model(lg_grid, *popt)
 
-    return popt, k_grid, lg_grid
+    return popt, lg_grid, k_grid
 
 
-def project_to_shape_curve(k, log_gamma, k_grid, lg_grid):
+def project_to_shape_curve(k, log_gamma, lg_grid, k_grid):
     """Project each point (k, log_gamma) onto the nearest point of the shape curve.
 
-    The shape coordinate is the projected k-value on the sigmoid curve.
+    The shape coordinate is the projected k-value on the Hill curve.
 
     Returns:
         k_proj: projected k coordinate along the shape curve
@@ -710,8 +709,8 @@ def plot_intrinsic_manifold(all_params, all_names, all_N, shape_fit, k_proj):
       - X-axis: projected k on the k--log10_gamma shape curve (steepness)
       - Y-axis: sigma_half (characteristic scale of substructure)
     """
-    popt, k_grid, lg_grid = shape_fit
-    a, b, c, d = popt
+    popt, lg_grid, k_grid = shape_fit
+    a, d, s, p, c = popt
 
     set_style()
     fig, axes = plt.subplots(1, 3, figsize=(20, 5.5))
@@ -725,7 +724,7 @@ def plot_intrinsic_manifold(all_params, all_names, all_N, shape_fit, k_proj):
         ax.scatter(all_params[m, 0], all_params[m, 2], c=DATASET_COLORS[ds],
                    label=ds, s=15, alpha=0.6, edgecolors="none")
     ax.plot(k_grid, lg_grid, "k-", lw=2.5,
-            label=f"Sigmoid: {a:.2f}/(1+exp((k-{b:.2f})/{c:.2f})) + {d:.2f}")
+            label=f"Hill: k = {c:.2f} + {a:.2f}/(1+((lg-({d:.2f}))/{s:.2f})^{p:.2f})")
     ax.set_xlabel("k")
     ax.set_ylabel("log10_gamma")
     ax.set_title("Shape curve: k vs log10_gamma")
@@ -753,14 +752,14 @@ def plot_intrinsic_manifold(all_params, all_names, all_N, shape_fit, k_proj):
     plt.colorbar(sc, ax=ax, label="N")
 
     # Print summary
-    def sigmoid(k, a, b, c, d):
-        return a / (1.0 + np.exp((k - b) / c)) + d
+    def hill_model(lg, a, d, s, p, c):
+        return c + a / (1.0 + np.power(np.maximum((lg - d) / s, 1e-10), p))
     k_all = all_params[:, 0]
     lg_all = all_params[:, 2]
-    lg_pred = sigmoid(k_all, *popt)
-    r2 = 1 - np.sum((lg_pred - lg_all)**2) / np.sum((lg_all - np.mean(lg_all))**2)
-    print(f"\n  Shape curve: sigmoid, R^2 = {r2:.4f}")
-    print(f"    lg = {popt[0]:.3f} / (1 + exp((k - {popt[1]:.3f}) / {popt[2]:.3f})) + {popt[3]:.3f}")
+    k_pred = hill_model(lg_all, *popt)
+    r2 = 1 - np.sum((k_pred - k_all)**2) / np.sum((k_all - np.mean(k_all))**2)
+    print(f"\n  Shape curve: Hill model, R^2 = {r2:.4f}")
+    print(f"    k = {popt[4]:.2f} + {popt[0]:.2f}/(1+((lg-({popt[1]:.2f}))/{popt[2]:.2f})^{popt[3]:.2f})")
     print(f"  Per-dataset mean (k_proj, sigma_half):")
     for ds in datasets:
         m = all_names == ds
@@ -844,8 +843,8 @@ def main():
     k_vals = all_params[:, 0]
     lg_vals = all_params[:, 2]
     shape_fit = fit_shape_curve(k_vals, lg_vals)
-    _, k_grid, lg_grid = shape_fit
-    k_proj, lg_proj = project_to_shape_curve(k_vals, lg_vals, k_grid, lg_grid)
+    _, lg_grid, k_grid = shape_fit
+    k_proj, lg_proj = project_to_shape_curve(k_vals, lg_vals, lg_grid, k_grid)
 
     # --- Figures ---
     print(f"\n{'='*60}\nGenerating figures\n{'='*60}")
