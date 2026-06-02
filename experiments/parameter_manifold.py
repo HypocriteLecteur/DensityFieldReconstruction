@@ -868,7 +868,7 @@ def plot_temporal_trajectories(raw_data, all_params, all_names):
     if n_ds == 0:
         return
 
-    fig, axes = plt.subplots(n_ds, 2, figsize=(14, 3.5 * n_ds), squeeze=False)
+    fig, axes = plt.subplots(n_ds, 3, figsize=(20, 3.5 * n_ds), squeeze=False)
     move_figure(fig, 100, 600)
 
     for row, name in enumerate(datasets_with_time):
@@ -880,22 +880,41 @@ def plot_temporal_trajectories(raw_data, all_params, all_names):
 
         k = params[:, 0]
         sh = params[:, 1]
-        lg = params[:, 2]
+        dt = np.median(np.diff(t))
 
         # k_proj over time
         ax = axes[row, 0]
         ax.plot(t, k, "o-", color=DATASET_COLORS[name], markersize=3, lw=0.8, alpha=0.7)
         ax.set_ylabel("k (steepness)"); ax.set_xlabel("Frame")
-        ax.set_title(f"{name}: k(t) — steepness over time")
+        ax.set_title(f"{name}: k(t) — steepness over time, dt={dt:.0f}")
 
         # sigma_half over time
         ax = axes[row, 1]
         ax.plot(t, sh, "o-", color=DATASET_COLORS[name], markersize=3, lw=0.8, alpha=0.7)
         ax.set_ylabel("sigma_half (scale)"); ax.set_xlabel("Frame")
-        ax.set_title(f"{name}: sigma_half(t) — characteristic scale over time")
+        ax.set_title(f"{name}: sigma_half(t) — characteristic scale")
+
+        # ACF of k(t)
+        ax = axes[row, 2]
+        k_acf = k - np.mean(k)
+        maxlag = min(100, len(k) // 4)
+        acf_vals = [np.corrcoef(k_acf[:-l], k_acf[l:])[0, 1] for l in range(1, maxlag)]
+        lags_fr = np.arange(1, len(acf_vals) + 1) * dt
+        ax.plot(lags_fr, acf_vals, "o-", color=DATASET_COLORS[name], markersize=2, lw=0.8)
+        ax.axhline(0, color="k", lw=0.5)
+        # Zero-crossing
+        zc = next((i for i, a in enumerate(acf_vals) if a < 0), len(acf_vals))
+        tau_frames = (zc + 1) * dt if zc < len(acf_vals) else None
+        if tau_frames:
+            ax.axvline(tau_frames, color="gray", ls="--", lw=0.5)
+            ax.set_title(f"{name}: k ACF (tau0={tau_frames:.0f} fr)")
+        else:
+            ax.set_title(f"{name}: k ACF (no zero-cross)")
+        ax.set_xlabel("Lag (frames)"); ax.set_ylabel("Autocorrelation")
 
         # Annotate variability
-        print(f"  {name}: k CV={np.std(k)/np.mean(k):.3f}, sigma_half CV={np.std(sh)/np.mean(sh):.3f}")
+        tau_str = f"tau0={tau_frames:.0f}fr" if tau_frames else "tau0=N/A"
+        print(f"  {name}: k CV={np.std(k)/np.mean(k):.3f}, sigma_half CV={np.std(sh)/np.mean(sh):.3f}, {tau_str}")
 
     plt.tight_layout()
     plt.savefig("figs/manifold_temporal.png", bbox_inches="tight", dpi=300)
