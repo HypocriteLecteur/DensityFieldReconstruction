@@ -656,43 +656,36 @@ def print_manifold_summary(all_params, all_N, all_names, labels):
 # 6b. Intrinsic manifold: shape curve + scale axis
 # ======================================================================
 
-def fit_shape_curve(k_vals, log_gamma_vals, s=5.0):
-    """Fit log10_gamma = f(k) via smoothing spline to capture the 1D shape curve.
+def fit_shape_curve(k_vals, log_gamma_vals):
+    """Fit log10_gamma = f(k) via sigmoid: lg = a/(1+exp((k-b)/c)) + d.
 
-    Uses UnivariateSpline for a smooth, non-parametric fit. The polynomial
-    alternative (np.polyfit) gives R^2 ~0.39 while spline gives R^2 ~0.997.
-
-    Args:
-        s: smoothing factor (higher = smoother). Default 5.0 balances
-           fidelity to the dense swift/jackdaw points with robustness
-           to outliers (starling has only 2 fits).
+    The sigmoid captures the physical trend: at low k (shallow mode-count
+    curves), log10_gamma is high (strong asymmetry); at high k (steep curves),
+    it approaches a near-symmetric asymptote. Smooth, monotonic, bounded —
+    avoids the oscillation/explosion of splines and polynomials.
 
     Returns:
-        spline: fitted UnivariateSpline object
+        params: (a, b, c, d) sigmoid parameters
         k_grid, lg_grid: dense sampling of the fitted curve
     """
-    from scipy.interpolate import UnivariateSpline
-    sort_idx = np.argsort(k_vals)
-    k_sort = k_vals[sort_idx]
-    lg_sort = log_gamma_vals[sort_idx]
-    spline = UnivariateSpline(k_sort, lg_sort, s=s)
+    from scipy.optimize import curve_fit
 
-    # Clip to stable range: the spline extrapolates wildly (1e7+) outside
-    # the data-dense region. k in [1.3, 19.5] is empirically stable;
-    # the boundary cluster at k=20 causes derivative explosion to ~1700.
-    k_lo = max(np.percentile(k_vals, 1), 1.3)
-    k_hi = min(np.percentile(k_vals, 99), 19.5)
-    k_grid = np.linspace(k_lo, k_hi, 500)
-    lg_grid = spline(k_grid)
+    def sigmoid(k, a, b, c, d):
+        return a / (1.0 + np.exp((k - b) / c)) + d
 
-    return spline, k_grid, lg_grid
+    popt, _ = curve_fit(sigmoid, k_vals, log_gamma_vals,
+                        p0=[6, 3, 2, -1], maxfev=5000)
+
+    k_grid = np.linspace(k_vals.min(), k_vals.max(), 500)
+    lg_grid = sigmoid(k_grid, *popt)
+
+    return popt, k_grid, lg_grid
 
 
 def project_to_shape_curve(k, log_gamma, k_grid, lg_grid):
     """Project each point (k, log_gamma) onto the nearest point of the shape curve.
 
-    The shape coordinate is the projected k-value on the spline curve, which
-    naturally separates datasets (jackdaw ~4.7, swift ~3.5, starling ~18.8).
+    The shape coordinate is the projected k-value on the sigmoid curve.
 
     Returns:
         k_proj: projected k coordinate along the shape curve
@@ -717,7 +710,8 @@ def plot_intrinsic_manifold(all_params, all_names, all_N, shape_fit, k_proj):
       - X-axis: projected k on the k--log10_gamma shape curve (steepness)
       - Y-axis: sigma_half (characteristic scale of substructure)
     """
-    spline, k_grid, lg_grid = shape_fit
+    popt, k_grid, lg_grid = shape_fit
+    a, b, c, d = popt
 
     set_style()
     fig, axes = plt.subplots(1, 3, figsize=(20, 5.5))
@@ -730,11 +724,12 @@ def plot_intrinsic_manifold(all_params, all_names, all_N, shape_fit, k_proj):
         m = all_names == ds
         ax.scatter(all_params[m, 0], all_params[m, 2], c=DATASET_COLORS[ds],
                    label=ds, s=15, alpha=0.6, edgecolors="none")
-    ax.plot(k_grid, lg_grid, "k-", lw=2.5, label="Spline fit (shape curve)")
+    ax.plot(k_grid, lg_grid, "k-", lw=2.5,
+            label=f"Sigmoid: {a:.2f}/(1+exp((k-{b:.2f})/{c:.2f})) + {d:.2f}")
     ax.set_xlabel("k")
     ax.set_ylabel("log10_gamma")
     ax.set_title("Shape curve: k vs log10_gamma")
-    ax.legend(frameon=False, fontsize=7)
+    ax.legend(frameon=False, fontsize=6)
 
     # --- Center: intrinsic manifold (shape coord vs sigma_half) ---
     ax = axes[1]
@@ -758,10 +753,14 @@ def plot_intrinsic_manifold(all_params, all_names, all_N, shape_fit, k_proj):
     plt.colorbar(sc, ax=ax, label="N")
 
     # Print summary
+    def sigmoid(k, a, b, c, d):
+        return a / (1.0 + np.exp((k - b) / c)) + d
     k_all = all_params[:, 0]
     lg_all = all_params[:, 2]
-    r2 = 1 - np.sum((spline(k_all) - lg_all)**2) / np.sum((lg_all - np.mean(lg_all))**2)
-    print(f"\n  Shape curve: smoothing spline, R^2 = {r2:.4f}")
+    lg_pred = sigmoid(k_all, *popt)
+    r2 = 1 - np.sum((lg_pred - lg_all)**2) / np.sum((lg_all - np.mean(lg_all))**2)
+    print(f"\n  Shape curve: sigmoid, R^2 = {r2:.4f}")
+    print(f"    lg = {popt[0]:.3f} / (1 + exp((k - {popt[1]:.3f}) / {popt[2]:.3f})) + {popt[3]:.3f}")
     print(f"  Per-dataset mean (k_proj, sigma_half):")
     for ds in datasets:
         m = all_names == ds
@@ -847,8 +846,6 @@ def main():
     shape_fit = fit_shape_curve(k_vals, lg_vals)
     _, k_grid, lg_grid = shape_fit
     k_proj, lg_proj = project_to_shape_curve(k_vals, lg_vals, k_grid, lg_grid)
-    r2_shape = 1 - np.sum((shape_fit[0](k_vals) - lg_vals)**2) / np.sum((lg_vals - np.mean(lg_vals))**2)
-    print(f"  Spline R^2 = {r2_shape:.4f}")
 
     # --- Figures ---
     print(f"\n{'='*60}\nGenerating figures\n{'='*60}")
