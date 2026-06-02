@@ -95,15 +95,17 @@ def set_style():
 
 
 def load_cached_data(run_params):
-    """Load cached modes.npy and scale_range.npy for a dataset.
+    """Load cached modes.npy, scale_range.npy, and nn_dists.npy for a dataset.
     If cache is missing, compute the scaling law on-the-fly and save it.
     """
     name = run_params["name"]
+    nn_dists = None  # populated if cache exists or computed fresh
     sp = os.path.join(os.getcwd(), "scenarios", name)
     os.makedirs(sp, exist_ok=True)
 
     mp = os.path.join(sp, "modes.npy")
     srp = os.path.join(sp, "scale_range.npy")
+    nnp = os.path.join(sp, "nn_dists.npy")
 
     config = SimulationConfig(os.path.join(sp, "config.yaml"))
     dataset = DatasetFactory().get_dataset(config.data_file)
@@ -218,11 +220,26 @@ def load_cached_data(run_params):
 
         np.save(mp, all_modes)
         np.save(srp, scale_range)  # final save (re-save in case s_start was extended)
+
+        # Also cache nn_dists for downstream analysis (sigma_half vs physical spacing)
+        if not os.path.exists(nnp):
+            nn_dists = np.array([compute_avg_nn_dist(dataset.positions_at_time_step(s))
+                                 for s in tqdm(step_range, desc=f"  NN dist [{name}]")])
+            np.save(nnp, nn_dists)
+        else:
+            nn_dists = np.load(nnp)
+
         print(f"\n  [CACHE SAVED] {name}: modes={all_modes.shape}, scales={scale_range.shape}")
 
     else:
         all_modes = np.load(mp)
         scale_range = np.load(srp)
+        nn_dists = np.load(nnp) if os.path.exists(nnp) else None
+        if nn_dists is None:
+            print(f"  Computing NN distances for '{name}' ({len(step_range)} steps)...")
+            nn_dists = np.array([compute_avg_nn_dist(dataset.positions_at_time_step(s))
+                                 for s in tqdm(step_range, desc=f"  NN dist [{name}]")])
+            np.save(nnp, nn_dists)
 
         # Detect partial save: rows with all zeros are unprocessed
         row_sums = all_modes.sum(axis=1)
@@ -282,7 +299,7 @@ def load_cached_data(run_params):
     print(f"  Loading N for {name} ({len(step_range)} steps)...")
     N_array = np.array([dataset.positions_at_time_step(s).shape[0] for s in tqdm(step_range)])
 
-    return step_range, N_array, scale_range, all_modes
+    return step_range, N_array, scale_range, all_modes, nn_dists
 
 
 # ======================================================================
@@ -932,34 +949,6 @@ def plot_N_dependence(all_params, all_N, all_names, shape_fit):
         r_k = np.corrcoef(all_N[m], k_proj_all[m])[0, 1]
         print(f"    {ds:<12} r(k_proj, N)={r_k:+.3f}   r(sigma_half, N)={r_sh:+.3f}")
 
-    # --- sigma_half vs physical nearest-neighbor distance ---
-    print("\n  sigma_half vs physical nearest-neighbor distance:")
-    nn_by_species = {}
-    for rp in DATASET_RUNS:
-        name = rp["name"]
-        config = SimulationConfig(os.path.join(os.getcwd(), "scenarios", name, "config.yaml"))
-        dataset = DatasetFactory().get_dataset(config.data_file)
-        nn_list = []
-        for s in rp["step_range"] if rp["end_step"] is None else range(rp["start_step"], min(rp["end_step"], dataset.trajectories.shape[0]), rp["step_length"]):
-            pos = dataset.positions_at_time_step(s)
-            d = scipy_cdist(pos, pos)
-            np.fill_diagonal(d, 1e10)
-            nn_list.append(float(np.median(np.min(d, axis=1))))
-        nn_by_species[name] = np.array(nn_list)
-
-    print(f"    {'Species':<12} {'mean_sh':>8} {'mean_nn':>8} {'ratio':>8} {'r(sh,nn)':>10}")
-    all_sh, all_nn_cross = [], []
-    for ds in datasets:
-        m = all_names == ds
-        sh = all_params[m, 1]
-        nn = nn_by_species[ds][:len(sh)]
-        ratio = sh / (nn + 1e-10)
-        r = np.corrcoef(sh, nn)[0, 1]
-        all_sh.extend(sh); all_nn_cross.extend(nn)
-        print(f"    {ds:<12} {np.mean(sh):>8.3f} {np.mean(nn):>8.3f} {np.mean(ratio):>8.3f} {r:>10.3f}")
-    r_cross = np.corrcoef(all_sh, all_nn_cross)[0, 1]
-    print(f"    {'Cross-species':<12} r(sigma_half, avg_nn) = {r_cross:.3f}")
-
 
 # ======================================================================
 # 8. Main
@@ -983,11 +972,12 @@ def main():
     for rp in DATASET_RUNS:
         name = rp["name"]
         print(f"\n{'='*60}\nDataset: {name}\n{'='*60}")
-        sr, Na, scr, am = load_cached_data(rp)
+        sr, Na, scr, am, nn_dists = load_cached_data(rp)
         if sr is None:
             continue
 
-        raw_data[name] = {"step_range": sr, "N_array": Na, "scale_range": scr, "all_modes": am}
+        raw_data[name] = {"step_range": sr, "N_array": Na, "scale_range": scr,
+                          "all_modes": am, "nn_dists": nn_dists}
 
         print(f"  Fitting centered_3pl_log ({len(sr)} steps, sat={args.saturation})...")
         res = fit_all_steps(sr, Na, scr, am, saturation=args.saturation)
@@ -1053,6 +1043,24 @@ def main():
     print(f"\n{'='*60}\nScientific analyses\n{'='*60}")
     plot_temporal_trajectories(raw_data, all_params, all_names)
     plot_N_dependence(all_params, all_N, all_names, shape_fit)
+
+    # --- sigma_half vs physical nearest-neighbor distance ---
+    print("\n  sigma_half vs physical nearest-neighbor distance:")
+    nn_by_species = {name: raw_data[name]["nn_dists"] for name in sorted(set(all_names))
+                     if raw_data[name].get("nn_dists") is not None}
+    if nn_by_species:
+        print(f"    {'Species':<12} {'mean_sh':>8} {'mean_nn':>8} {'ratio':>8} {'r(sh,nn)':>10}")
+        all_sh, all_nn_cross = [], []
+        for ds in sorted(nn_by_species.keys()):
+            m = all_names == ds
+            sh = all_params[m, 1]
+            nn = nn_by_species[ds][:len(sh)]
+            ratio = sh / (nn + 1e-10)
+            r = np.corrcoef(sh, nn)[0, 1]
+            all_sh.extend(sh); all_nn_cross.extend(nn)
+            print(f"    {ds:<12} {np.mean(sh):>8.3f} {np.mean(nn):>8.3f} {np.mean(ratio):>8.3f} {r:>10.3f}")
+        r_cross = np.corrcoef(all_sh, all_nn_cross)[0, 1]
+        print(f"    {'Cross-species':<12} r(sigma_half, avg_nn) = {r_cross:.3f}")
 
     # --- Summary ---
     print_manifold_summary(all_params, all_N, all_names, labels)
