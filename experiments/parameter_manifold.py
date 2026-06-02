@@ -1032,6 +1032,21 @@ def bootstrap_cluster_stability(all_params, n_boot=100):
     if n_unstable > 0:
         print(f"    WARNING: {n_unstable}/{len(ref_clusters)} clusters are unstable (<0.5)")
 
+    # Compare with GMM (BIC selection)
+    from sklearn.mixture import GaussianMixture
+    bics, gmm_models = [], []
+    for n in range(2, 16):
+        gmm = GaussianMixture(n_components=n, random_state=42, covariance_type="full")
+        gmm.fit(X)
+        bics.append(gmm.bic(X))
+        gmm_models.append(gmm)
+    best_n = np.argmin(bics) + 2
+    gmm_labels = gmm_models[best_n - 2].predict(X)
+    from sklearn.metrics import adjusted_rand_score
+    ari = adjusted_rand_score(ref_labels, gmm_labels)
+    print(f"    GMM (BIC): {best_n} components, HDBSCAN vs GMM ARI={ari:.3f}")
+    print(f"    Note: cluster counts are method-dependent (7 vs {best_n}), ARI={ari:.1f} indicates different structures")
+
     return stability
 
 
@@ -1149,6 +1164,30 @@ def main():
             print(f"    {ds:<12} {np.mean(sh):>8.3f} {np.mean(nn):>8.3f} {np.mean(ratio):>8.3f} {r:>10.3f}")
         r_cross = np.corrcoef(all_sh, all_nn_cross)[0, 1]
         print(f"    {'Cross-species':<12} r(sigma_half, avg_nn) = {r_cross:.3f}")
+
+        # Bootstrap 95% CIs for the ratio within each species
+        print("\n    Ratio bootstrap (95% CI, 1000 resamples):")
+        for ds in sorted(nn_by_species.keys()):
+            m = all_names == ds
+            sh = all_params[m, 1]
+            nn = nn_by_species[ds][:len(sh)]
+            ratios = sh / (nn + 1e-10)
+            bs_means = [np.mean(np.random.choice(ratios, len(ratios), replace=True))
+                        for _ in range(1000)]
+            ci_lo, ci_hi = np.percentile(bs_means, [2.5, 97.5])
+            overlap_msg = ""
+            for ds2 in sorted(nn_by_species.keys()):
+                if ds2 <= ds: continue
+                m2 = all_names == ds2
+                sh2 = all_params[m2, 1]
+                nn2 = nn_by_species[ds2][:len(sh2)]
+                ratios2 = sh2 / (nn2 + 1e-10)
+                bs_means2 = [np.mean(np.random.choice(ratios2, len(ratios2), replace=True))
+                             for _ in range(1000)]
+                ci2_lo, ci2_hi = np.percentile(bs_means2, [2.5, 97.5])
+                if ci_lo <= ci2_hi and ci2_lo <= ci_hi:
+                    overlap_msg += f"  overlaps {ds2}"
+            print(f"      {ds:<12} {np.mean(ratios):.4f} [{ci_lo:.4f}, {ci_hi:.4f}]{overlap_msg}")
 
     # --- Summary ---
     print_manifold_summary(all_params, all_N, all_names, labels)
