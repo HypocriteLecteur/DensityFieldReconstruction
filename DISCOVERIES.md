@@ -132,6 +132,6 @@ All implemented and committed (see git log for details):
 
 1. **Starling is severely undersampled** (2 frames). Cannot characterize the species.
 2. **What drives k dynamics?** Steepness varies wildly within species — what behavioral event does a k-transition correspond to?
-3. **Validation on synthetic data**: Run mode_counting on point clouds with known cluster counts to measure accuracy vs scale.
+3. ~~Validation on synthetic data~~: 12/16 perfect recoveries (mean err 6.4%), only fails at separation ≤ 1× cluster_std where clusters physically overlap. For separation ≥ 2× std, perfect across N=50-500. Best scale consistently 1.0-1.3× avg_nn_dist.
 4. **Mechanistic derivation**: Can the 3PL form be derived from spatial point process theory or active matter physics?
 5. ~~Cluster stability~~: Confirmed — 7 robust clusters (0.886±0.082), UMAP inflates to 15.

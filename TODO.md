@@ -2,10 +2,6 @@
 
 Living task list for the parameter manifold investigation. Prioritized by impact.
 
-## In Progress
-
-- [ ] **Validate mode_counting on synthetic data** — Generate point clouds with known cluster counts, measure accuracy vs scale and N
-
 ## High Priority
 
 - [ ] **What drives k dynamics?** — Correlate k(t) transitions with known behavioral events (turns, mergers, polarization changes)
@@ -25,6 +21,7 @@ Living task list for the parameter manifold investigation. Prioritized by impact
 
 ## Done
 
+- [x] Validate mode_counting on synthetic data — 12/16 perfect, mean err 6.4%, fails only when clusters overlap
 - [x] Bootstrap cluster stability — 7 robust clusters (0.886±0.082), UMAP inflates to 15
 - [x] Cache nn_dists — saves to `scenarios/{name}/nn_dists.npy`, loaded on re-runs
 - [x] Fix DBSCAN eps=0 crash
