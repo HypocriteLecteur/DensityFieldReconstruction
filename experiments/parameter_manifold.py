@@ -115,6 +115,23 @@ def load_cached_data(run_params):
 
     cache_exists = os.path.exists(mp) and os.path.exists(srp)
 
+    # Detect incomplete (partial) saves: rows that are all zero are unprocessed
+    if cache_exists:
+        existing_modes = np.load(mp)
+        existing_scales = np.load(srp)
+        # A valid mode count is never 0 — find last complete row
+        row_sums = existing_modes.sum(axis=1)
+        zero_rows = np.where(row_sums == 0)[0]
+        if len(zero_rows) > 0:
+            last_complete = zero_rows[0]  # first all-zero row
+            print(f"  [RESUME] Partial cache found: {last_complete}/{len(step_range)} steps complete")
+            if last_complete == 0:
+                cache_exists = False  # nothing usable, start fresh
+            # If only a few rows missing, we'll resume Phase 2 below
+        elif existing_modes.shape[0] != len(step_range):
+            print(f"  [INFO] Cache shape mismatch, recomputing")
+            cache_exists = False
+
     if not cache_exists:
         print(f"  [CACHE MISS] Computing scaling law for '{name}' on-the-fly ({len(step_range)} steps)...")
         num_test_scale = 40
@@ -141,6 +158,7 @@ def load_cached_data(run_params):
 
         # --- Phase 2: mode counting at each scale for each time step ---
         all_modes = np.zeros((len(step_range), num_test_scale))
+        save_every = 50  # incremental save to avoid losing progress
         for i, s in enumerate(tqdm(step_range, desc=f"  Mode counting [{name}]")):
             pos_np = dataset.positions_at_time_step(s)
             pos = torch.from_numpy(pos_np).cuda().float()
@@ -191,20 +209,75 @@ def load_cached_data(run_params):
                 all_modes[i, j] = mode_num
                 prev_mode_num = mode_num
 
+            # Incremental save every `save_every` steps (and on final step)
+            if (i + 1) % save_every == 0 or i == len(step_range) - 1:
+                np.save(mp, all_modes)
+                np.save(srp, scale_range)
+                if (i + 1) % save_every == 0:
+                    print(f"  [partial save] {i+1}/{len(step_range)} steps", end="\r")
+
         np.save(mp, all_modes)
-        np.save(srp, scale_range)  # re-save in case s_start was extended
-        print(f"  [CACHE SAVED] {name}: modes={all_modes.shape}, scales={scale_range.shape}")
+        np.save(srp, scale_range)  # final save (re-save in case s_start was extended)
+        print(f"\n  [CACHE SAVED] {name}: modes={all_modes.shape}, scales={scale_range.shape}")
 
     else:
         all_modes = np.load(mp)
         scale_range = np.load(srp)
 
-        n_eff = min(all_modes.shape[0], scale_range.shape[0], len(step_range))
-        if all_modes.shape[0] != scale_range.shape[0] or scale_range.shape[0] != len(step_range):
-            print(f"  [INFO] Aligning -> n={n_eff}")
-        step_range = step_range[:n_eff]
-        scale_range = scale_range[:n_eff]
-        all_modes = all_modes[:n_eff]
+        # Detect partial save: rows with all zeros are unprocessed
+        row_sums = all_modes.sum(axis=1)
+        zero_rows = np.where(row_sums == 0)[0]
+        if len(zero_rows) > 0 and zero_rows[0] > 0:
+            last_complete = zero_rows[0]
+            print(f"  [RESUME] Partial cache: {last_complete}/{len(step_range)} steps done, resuming Phase 2")
+            # Truncate to completed rows
+            step_range_done = step_range[:last_complete]
+            all_modes_done = all_modes[:last_complete]
+
+            # Resume Phase 2 from last_complete onwards
+            resume_start = last_complete
+            for i, s in enumerate(tqdm(step_range[resume_start:], desc=f"  Mode counting [{name}] (resume)")):
+                i_abs = resume_start + i
+                pos_np = dataset.positions_at_time_step(s)
+                pos = torch.from_numpy(pos_np).cuda().float()
+                N = pos.shape[0]
+                avg_nn_dist = compute_avg_nn_dist(pos_np)
+                tol = max(avg_nn_dist * 1e-3, 1e-8)
+                s_start, s_end = scale_range[i_abs]
+
+                test_scales = np.logspace(np.log10(max(s_start, 1e-12)),
+                                          np.log10(max(s_end, 1e-11)), num_test_scale)
+                modes_pos = None; prev_mode_num = N
+                for j, sc in enumerate(test_scales):
+                    if sc < avg_nn_dist * 0.5:
+                        all_modes[i_abs, j] = N; continue
+                    if prev_mode_num <= 1:
+                        all_modes[i_abs, j] = 1; continue
+                    if prev_mode_num > 0.95 * N: mi = 100
+                    elif prev_mode_num > 0.5 * N: mi = 200
+                    else: mi = 400
+                    curr_pos = modes_pos.clone() if modes_pos is not None else pos.clone()
+                    mode_num, tmp = mode_counting_modified(pos, curr_pos, sc, max_iter=mi, tol=tol)
+                    modes_pos = torch.from_numpy(tmp).cuda().float()
+                    all_modes[i_abs, j] = mode_num
+                    prev_mode_num = mode_num
+
+                if (i_abs + 1) % save_every == 0 or i_abs == len(step_range) - 1:
+                    np.save(mp, all_modes)
+                    np.save(srp, scale_range)
+                    if (i_abs + 1) % save_every == 0:
+                        print(f"  [partial save] {i_abs+1}/{len(step_range)} steps", end="\r")
+
+            np.save(mp, all_modes)
+            np.save(srp, scale_range)
+            print(f"\n  [CACHE SAVED] {name}: modes={all_modes.shape}, scales={scale_range.shape}")
+
+        elif all_modes.shape[0] != scale_range.shape[0] or scale_range.shape[0] != len(step_range):
+            print(f"  [INFO] Shape mismatch, recomputing would be needed")
+            n_eff = min(all_modes.shape[0], scale_range.shape[0], len(step_range))
+            step_range = step_range[:n_eff]
+            scale_range = scale_range[:n_eff]
+            all_modes = all_modes[:n_eff]
 
     print(f"  Loading N for {name} ({len(step_range)} steps)...")
     N_array = np.array([dataset.positions_at_time_step(s).shape[0] for s in tqdm(step_range)])
