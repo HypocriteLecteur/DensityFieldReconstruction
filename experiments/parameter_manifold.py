@@ -656,36 +656,59 @@ def print_manifold_summary(all_params, all_N, all_names, labels):
 # 6b. Intrinsic manifold: shape curve + scale axis
 # ======================================================================
 
-def fit_shape_curve(k_vals, log_gamma_vals, degree=3):
-    """Fit log10_gamma = poly(k) to capture the 1D shape curve.
+def fit_shape_curve(k_vals, log_gamma_vals, s=5.0, k_cap=None):
+    """Fit log10_gamma = f(k) via smoothing spline to capture the 1D shape curve.
+
+    Uses UnivariateSpline for a smooth, non-parametric fit. The polynomial
+    alternative (np.polyfit) gives R² ~0.39 while spline gives R² ~0.997.
+
+    Args:
+        s: smoothing factor (higher = smoother). Default 5.0 balances
+           fidelity to the dense swift/jackdaw points with robustness
+           to outliers (starling has only 2 fits).
+        k_cap: upper bound for arc-length computation. The spline derivative
+               explodes near the upper bound (k=20), inflating arc length.
+               Defaults to the 98th percentile of k_vals.
 
     Returns:
-        coeffs: polynomial coefficients (highest degree first)
+        spline: fitted UnivariateSpline object
         k_grid, lg_grid: dense sampling of the fitted curve
         arc_length: arc length at each grid point
     """
-    # Fit polynomial: log10_gamma = f(k)
-    coeffs = np.polyfit(k_vals, log_gamma_vals, degree)
-    poly = np.poly1d(coeffs)
+    from scipy.interpolate import UnivariateSpline
+    sort_idx = np.argsort(k_vals)
+    k_sort = k_vals[sort_idx]
+    lg_sort = log_gamma_vals[sort_idx]
+    spline = UnivariateSpline(k_sort, lg_sort, s=s)
 
-    # Dense sampling of the fitted curve
-    k_grid = np.linspace(k_vals.min(), k_vals.max(), 500)
-    lg_grid = poly(k_grid)
+    # Cap the k range for arc-length to avoid derivative explosion at the tail.
+    # The spline derivative is well-behaved (|d|<1) for k<19 but explodes to
+    # ~1700 at k=20 due to clustered boundary points. Default cap at 95th pct.
+    if k_cap is None:
+        k_cap = np.percentile(k_vals, 95)
+    k_min = k_vals.min()
+    k_max = min(k_vals.max(), k_cap)
 
-    # Arc length along the curve: s(k) = integral of sqrt(1 + (df/dk)^2)
-    d_poly = np.polyder(poly)
-    d_lg = d_poly(k_grid)
+    # Dense sampling of the fitted curve (full range for plotting)
+    k_grid_full = np.linspace(k_vals.min(), k_vals.max(), 500)
+    lg_grid = spline(k_grid_full)
+
+    # Arc length over the capped range
+    k_grid_arc = np.linspace(k_min, k_max, 500)
+    d_lg = spline.derivative()(k_grid_arc)
     integrand = np.sqrt(1.0 + d_lg**2)
-    arc_length = np.concatenate([[0.0], np.cumsum(np.diff(k_grid) * 0.5 * (integrand[:-1] + integrand[1:]))])
+    arc_length_capped = np.concatenate([[0.0], np.cumsum(np.diff(k_grid_arc) * 0.5 * (integrand[:-1] + integrand[1:]))])
 
-    return coeffs, k_grid, lg_grid, arc_length
+    return spline, k_grid_full, lg_grid, arc_length_capped, k_grid_arc
 
 
-def project_to_shape_curve(k, log_gamma, k_grid, lg_grid, arc_length):
+def project_to_shape_curve(k, log_gamma, k_grid, lg_grid, k_grid_arc, arc_length_capped):
     """Project each point (k, log_gamma) onto the nearest point of the shape curve.
 
+    Uses a capped arc-length coordinate to avoid inflation from the high-k tail.
+
     Returns:
-        s: arc-length coordinate along the shape curve
+        s: arc-length coordinate (capped range)
         k_proj, lg_proj: projected point on the curve
     """
     s = np.zeros(len(k))
@@ -693,12 +716,16 @@ def project_to_shape_curve(k, log_gamma, k_grid, lg_grid, arc_length):
     lg_proj = np.zeros(len(k))
 
     for i in range(len(k)):
-        # Find nearest point on the dense grid
-        dist2 = (k_grid - k[i])**2 + (lg_grid - log_gamma[i])**2
-        idx = np.argmin(dist2)
-        s[i] = arc_length[idx]
-        k_proj[i] = k_grid[idx]
-        lg_proj[i] = lg_grid[idx]
+        # Find nearest point on the capped grid (for arc length)
+        dist2_arc = (k_grid_arc - k[i])**2 + (np.interp(k_grid_arc, k_grid, lg_grid) - log_gamma[i])**2
+        idx_arc = np.argmin(dist2_arc)
+        s[i] = arc_length_capped[idx_arc]
+
+        # Find nearest point on the full grid (for k_proj, lg_proj)
+        dist2_full = (k_grid - k[i])**2 + (lg_grid - log_gamma[i])**2
+        idx_full = np.argmin(dist2_full)
+        k_proj[i] = k_grid[idx_full]
+        lg_proj[i] = lg_grid[idx_full]
 
     return s, k_proj, lg_proj
 
@@ -710,7 +737,7 @@ def plot_intrinsic_manifold(all_params, all_names, all_N, shape_fit, s_coord):
       - X-axis: position along the k--log10_gamma shape curve (steepness)
       - Y-axis: sigma_half (characteristic scale of substructure)
     """
-    coeffs, k_grid, lg_grid, arc_length = shape_fit
+    spline, k_grid, lg_grid, _, _ = shape_fit
 
     set_style()
     fig, axes = plt.subplots(1, 3, figsize=(20, 5.5))
@@ -723,7 +750,7 @@ def plot_intrinsic_manifold(all_params, all_names, all_N, shape_fit, s_coord):
         m = all_names == ds
         ax.scatter(all_params[m, 0], all_params[m, 2], c=DATASET_COLORS[ds],
                    label=ds, s=15, alpha=0.6, edgecolors="none")
-    ax.plot(k_grid, lg_grid, "k-", lw=2.5, label="Fitted shape curve")
+    ax.plot(k_grid, lg_grid, "k-", lw=2.5, label="Spline fit (shape curve)")
     ax.set_xlabel("k")
     ax.set_ylabel("log10_gamma")
     ax.set_title("Shape curve: k vs log10_gamma")
@@ -751,9 +778,10 @@ def plot_intrinsic_manifold(all_params, all_names, all_N, shape_fit, s_coord):
     plt.colorbar(sc, ax=ax, label="N")
 
     # Print summary
-    print(f"\n  Shape curve: log10_gamma = {coeffs[0]:.4f}*k^3 + {coeffs[1]:.4f}*k^2 + "
-          f"{coeffs[2]:.4f}*k + {coeffs[3]:.4f}")
-    print(f"  Arc length range: [{np.min(s_coord):.2f}, {np.max(s_coord):.2f}]")
+    k_all = all_params[:, 0]
+    lg_all = all_params[:, 2]
+    r2 = 1 - np.sum((spline(k_all) - lg_all)**2) / np.sum((lg_all - np.mean(lg_all))**2)
+    print(f"\n  Shape curve: smoothing spline, R^2 = {r2:.4f}  (normalized arc length)")
     print(f"  Per-dataset mean (shape_coord, sigma_half):")
     for ds in datasets:
         m = all_names == ds
@@ -836,10 +864,16 @@ def main():
     print(f"\n{'='*60}\nFitting shape curve (k vs log10_gamma)\n{'='*60}")
     k_vals = all_params[:, 0]
     lg_vals = all_params[:, 2]
-    shape_fit = fit_shape_curve(k_vals, lg_vals, degree=3)
-    _, k_grid, lg_grid, arc_len = shape_fit
+    shape_fit = fit_shape_curve(k_vals, lg_vals)
+    _, k_grid, lg_grid, arc_len_capped, k_grid_arc = shape_fit
     s_coord, k_proj, lg_proj = project_to_shape_curve(k_vals, lg_vals,
-                                                       k_grid, lg_grid, arc_len)
+                                                       k_grid, lg_grid,
+                                                       k_grid_arc, arc_len_capped)
+    # Normalize arc-length to [0, 1] for interpretability
+    s_coord = (s_coord - s_coord.min()) / (s_coord.max() - s_coord.min() + 1e-12)
+    # Report R^2
+    r2_shape = 1 - np.sum((shape_fit[0](k_vals) - lg_vals)**2) / np.sum((lg_vals - np.mean(lg_vals))**2)
+    print(f"  Spline R^2 = {r2_shape:.4f}")
 
     # --- Figures ---
     print(f"\n{'='*60}\nGenerating figures\n{'='*60}")
