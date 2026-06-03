@@ -16,7 +16,9 @@ The 3PL model `m(sigma) = 1 + (N-1) / (1 + (2^(1/gamma)-1) × (sigma/sigma_half)
 | `sigma_half` | Scale where half the modes have merged | 0.37 – 3.73 |
 | `log10_gamma` | Asymmetry (log10 space) | −1.13 – 5.00 |
 
-**Datasets**: 4 species, 1,119 frames total (swift: 765, jackdaw: 200, jackdaw2: 152, starling: 2).
+**Datasets**: 3 species, 1,117 frames total (swift: 765, jackdaw: 200, jackdaw2: 152). Starling (2 frames) excluded — insufficient to characterize a species.
+
+**N distribution** (flock size): swift 87–811 (median 321), jackdaw 66–242 (median 208), jackdaw2 82–137 (median 114). All frames pass min_N=50. Sparsity (avg_nn_dist / bbox_diag) is consistent at 0.016–0.047 across all species — no frames are pathologically sparse.
 
 ---
 
@@ -42,7 +44,6 @@ R² = 0.95. This captures the steep decay from high asymmetry (low k) to near-sy
 | swift | 3.52 | 2.21 | Gradual transition, large inter-agent spacing |
 | jackdaw | 4.72 | 0.84 | Moderate steepness, moderate spacing |
 | jackdaw2 | 4.16 | 1.14 | Moderate steepness, moderate spacing |
-| starling | 18.84 | 0.38 | Very steep, tight packing (only 2 frames!) |
 
 ---
 
@@ -52,7 +53,6 @@ The 3PL parameter `sigma_half` is proportional to the median physical nearest-ne
 
 | Species | mean sigma_half | mean avg_nn_dist | ratio | 95% CI |
 |---------|----------------|------------------|-------|--------|
-| starling | 0.375 | 0.702 | 0.534 | [0.530, 0.538] |
 | jackdaw | 0.838 | 1.361 | 0.617 | [0.613, 0.620] |
 | jackdaw2 | 1.141 | 2.187 | 0.522 | [0.516, 0.528] |
 | swift | 2.211 | 4.012 | 0.550 | [0.548, 0.552] |
@@ -134,7 +134,8 @@ Validated on 3D Gaussian cluster processes with known ground truth:
 | **jackdaw** | 3.06 | 0.84 | −0.13 |
 | **jackdaw2** | 2.56 | 1.13 | 0.06 |
 | **swift** | 2.79 | 2.16 | 0.21 |
-| **starling** | 18.78 | 0.38 | −0.77 |
+
+Starling (N=1167, k=18.78) was excluded — only 2 frames.
 
 k ≈ 3 is the null expectation from dimensional analysis of a 3D homogeneous point process (mode count scales as σ^(−d) in the intermediate regime). Most systems, synthetic and real, cluster around this value. sigma_half scales with point density / cluster size. Starling (k=19) is the only departure from the null — but with 2 frames, this could be artifact.
 
