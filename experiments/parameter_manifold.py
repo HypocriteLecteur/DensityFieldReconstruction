@@ -73,10 +73,11 @@ def compute_avg_nn_dist(pos_np):
 # ======================================================================
 
 DATASET_RUNS = [
-    {"name": "swift",    "start_step": 0,    "end_step": None, "step_length": 20},
-    {"name": "starling", "start_step": 0,    "end_step": None, "step_length": 1},
-    {"name": "jackdaw",  "start_step": 350,  "end_step": 550,  "step_length": 1},
-    {"name": "jackdaw2", "start_step": 2700, "end_step": 3460, "step_length": 5},
+    {"name": "swift",    "start_step": 0,    "end_step": None, "step_length": 20,  "min_N": 50},
+    # starling has only 2 frames — too few to characterize a species. Excluded by default.
+    # {"name": "starling", "start_step": 0,    "end_step": None, "step_length": 1,   "min_N": 50},
+    {"name": "jackdaw",  "start_step": 350,  "end_step": 550,  "step_length": 1,   "min_N": 50},
+    {"name": "jackdaw2", "start_step": 2700, "end_step": 3460, "step_length": 5,   "min_N": 50},
 ]
 
 DATASET_COLORS = {
@@ -114,6 +115,14 @@ def load_cached_data(run_params):
     end = run_params["end_step"]
     eff_end = end if end is not None and end <= max_steps else max_steps
     step_range = list(range(run_params["start_step"], eff_end, run_params["step_length"]))
+
+    # Filter by minimum N (remove frames with too few agents for meaningful mode-counting)
+    min_N = run_params.get("min_N", 0)
+    if min_N > 0:
+        n_before = len(step_range)
+        step_range = [s for s in step_range if dataset.positions_at_time_step(s).shape[0] >= min_N]
+        if len(step_range) < n_before:
+            print(f"  [FILTER] min_N={min_N}: kept {len(step_range)}/{n_before} steps")
 
     cache_exists = os.path.exists(mp) and os.path.exists(srp)
 
