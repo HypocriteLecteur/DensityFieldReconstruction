@@ -1071,49 +1071,21 @@ def bootstrap_cluster_stability(all_params, n_boot=100):
     return stability
 
 
-def compute_synthetic_params(N=200, n_trials=10):
-    """Fit 3PL to Poisson and Thomas point processes for shape curve overlay.
+def compute_synthetic_params():
+    """Load precomputed synthetic 3PL fits from cache, or generate if missing.
 
     Returns (synthetic_params, synthetic_labels) for plot_intrinsic_manifold.
+    Cache: scenarios/_synthetic/synthetic_params.npz + synthetic_labels.npy
     """
-    from scipy.optimize import curve_fit as cf
-    from experiments.mechanistic_derivation import (poisson_point_cloud,
-         thomas_point_cloud, compute_mode_curve)
+    from experiments.synthetic_benchmark import load_cached, run_all
 
-    rng = np.random.default_rng(42)
-    scales = np.logspace(-1, 1.5, 40)
-
-    def fit_one(generate_fn):
-        results = []
-        for _ in range(n_trials):
-            pos = generate_fn(N, rng=rng)
-            mc = compute_mode_curve(pos, scales)
-            def fn(x, k, sh, lg):
-                return 1.0 + model_centered_3pl(x, [k, sh, lg], N)
-            try:
-                popt, _ = cf(fn, scales, mc, p0=[2.0, np.median(scales), 0.0],
-                             bounds=([0.1, 1e-6, -2], [20, np.inf, 5]), maxfev=5000)
-                results.append(popt)
-            except Exception:
-                pass
-        return np.array(results)
-
-    synthetic_params = []
-    synthetic_labels = []
-
-    poisson = fit_one(lambda n, rng: poisson_point_cloud(n, rng=rng))
-    if len(poisson) > 0:
-        synthetic_params.append(poisson)
-        synthetic_labels.append(f'Poisson N={N}')
-
-    for cs in [0.5, 1.0, 2.0, 4.0]:
-        tp = fit_one(lambda n, rng, cs=cs: thomas_point_cloud(n, n_clusters=10, cluster_std=cs, rng=rng))
-        if len(tp) > 0:
-            synthetic_params.append(tp)
-            synthetic_labels.append(f'Thomas cs={cs}')
-
-    print(f"  Synthetic 3PL fits: {sum(len(p) for p in synthetic_params)} total "
-          f"({len(synthetic_params)} process types)")
+    synthetic_params, synthetic_labels = load_cached()
+    if synthetic_params is None:
+        print("  [CACHE MISS] Generating synthetic 3PL fits (this may take a few minutes)...")
+        synthetic_params, synthetic_labels = run_all(n_trials=30, N=200)
+    else:
+        print(f"  [CACHE HIT] Loaded {sum(len(p) for p in synthetic_params)} "
+              f"synthetic fits across {len(synthetic_params)} process types")
     return synthetic_params, synthetic_labels
 
 
