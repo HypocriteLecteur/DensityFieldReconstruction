@@ -77,7 +77,14 @@ Bootstrap CIs are tight (width ~0.004–0.013) and do not overlap between specie
 | jackdaw2 | 0.10 | 1.14 | Stable density, very dynamic steepness |
 | swift | 0.22 | 0.83 | Both vary, wider range of flock states |
 
-**k (steepness) is highly dynamic** — it tracks behavioral state transitions (e.g., milling → polarized → milling).
+**k (steepness) is highly dynamic and genuinely so.** Not fitting noise:
+- Lag-1 autocorrelation r=0.92 — k is smooth, not jittery
+- 89% of consecutive frames have dk < 1.0 — small step-to-step changes
+- 50 random initializations of 3PL fit converge to the same point — the fit is unique and well-behaved
+- Only 6% of frames hit k=20 bound, 4/199 pairs show dk > 5.0
+- The flock explores the full k range (0.95–20) over ~66 frames — genuine behavioral transitions
+
+The 3PL fit is NOT degenerate. The high variability in k reflects real changes in how the flock's mode-count curve steepens or flattens over time.
 
 **Temporal autocorrelation** reveals k(t) is not white noise. Characteristic decorrelation times (ACF zero-crossing):
 - jackdaw: ~39 frames (dt=1)
