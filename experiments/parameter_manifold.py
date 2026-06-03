@@ -74,8 +74,7 @@ def compute_avg_nn_dist(pos_np):
 
 DATASET_RUNS = [
     {"name": "swift",    "start_step": 0,    "end_step": None, "step_length": 20,  "min_N": 50},
-    # starling has only 2 frames — too few to characterize a species. Excluded by default.
-    # {"name": "starling", "start_step": 0,    "end_step": None, "step_length": 1,   "min_N": 50},
+    {"name": "starling", "start_step": 0,    "end_step": None, "step_length": 1,   "min_N": 50},
     {"name": "jackdaw",  "start_step": 350,  "end_step": 550,  "step_length": 1,   "min_N": 50},
     {"name": "jackdaw2", "start_step": 2700, "end_step": 3460, "step_length": 5,   "min_N": 50},
 ]
@@ -728,7 +727,8 @@ def project_to_shape_curve(k, log_gamma, lg_grid, k_grid):
     return k_proj, lg_proj
 
 
-def plot_intrinsic_manifold(all_params, all_names, all_N, shape_fit, k_proj):
+def plot_intrinsic_manifold(all_params, all_names, all_N, shape_fit, k_proj,
+                            synthetic_params=None, synthetic_labels=None):
     """The intrinsic 2D manifold: shape coordinate (k_proj) vs sigma_half.
 
     This replaces the learned UMAP embedding with physically interpretable axes:
@@ -751,6 +751,18 @@ def plot_intrinsic_manifold(all_params, all_names, all_N, shape_fit, k_proj):
                    label=ds, s=15, alpha=0.6, edgecolors="none")
     ax.plot(k_grid, lg_grid, "k-", lw=2.5,
             label=f"Hill: k = {c:.2f} + {a:.2f}/(1+((lg-({d:.2f}))/{s:.2f})^{p:.2f})")
+
+    # Overlay synthetic point processes for comparison
+    if synthetic_params is not None and synthetic_labels is not None:
+        syn_colors = ['#e74c3c', '#f39c12', '#2ecc71', '#3498db', '#9b59b6']
+        syn_markers = ['^', 's', 'D', 'v', 'P']
+        for i, (params, label) in enumerate(zip(synthetic_params, synthetic_labels)):
+            if len(params) > 0:
+                ax.scatter(params[:, 0], params[:, 2], c=syn_colors[i % len(syn_colors)],
+                           marker=syn_markers[i % len(syn_markers)], s=50,
+                           edgecolors='black', linewidths=0.5,
+                           label=f'{label} (n={len(params)})', zorder=5)
+
     ax.set_xlabel("k")
     ax.set_ylabel("log10_gamma")
     ax.set_title("Shape curve: k vs log10_gamma")
@@ -1059,6 +1071,52 @@ def bootstrap_cluster_stability(all_params, n_boot=100):
     return stability
 
 
+def compute_synthetic_params(N=200, n_trials=10):
+    """Fit 3PL to Poisson and Thomas point processes for shape curve overlay.
+
+    Returns (synthetic_params, synthetic_labels) for plot_intrinsic_manifold.
+    """
+    from scipy.optimize import curve_fit as cf
+    from experiments.mechanistic_derivation import (poisson_point_cloud,
+         thomas_point_cloud, compute_mode_curve)
+
+    rng = np.random.default_rng(42)
+    scales = np.logspace(-1, 1.5, 40)
+
+    def fit_one(generate_fn):
+        results = []
+        for _ in range(n_trials):
+            pos = generate_fn(N, rng=rng)
+            mc = compute_mode_curve(pos, scales)
+            def fn(x, k, sh, lg):
+                return 1.0 + model_centered_3pl(x, [k, sh, lg], N)
+            try:
+                popt, _ = cf(fn, scales, mc, p0=[2.0, np.median(scales), 0.0],
+                             bounds=([0.1, 1e-6, -2], [20, np.inf, 5]), maxfev=5000)
+                results.append(popt)
+            except Exception:
+                pass
+        return np.array(results)
+
+    synthetic_params = []
+    synthetic_labels = []
+
+    poisson = fit_one(lambda n, rng: poisson_point_cloud(n, rng=rng))
+    if len(poisson) > 0:
+        synthetic_params.append(poisson)
+        synthetic_labels.append(f'Poisson N={N}')
+
+    for cs in [0.5, 1.0, 2.0, 4.0]:
+        tp = fit_one(lambda n, rng, cs=cs: thomas_point_cloud(n, n_clusters=10, cluster_std=cs, rng=rng))
+        if len(tp) > 0:
+            synthetic_params.append(tp)
+            synthetic_labels.append(f'Thomas cs={cs}')
+
+    print(f"  Synthetic 3PL fits: {sum(len(p) for p in synthetic_params)} total "
+          f"({len(synthetic_params)} process types)")
+    return synthetic_params, synthetic_labels
+
+
 # ======================================================================
 # 9. Main
 # ======================================================================
@@ -1144,7 +1202,10 @@ def main():
     # --- Figures ---
     print(f"\n{'='*60}\nGenerating figures\n{'='*60}")
     plot_pca_scree(embeddings["pca_model"], embeddings["scaler"])
-    plot_intrinsic_manifold(all_params, all_names, all_N, shape_fit, k_proj)
+    # Synthetic point processes for shape curve comparison
+    synthetic_params, synthetic_labels = compute_synthetic_params()
+    plot_intrinsic_manifold(all_params, all_names, all_N, shape_fit, k_proj,
+                            synthetic_params, synthetic_labels)
     plot_shape_curve_mode_curves(shape_fit, all_params)
     plot_parameter_space(all_params, all_names)
     plot_embeddings(embeddings, all_names, all_N, labels)
