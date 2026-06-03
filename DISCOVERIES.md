@@ -37,6 +37,8 @@ k = 1.34 + 18.66 / (1 + ((log10_gamma − (−1.01)) / 0.36)^2.13)
 
 R² = 0.95. This captures the steep decay from high asymmetry (low k) to near-symmetric (high k) with a flat plateau at k ≈ 1–2.
 
+**However, log10_gamma is unidentifiable above ~1.0.** For lg ≥ 1, gamma > 10, and the 3PL loses sensitivity: two curves with the same (k, sigma_half) but different lg (say lg=2 vs lg=5) differ by <1 mode. The empirical data has many fits at lg=4–5 (saturating the upper bound) — these are fitting artifacts. The effective identifiable range is **lg ∈ [−1.5, 1.0]**. The vertical spread at high lg on the shape curve is noise, not signal.
+
 **Per-species manifold coordinates** (mean k_proj, sigma_half):
 
 | Species | k_proj | sigma_half | Physical interpretation |
@@ -154,7 +156,7 @@ These are empirical facts without theoretical foundation:
 
 1. **Why the 3PL form?** The centered 3PL is a flexible sigmoid that fits well, but there is no first-principles derivation. Why this parameterization rather than a gamma CDF, Hill function, or other sigmoid family?
 
-2. **What is log10_gamma physically?** It controls sigmoid asymmetry. Poisson processes give γ≈1 (symmetric). Some Thomas processes produce γ≠1, but there is no theory predicting its value from point process parameters.
+2. ~~What is log10_gamma physically?~~ Partially resolved: lg controls sigmoid asymmetry, but is only identifiable in [−1.5, 1.0]. Above ~1.0, the 3PL is over-parameterized — k and sigma_half suffice. Many empirical fits at lg=4–5 are fitting artifacts.
 
 3. **Why the Hill shape curve?** k and log10_gamma are coupled along `k = c + a/(1+((lg−d)/s)^p)`. This is purely descriptive — no theory predicts this functional form or its parameters.
 
