@@ -10,6 +10,7 @@ from dfr.reconstruction_scale_determination import reconstruct_visual_hull, visu
 from dfr.mode_finding import analytic_solution_scale_at_x_constant
 from dfr.visualizer import MultiGMMPlotter
 from dfr.config import TrainingParams, ReconstructionParams
+from dfr.center_estimator import estimate_center_from_point_sets, estimate_center_from_images
 import warnings
 import matplotlib.pyplot as plt
 from gaussian_rasterizer_simple_large import rasterize_gaussians
@@ -43,65 +44,10 @@ class DensityReconstructor:
         }
     
     def estimate_swarm_center(self, point_sets: list[torch.Tensor]):
-        if len(self.cameras) > 2:
-            warnings.warn("Only the first two cameras will be used for swarm center estimation.", UserWarning)
-
-        cam1 = self.cameras[0].state
-        cam2 = self.cameras[1].state
-
-        # P's are (3, 4) [R|t] matrices
-        P1_proj = cam1.intrinsics_params @ cam1.P_np
-        P2_proj = cam2.intrinsics_params @ cam2.P_np
-        
-        pnts4D = cv2.triangulatePoints(P1_proj, P2_proj, 
-                                       np.mean(point_sets[0], axis=0), np.mean(point_sets[1], axis=0))
-        
-        # Convert homogeneous coordinates to 3D
-        center = (pnts4D[:3, :] / pnts4D[3].T).reshape((3,))
-        return center
+        return estimate_center_from_point_sets(self.cameras, point_sets)
 
     def estimate_swarm_center_image(self, images: list[torch.Tensor]):
-        """
-        Estimates the 3D center of the swarm by triangulating the image-intensity centroids.
-        Requires at least two images.
-        """
-        if len(images) < 2:
-            raise ValueError("Need at least two images for triangulation.")
-        
-        if len(images) < 2:
-            warnings.warn("Only the first two cameras will be used for swarm center estimation.", UserWarning)
-
-        centroids_np = []
-        for img in images:
-            H, W = img.shape[-2:]
-
-            # Compute centroid (weighted mean of pixel coordinates)
-            total_intensity = img.sum()
-            if total_intensity.item() == 0:
-                 raise ValueError(f"Image from camera {len(centroids_np)} is empty (sum=0).")
-            
-            x_coords = torch.arange(W, dtype=torch.float32, device=img.device)
-            y_coords = torch.arange(H, dtype=torch.float32, device=img.device)
-            
-            # Sum over H for x-weighted sum, sum over W for y-weighted sum
-            x_weighted = (x_coords * img.sum(dim=-2)).sum() / total_intensity
-            y_weighted = (y_coords * img.sum(dim=-1)).sum() / total_intensity
-
-            centroids_np.append(np.array([x_weighted.cpu().item() + 0.5, y_weighted.cpu().item() + 0.5])) # +0.5 for pixel center
-
-        # Triangulate using the first two camera states
-        cam1 = self.cameras[0].state
-        cam2 = self.cameras[1].state
-        
-        # P's are (3, 4) [R|t] matrices
-        P1_proj = cam1.intrinsics_params @ cam1.P_np
-        P2_proj = cam2.intrinsics_params @ cam2.P_np
-        
-        pnts4D = cv2.triangulatePoints(P1_proj, P2_proj, centroids_np[0], centroids_np[1])
-        
-        # Convert homogeneous coordinates to 3D
-        center = (pnts4D[:3, :] / pnts4D[3]).T.reshape((3,))
-        return center
+        return estimate_center_from_images(self.cameras, images)
     
     def reconstruction_scale_determination(self, images: list[torch.Tensor], 
                                            scale=0.5, peak_threshold=0.3, grid_max_size=32, M=30, positions=None, debug=False, point_sets=None):
