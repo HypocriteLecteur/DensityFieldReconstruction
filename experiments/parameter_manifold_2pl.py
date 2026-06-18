@@ -7,7 +7,6 @@ inflated k variance in the 3PL. Model: m(sigma) = 1 + (N-1)/(1 + (sigma/sigma_ha
 This is the standard Hill equation with Hill coefficient k.
 """
 import sys, os
-sys.path.append(os.getcwd())
 
 import numpy as np
 from scipy.spatial.distance import cdist as scipy_cdist
@@ -20,7 +19,7 @@ import matplotlib.cm as cm
 
 from dfr.simulation_config import SimulationConfig
 from dfr.dataset_io import DatasetFactory
-from experiments.power_law import move_figure
+from dfr.utils import move_figure
 
 
 # ======================================================================

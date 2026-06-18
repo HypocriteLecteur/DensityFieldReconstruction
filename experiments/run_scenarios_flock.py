@@ -5,7 +5,6 @@ import shutil
 from tqdm import tqdm
 import glob
 
-sys.path.append(os.getcwd()) # To get around relative import issues. I hate Python.
 
 import cv2
 import time
@@ -21,7 +20,7 @@ from dfr.utils import calculate_gmm_dissimilarity, generate_encircling_cameras, 
 from dfr.visualizer import MultiGMMPlotter
 from dfr.gaussian_mixture_reduction import GMR
 from gaussian_rasterizer_simple_large import rasterize_gaussians
-from experiments.power_law import move_figure
+from dfr.utils import move_figure
 import json
 from scipy.spatial.transform import Rotation as R
 import scipy.io

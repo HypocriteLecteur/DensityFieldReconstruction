@@ -12,7 +12,6 @@ Processes span the spectrum: regular → random → clustered
   - Log-Gaussian Cox (doubly stochastic, clustered)
 """
 import sys, os
-sys.path.append(os.getcwd())
 
 import numpy as np
 from scipy.optimize import curve_fit

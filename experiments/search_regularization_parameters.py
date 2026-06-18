@@ -6,7 +6,6 @@ import csv
 import itertools
 from tqdm import tqdm
 
-sys.path.append(os.getcwd()) # To get around relative import issues. I hate Python.
 
 import numpy as np
 from dfr.simulation_config import SimulationConfig

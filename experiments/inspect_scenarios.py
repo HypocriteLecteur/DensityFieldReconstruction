@@ -3,7 +3,6 @@ import sys
 import os
 from tqdm import tqdm
 
-sys.path.append(os.getcwd()) # To get around relative import issues. I hate Python.
 
 import numpy as np
 from dfr.simulation_config import SimulationConfig
@@ -11,7 +10,7 @@ from dfr.dataset_io import DatasetFactory
 from dfr.camera_system import MultiCameraSystem
 from dfr.camera_state import CameraState
 from dfr.visualizer import SimulationVisualizer, MultiGMMPlotter
-from experiments.power_law import move_figure
+from dfr.utils import move_figure
 import matplotlib.pyplot as plt
 
 # Setup logger

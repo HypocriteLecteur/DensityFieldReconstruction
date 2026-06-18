@@ -15,7 +15,6 @@ empirical curves should collapse onto the Poisson prediction after
 scaling by avg_nn_dist. Deviations reveal genuine collective structure.
 """
 import sys, os
-sys.path.append(os.getcwd())
 
 import numpy as np
 import torch

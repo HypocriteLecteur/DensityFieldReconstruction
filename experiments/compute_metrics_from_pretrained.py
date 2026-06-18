@@ -15,7 +15,6 @@ import os
 import numpy as np
 from tqdm import tqdm
 
-sys.path.append(os.getcwd())
 
 from dfr.simulation_config import SimulationConfig
 from dfr.dataset_io import DatasetFactory

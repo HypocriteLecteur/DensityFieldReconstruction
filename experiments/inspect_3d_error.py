@@ -1,12 +1,11 @@
 import sys
 import os
 
-sys.path.append(os.getcwd()) # To get around relative import issues, I hate Python.
 
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
-from experiments.power_law import move_figure
+from dfr.utils import move_figure
 from dfr.visualizer import MultiGMMPlotter
 from dfr.density_field_model import GaussianModel
 from dfr.simulation_config import SimulationConfig

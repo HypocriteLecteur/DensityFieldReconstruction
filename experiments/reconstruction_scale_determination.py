@@ -4,7 +4,6 @@ import os
 import shutil
 from tqdm import tqdm
 
-sys.path.append(os.getcwd()) # To get around relative import issues. I hate Python.
 
 import time
 import torch
@@ -21,7 +20,8 @@ from dfr.gaussian_mixture_reduction import GMR
 from dfr.mode_finding import mode_counting, mode_counting_modified, find_scale_interval, analytic_solution, model_4pl_scale_at_x_constant
 from dfr.mode_finding import find_target_scale, analytic_solution_scale_at_x_constant
 from gaussian_rasterizer_simple_large import rasterize_gaussians
-from experiments.power_law import move_figure, curve_fit, power_2pl, power_3pl
+from experiments.power_law import curve_fit, power_2pl, power_3pl
+from dfr.utils import move_figure
 from scipy.optimize import minimize_scalar
 
 import matplotlib.pyplot as plt

@@ -6,7 +6,6 @@ Generates isotropic Gaussian clusters in 3D with controlled separation,
 runs the full mode-counting pipeline, and computes error metrics.
 """
 import sys, os
-sys.path.append(os.getcwd())
 
 import numpy as np
 import torch

@@ -7,7 +7,6 @@ import pandas as pd
 
 from tqdm import tqdm
 
-sys.path.append(os.getcwd()) # To get around relative import issues, I hate Python.
 
 import torch
 import numpy as np
@@ -25,17 +24,7 @@ import cv2
 from scipy.io import loadmat
 import matplotlib.pyplot as plt
 
-def move_figure(f, x, y):
-    """Move figure's upper left corner to pixel (x, y)"""
-    backend = matplotlib.get_backend()
-    if backend == 'tkagg':
-        f.canvas.manager.window.wm_geometry("+%d+%d" % (x, y))
-    elif backend == 'wxagg':
-        f.canvas.manager.window.SetPosition((x, y))
-    else:
-        # This works for QT and GTK
-        # You can also use window.setGeometry
-        f.canvas.manager.window.move(x, y)
+from dfr.utils import move_figure
 
 # Setup logger
 logger = logging.getLogger(__name__)

@@ -11,7 +11,6 @@ from dfr.mode_finding import analytic_solution_scale_at_x_constant
 from dfr.visualizer import MultiGMMPlotter
 import warnings
 import matplotlib.pyplot as plt
-from experiments.power_law import move_figure
 from gaussian_rasterizer_simple_large import rasterize_gaussians
 
 class DensityReconstructor:

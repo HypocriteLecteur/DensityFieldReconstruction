@@ -1,9 +1,8 @@
 import sys
 import os
 
-sys.path.append(os.getcwd()) # To get around relative import issues, I hate Python.
 
-from experiments.power_law import move_figure
+from dfr.utils import move_figure
 from dfr.visualizer import GMMInteractivePlotter
 
 LOG_NAME = "base_reg_cam_2"

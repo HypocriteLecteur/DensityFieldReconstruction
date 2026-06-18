@@ -5,7 +5,6 @@ from dfr.camera_system import Camera
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
 # import cv2
-from experiments.power_law import move_figure
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from matplotlib.lines import Line2D
 from typing import Union, Tuple, Optional, Any

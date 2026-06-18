@@ -4,7 +4,6 @@ import os
 import shutil
 from tqdm import tqdm
 
-sys.path.append(os.getcwd()) # To get around relative import issues. I hate Python.
 
 import torch
 import numpy as np
@@ -15,7 +14,7 @@ from dfr.density_field_reconstructor import DensityReconstructor
 from dfr.density_field_model import GaussianModel
 from dfr.camera_state import CameraState
 from dfr.utils import compute_metrics_batched_torch
-from experiments.power_law import move_figure
+from dfr.utils import move_figure
 
 import matplotlib.pyplot as plt
 

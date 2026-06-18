@@ -17,7 +17,6 @@ Usage:
 """
 
 import sys, os
-sys.path.append(os.getcwd())
 
 import numpy as np
 from scipy.optimize import curve_fit
@@ -33,7 +32,7 @@ import matplotlib.cm as cm
 from dfr.simulation_config import SimulationConfig
 from dfr.dataset_io import DatasetFactory
 from dfr.mode_finding import mode_counting, mode_counting_modified, find_scale_interval
-from experiments.power_law import move_figure
+from dfr.utils import move_figure
 
 
 # ======================================================================

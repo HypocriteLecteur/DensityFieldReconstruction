@@ -448,3 +448,16 @@ def generate_encircling_cameras(dataset, step_range, intrinsic_params, H, W, cam
             camera_positions.append(cam_pos)
 
     return np.array(camera_positions), D.item()
+
+
+def move_figure(f, x, y):
+    """Move figure's upper left corner to pixel (x, y)"""
+    import matplotlib
+    backend = matplotlib.get_backend()
+    if backend == 'tkagg':
+        f.canvas.manager.window.wm_geometry("+%d+%d" % (x, y))
+    elif backend == 'wxagg':
+        f.canvas.manager.window.SetPosition((x, y))
+    else:
+        # This works for QT and GTK
+        f.canvas.manager.window.move(x, y)
