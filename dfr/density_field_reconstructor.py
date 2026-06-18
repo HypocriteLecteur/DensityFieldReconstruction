@@ -9,6 +9,7 @@ from dfr.camera_system import MultiCameraSystem, convolution_cupy_wrapper
 from dfr.reconstruction_scale_determination import reconstruct_visual_hull, visualize_voxel_ellipsoid_mpl
 from dfr.mode_finding import analytic_solution_scale_at_x_constant
 from dfr.visualizer import MultiGMMPlotter
+from dfr.config import TrainingParams, ReconstructionParams
 import warnings
 import matplotlib.pyplot as plt
 from gaussian_rasterizer_simple_large import rasterize_gaussians
@@ -380,6 +381,12 @@ class DensityReconstructor:
         Returns:
             tuple: (final_gmm_list, scale_spaces)
         """
+        # Normalize configs: accept either dict or typed dataclass
+        if isinstance(train_params, TrainingParams):
+            train_params = train_params.to_dict()
+        if isinstance(reconstruction_params, ReconstructionParams):
+            reconstruction_params = reconstruction_params.to_dict()
+
         targetd_num_mode = reconstruction_params['targetd_num_mode']
         voxel_scale = reconstruction_params['voxel_scale']
         voxel_peak_threshold = reconstruction_params['voxel_peak_threshold']
