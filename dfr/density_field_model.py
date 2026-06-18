@@ -3,6 +3,7 @@ import numpy as np
 from gaussian_rasterizer_simple_large import GaussianRasterizerSimpleLarge, rasterize_gaussians
 # from gaussian_rasterizer_simple_small_decoupled import GaussianRasterizerSimpleSmallDecoupled
 from dfr.camera_state import CameraState
+from dfr.model_checkpoint import build_checkpoint, write_checkpoints, save_history, load_training_history, restore_model_from_checkpoint
 import os
 from typing import Tuple, List
 import torch.nn.functional as F
@@ -141,103 +142,22 @@ class GaussianModel:
             for _ in range(cam_num)]
     
     def save_checkpoint(self):
-        """Saves model from a certain iter."""
-        # os.makedirs(os.path.dirname(path), exist_ok=True)
-        
-        checkpoint = {
-            # --- Model Parameters (detached from graph) ---
-            '_xyz': self._xyz.detach().clone(),
-            '_radius': self._radius.detach().clone(),
-            '_weights': self._weights.detach().clone(),
-
-            '_xyz_grad': self._xyz.grad.detach().clone() if self._xyz.grad is not None else None,
-            '_radius_grad': self._radius.grad.detach().clone() if self._radius.grad is not None else None,
-            '_weights_grad': self._weights.grad.detach().clone() if self._weights.grad is not None else None,
-
-            'xyz_reg': self.xyz_reg,
-            'radius_reg': self.radius_reg,
-            'radius_cutoff_inv': self.radius_cutoff_inv,
-            'xyz_lr_c': self.xyz_lr_c,
-            'xyz_lr_final_c': self.xyz_lr_final_c,
-            'radius_lr_c': self.radius_lr_c,
-            'radius_lr_final_c': self.radius_lr_final_c,
-            'weights_lr_c': self.weights_lr_c,
-            'weights_lr_final_c': self.weights_lr_final_c,
-            
-            # --- Optimizer State ---
-            'optimizer_state_dict': self.optimizer.state_dict(),
-
-            # --- Configuration ---
-            'optimizer_type': self.optimizer_type,
-            'rasterizer_h': self.rasterizer_h,
-            'rasterizer_w': self.rasterizer_w,
-            'rasterizer_p_max': self.rasterizer_p_max,
-
-            'cam_num': len(self.rasterizer_list)
-        }
-        
+        checkpoint = build_checkpoint(self)
         self.training_history.append(checkpoint)
-        # torch.save(checkpoint, path)
-    
+
     def write_checkpoints(self, path):
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        torch.save(self.training_history, path)
-    
+        write_checkpoints(self.training_history, path)
+
     def save_history(self, path):
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        torch.save(self.metrics_history, path)
-    
+        save_history(self.metrics_history, path)
+
     @classmethod
     def load_training_history(cls, path: str, device='cuda'):
-        return torch.load(path, map_location=device, weights_only=False)
+        return load_training_history(path, device)
 
     @classmethod
     def load_iter(cls, training_history: list[dict], iter: int, device='cuda'):
-        checkpoint = training_history[iter+1]
-
-        # Create a new, empty model instance with the saved configuration
-        model = cls(optimizer_type=checkpoint['optimizer_type'])
-        model.rasterizer_h = checkpoint.get('rasterizer_h', 1000)
-        model.rasterizer_w = checkpoint.get('rasterizer_w', 1000)
-        model.rasterizer_p_max = checkpoint.get('rasterizer_p_max', 512)
-        
-        # Load parameters and wrap them as nn.Parameter
-        model._xyz = torch.nn.Parameter(checkpoint['_xyz'].to(device).requires_grad_(True))
-        model._radius = torch.nn.Parameter(checkpoint['_radius'].to(device).requires_grad_(True))
-        model._weights = torch.nn.Parameter(checkpoint['_weights'].to(device).requires_grad_(True))
-
-        model._xyz.grad = checkpoint['_xyz_grad'].to(device) if checkpoint['_xyz_grad'] is not None else None
-        model._radius.grad = checkpoint['_radius_grad'].to(device) if checkpoint['_radius_grad'] is not None else None
-        model._weights.grad = checkpoint['_weights_grad'].to(device) if checkpoint['_weights_grad'] is not None else None
-
-        # Re-initialize the non-serializable rasterizer
-        model.rasterizer_list = [GaussianRasterizerSimpleLarge(
-            H=model.rasterizer_h, W=model.rasterizer_w, P_max=model.rasterizer_p_max
-            )
-            for _ in range(checkpoint['cam_num'])]
-        # model.rasterizer_list = [model.GS, model.GS2]
- 
-        # Run training_setup to create the optimizer
-        model.training_setup(
-            xyz_reg=checkpoint['xyz_reg'], 
-            radius_reg=checkpoint['radius_reg'],
-            radius_cutoff_inv=checkpoint['radius_cutoff_inv'],
-            xyz_lr_c=checkpoint['xyz_lr_c'],
-            xyz_lr_final_c=checkpoint['xyz_lr_final_c'],
-            radius_lr_c=checkpoint['radius_lr_c'],
-            radius_lr_final_c=checkpoint['radius_lr_final_c'],
-            weights_lr_c=checkpoint['weights_lr_c'],
-            weights_lr_final_c=checkpoint['weights_lr_final_c']
-        )
-        
-        # Load the optimizer's state *after* it has been created
-        if 'optimizer_state_dict' in checkpoint and model.optimizer is not None:
-            try:
-                model.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-            except ValueError as e:
-                print(f"Warning: Optimizer state could not be loaded: {e}. Starting with a fresh state.")
-
-        return model
+        return restore_model_from_checkpoint(cls, training_history, iter, device)
 
     def training_setup(self, xyz_lr_c=None, xyz_lr_final_c=None, 
                        radius_lr_c=None, radius_lr_final_c=None, 
