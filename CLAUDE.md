@@ -27,6 +27,14 @@ There are three rasterizer variants, all under `density_field_rasterizer/` (the 
 - `gaussian_rasterizer_simple_large` — higher capacity variant (more Gaussians per tile)
 - `gaussian_rasterizer_simple_small_decoupled` — decoupled normalization variant
 
+After building rasterizers, install the `dfr` package in development mode:
+
+```bash
+pip install -e .
+```
+
+This makes `dfr` and `experiments` importable from any directory without `sys.path` hacks.
+
 ## Running Tests
 
 ```bash
@@ -52,7 +60,12 @@ Camera images/points → DensityReconstructor.process_frame()
 |---|---|
 | `dfr/density_field_reconstructor.py` | Orchestrator: ties together all pipeline steps in `process_frame()` |
 | `dfr/density_field_model.py` | `GaussianModel`: GMM parameters (`_xyz`, `_radius`, `_weights`), optimizer setup with per-parameter LR scheduling, rasterization forward/backward, pruning, splitting, Adam state management |
-| `dfr/camera_system.py` | `Camera`, `MultiCameraSystem`, `RenderStrategy` (projection / CuPy circles / Gaussian rasterizer), CuPy CUDA kernel for rendering 2D Gaussian circles from point sets |
+| `dfr/camera_system.py` | `Camera`, `MultiCameraSystem` — camera geometry and multi-view coordination. Rendering code lives in `dfr/rendering.py` |
+| `dfr/rendering.py` | `RenderStrategy` (projection / CuPy circles / Gaussian rasterizer), `select_rasterizer()` canonical variant selector, CuPy CUDA kernels |
+| `dfr/center_estimator.py` | `estimate_center_from_point_sets()`, `estimate_center_from_images()` — triangulate 3D swarm center |
+| `dfr/config.py` | `TrainingParams`, `ReconstructionParams` — typed @dataclass configs with dict backward compatibility |
+| `dfr/model_checkpoint.py` | `build_checkpoint()`, `restore_model_from_checkpoint()` — trainable model serialization |
+| `experiments/common.py` | Shared utilities for experiment scripts: `setup_logger()`, `setup_camera_system()`, `print_global_metrics()` |
 | `dfr/camera_state.py` | `CameraState` (pose `[x,y,z,qx,qy,qz,qw]`) and `CameraStateUE4` (raw `R,T` matrices) — both expose `K`, `R`, `T`, `P` tensors on GPU |
 | `dfr/reconstruction_scale_determination.py` | Visual hull reconstruction via frustum intersection, voxel carving with dilated masks, farthest-point sampling, statistical AABB estimation |
 | `dfr/mode_finding.py` | Mean-shift clustering + DBSCAN for mode counting; analytic 4PL model to predict scale from desired mode count; PBC-aware variants |
@@ -91,7 +104,7 @@ The `wrd_to_cam()` static method applies a `base2cam` transform `[[0,-1,0],[0,0,
 
 ### Important Notes
 
-- **All code must run from the repo root** — many scripts use `sys.path.append(os.getcwd())` for imports
+- **`pip install -e .` makes `dfr` and `experiments` importable from any directory** — `sys.path` hacks are no longer needed
 - The `density_field_rasterizer/` directory at root has deleted CUDA files (tracked as `D` in git) — the canonical rasterizer source is in `camera-aero/density_field_rasterizer/`
 - The `density_field_reconstruction_copy/` directory is a legacy snapshot, not the current code
 - GPU (CUDA) is required for training; CuPy is optional but enables the `cuda_circles` renderer
