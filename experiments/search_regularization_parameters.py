@@ -178,7 +178,7 @@ def run_single_scenario(run_params, hyperparams, exp_idx):
         near_clip=config.near_clip, far_clip=config.far_clip, 
         size=config.size,
         device='cuda')
-    density_reconstructor = DensityReconstructor(config.intrinsics_params, max_iter=config.iter, use_decoupled=USE_DECOUPLED)
+    density_reconstructor = DensityReconstructor(max_iter=config.iter, use_decoupled=USE_DECOUPLED)
     reconstruction_params = {
         'targetd_num_mode': 10,
         # voxel method

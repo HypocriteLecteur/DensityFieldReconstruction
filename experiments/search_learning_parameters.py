@@ -185,7 +185,7 @@ def run_single_scenario(run_params, hyperparams, exp_idx):
         near_clip=config.near_clip, far_clip=config.far_clip, 
         size=config.size,
         device='cuda')
-    density_reconstructor = DensityReconstructor(config.intrinsics_params, max_iter=config.iter, use_decoupled=USE_DECOUPLED)
+    density_reconstructor = DensityReconstructor(max_iter=config.iter, use_decoupled=USE_DECOUPLED)
 
     # 5. Simulation Loop
     step_range = range(start_step, effective_end_step, step_length)

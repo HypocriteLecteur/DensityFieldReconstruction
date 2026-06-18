@@ -1,5 +1,5 @@
-# python=3.12
-# torch=2.7.1+cu128
+# python=3.13
+# torch
 # cupy (optional)
 scipy
 opencv-python

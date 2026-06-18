@@ -1,7 +1,6 @@
 import numpy as np
 import torch
 from scipy.spatial.transform import Rotation
-from gaussian_rasterizer_simple_large import rasterize_gaussians
 from dfr.camera_state import CameraState
 import time
 
@@ -54,7 +53,10 @@ void render_kernel(const float2* points, const float* sigmas, float* image,
     }
 }
 '''
-RENDER_KERNEL = cp.RawKernel(CIRCLE_RENDER_KERNEL_CODE, 'render_kernel')
+RENDER_KERNEL = None
+RENDER_KERNEL2 = None
+if HAS_CUPY:
+    RENDER_KERNEL = cp.RawKernel(CIRCLE_RENDER_KERNEL_CODE, 'render_kernel')
 
 CIRCLE_RENDER_KERNEL_CODE2 = r'''
 extern "C" __global__
@@ -93,7 +95,8 @@ void render_kernel(const float2* points, float sigma, float* image,
     }
 }
 '''
-RENDER_KERNEL2 = cp.RawKernel(CIRCLE_RENDER_KERNEL_CODE2, 'render_kernel')
+if HAS_CUPY:
+    RENDER_KERNEL2 = cp.RawKernel(CIRCLE_RENDER_KERNEL_CODE2, 'render_kernel')
 
 def convolution_cupy_wrapper(points_2d_torch, radius_val, height, width, sigma_multiple=4.0):
     # 1. Guarantee point data is ready and contiguous
@@ -162,6 +165,7 @@ class RenderStrategy:
         """
         Renders using the imported rasterize_gaussians function.
         """
+        from gaussian_rasterizer_simple_large import rasterize_gaussians
         points_2d, depth, mask = camera.project_world_to_image(swarm_positions)
         valid_swarm_positions = swarm_positions[mask]
         N = valid_swarm_positions.shape[0]

@@ -1,7 +1,6 @@
 import torch
 import numpy as np
-from gaussian_rasterizer_simple_small import GaussianRasterizerSimpleSmall, rasterize_gaussians
-from gaussian_rasterizer_simple_large import GaussianRasterizerSimpleLarge
+from gaussian_rasterizer_simple_large import GaussianRasterizerSimpleLarge, rasterize_gaussians
 # from gaussian_rasterizer_simple_small_decoupled import GaussianRasterizerSimpleSmallDecoupled
 from dfr.camera_state import CameraState
 import os

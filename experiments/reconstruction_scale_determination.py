@@ -6,7 +6,6 @@ from tqdm import tqdm
 
 sys.path.append(os.getcwd()) # To get around relative import issues. I hate Python.
 
-from pysr import PySRRegressor
 import time
 import torch
 import numpy as np
@@ -441,7 +440,7 @@ def run_single_scenario_scale_estimation(run_params):
             near_clip=config.near_clip, far_clip=config.far_clip, 
             size=config.size,
             device='cuda')
-        density_reconstructor = DensityReconstructor(config.intrinsics_params, max_iter=config.iter, use_decoupled=False)
+        density_reconstructor = DensityReconstructor(max_iter=config.iter, use_decoupled=False)
         reconstruction_params = {
             'targetd_num_mode': 10,
             # voxel method
@@ -895,7 +894,7 @@ def examine_scale_estimation_single_time_step():
         near_clip=config.near_clip, far_clip=config.far_clip, 
         size=config.size,
         device='cuda')
-    density_reconstructor = DensityReconstructor(config.intrinsics_params, max_iter=config.iter, use_decoupled=False)
+    density_reconstructor = DensityReconstructor(max_iter=config.iter, use_decoupled=False)
     reconstruction_params = {
         'targetd_num_mode': 10,
         # voxel method
@@ -1149,6 +1148,7 @@ def run_multi_scenarios_effective_volume_find_formula():
     # ---------------------------------------------------------
     # 2. Configure and Run PySR
     # ---------------------------------------------------------
+    from pysr import PySRRegressor
     model = PySRRegressor(
         elementwise_loss="loss(x, y) = abs(x - y) / (y + 1e-8)",
 

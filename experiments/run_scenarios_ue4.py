@@ -202,7 +202,7 @@ def main():
         return
 
     # 4. System Initialization
-    density_reconstructor = DensityReconstructor(config.intrinsics_params, max_iter=config.iter, use_decoupled=USE_DECOUPLED)
+    density_reconstructor = DensityReconstructor(max_iter=config.iter, use_decoupled=USE_DECOUPLED)
 
     # visualizer = SimulationVisualizer(intrinsics_params=config.intrinsics_params,
     #                                   H=config.H, W=config.W, 
@@ -343,7 +343,7 @@ def main():
         centroids2 = np.array(centroids2)
         centroids3 = np.array(centroids3)
         
-        density_reconstructor = DensityReconstructor(config.intrinsics_params, max_iter=100, W=config.W, H=config.H)
+        density_reconstructor = DensityReconstructor(max_iter=100, W=config.W, H=config.H)
 
         reconstruction_params = {
             'targetd_num_mode': 10,

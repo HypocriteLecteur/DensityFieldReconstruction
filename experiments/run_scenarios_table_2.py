@@ -200,7 +200,7 @@ def run_single_scenario(run_params):
         'radius_cutoff_inv': 0.6013595613763145,
         'lr_max_steps': 100
     }
-    density_reconstructor = DensityReconstructor(config.intrinsics_params, max_iter=train_params['lr_max_steps'], use_decoupled=USE_DECOUPLED)
+    density_reconstructor = DensityReconstructor(max_iter=train_params['lr_max_steps'], use_decoupled=USE_DECOUPLED)
 
     if USE_GT_SCALE:
         gt_data = np.load(scenario_path + '/reconstruction_scale.npz')

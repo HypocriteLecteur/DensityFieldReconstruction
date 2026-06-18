@@ -4,7 +4,7 @@ from numba import njit
 from dfr.camera_system import Camera
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
-import cv2
+# import cv2
 from experiments.power_law import move_figure
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from matplotlib.lines import Line2D
@@ -477,30 +477,46 @@ def get_aabb(cameras: list[Camera]):
 def extract_dilated_masks(images, intensity_threshold=0.05, dilation_iters=2):
     """
     Creates conservative 2D masks by thresholding and dilating.
+    GPU-only — uses max-pool to approximate morphological dilation.
     """
-    device = images[0].device
     masks = []
-    
+    # kernel_size matches OpenCV's 11×11 ellipse applied `dilation_iters` times
+    k = 11  # matches original cv2 kernel size
+
     for img in images:
-        img_min = img.min()
-        img_max = img.max()
-        # img_norm = (img - img_min) / (img_max - img_min + 1e-6)
-        
-        # 1. Lower threshold to catch faint outliers
-        binary_mask_gpu = (img > intensity_threshold).to(torch.uint8) * 255
-        binary_mask_np = binary_mask_gpu.cpu().numpy()
-        
-        # 2. Dilate the mask to create a safety buffer and connect nearby blobs
-        # A circular kernel prevents creating boxy artifacts
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (11, 11))
-        dilated_mask_np = cv2.morphologyEx(binary_mask_np, cv2.MORPH_DILATE, kernel, iterations=dilation_iters)
-        
-        # 3. Send straight back to GPU as boolean
-        final_mask_gpu = torch.tensor(dilated_mask_np > 0, dtype=torch.bool, device=device)
-        # final_mask_gpu = torch.tensor(binary_mask_gpu, dtype=torch.bool, device=device)
-        masks.append(final_mask_gpu)
-        
+        binary = (img > intensity_threshold).float().unsqueeze(0).unsqueeze(0)
+        for _ in range(dilation_iters):
+            binary = torch.nn.functional.max_pool2d(
+                binary, kernel_size=k, stride=1, padding=k // 2)
+        masks.append(binary.squeeze().bool())
     return masks
+# def extract_dilated_masks(images, intensity_threshold=0.05, dilation_iters=2):
+#     """
+#     Creates conservative 2D masks by thresholding and dilating.
+#     """
+#     device = images[0].device
+#     masks = []
+    
+#     for img in images:
+#         img_min = img.min()
+#         img_max = img.max()
+#         # img_norm = (img - img_min) / (img_max - img_min + 1e-6)
+        
+#         # 1. Lower threshold to catch faint outliers
+#         binary_mask_gpu = (img > intensity_threshold).to(torch.uint8) * 255
+#         binary_mask_np = binary_mask_gpu.cpu().numpy()
+        
+#         # 2. Dilate the mask to create a safety buffer and connect nearby blobs
+#         # A circular kernel prevents creating boxy artifacts
+#         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (11, 11))
+#         dilated_mask_np = cv2.morphologyEx(binary_mask_np, cv2.MORPH_DILATE, kernel, iterations=dilation_iters)
+        
+#         # 3. Send straight back to GPU as boolean
+#         final_mask_gpu = torch.tensor(dilated_mask_np > 0, dtype=torch.bool, device=device)
+#         # final_mask_gpu = torch.tensor(binary_mask_gpu, dtype=torch.bool, device=device)
+#         masks.append(final_mask_gpu)
+        
+#     return masks
 
 def extract_silhouettes(images, intensity_threshold=0.1):
     """

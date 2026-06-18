@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Directory)",
+      "Bash(Select-Object -ExpandProperty Name)",
+      "Bash(Get-ChildItem *)",
+      "Bash(git add *)",
+      "Bash(git commit -m '@ *)",
+      "Bash(python *)",
+      "Bash(python3 -c \"print\\('hello'\\)\")",
+      "Bash(echo \"Exit: $?\")",
+      "PowerShell(Get-ChildItem -Path \"scenarios/jackdaw2/logs/base_reg/\" -ErrorAction SilentlyContinue | Select-Object -First 5; Write-Output \"---\"; \\(Get-ChildItem -Path \"scenarios/jackdaw2/logs/base_reg/\" -ErrorAction SilentlyContinue\\).Count)",
+      "PowerShell(python -c \"import sys; sys.path.append\\('.'\\); from dfr.dataset_io import DatasetFactory; f=DatasetFactory\\(\\); d=f.get_dataset\\('dataset/A_nodes.hdf5'\\); print\\('swift frames:', d.trajectories.shape\\); print\\('has velocities:', d._velocity_data is not None\\)\")",
+      "Bash(Select-Object Name, Length)",
+      "PowerShell(if \\(-not \\(Test-Path \"D:\\\\GitHub\\\\DensityFieldReconstruction\\\\figs\"\\)\\) { New-Item -ItemType Directory \"D:\\\\GitHub\\\\DensityFieldReconstruction\\\\figs\" }; Write-Output \"figs directory ready\")",
+      "PowerShell(conda run *)",
+      "PowerShell(& \"D:\\\\miniconda3\\\\envs\\\\dfr\\\\python.exe\" experiments/dfr_plot.py 2>&1)",
+      "PowerShell(& \"D:\\\\miniconda3\\\\envs\\\\dfr\\\\python.exe\" -c \"import matplotlib; print\\(matplotlib.__version__\\)\" 2>&1)",
+      "PowerShell(& \"D:\\\\miniconda3\\\\envs\\\\dfr\\\\python.exe\" -m pip install pyyaml scipy opencv-python blessed ninja pytest scikit-learn numba h5py pandas seaborn tqdm 2>&1)"
+    ]
+  }
+}
