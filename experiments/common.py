@@ -7,22 +7,13 @@ code duplication across run_scenarios*.py scripts.
 
 import logging
 import sys
-import os
-import shutil
-import time
 from pathlib import Path
 import numpy as np
-import torch
-from tqdm import tqdm
-from typing import Optional
 
 from dfr.simulation_config import SimulationConfig
-from dfr import load_dataset
-from dfr.camera_system import MultiCameraSystem
-from dfr.density_field_reconstructor import DensityReconstructor
-from dfr.density_field_model import GaussianModel
-from dfr.camera_state import CameraState
-from dfr.utils import calculate_gmm_dissimilarity, generate_encircling_cameras, compute_metrics_batched_torch
+from dfr import CameraConfig, load_dataset, resolve_dataset
+from dfr.evaluation import EvaluationSummary
+from dfr.reconstruction import build_camera_system
 
 
 def setup_logger(name: str, log_file: str = 'run_experiments.log') -> logging.Logger:
@@ -41,42 +32,25 @@ def setup_logger(name: str, log_file: str = 'run_experiments.log') -> logging.Lo
 
 def load_scenario(scenario_name: str, scenario_path: str):
     """Load a scenario's config and dataset."""
-    config_path = os.path.join(scenario_path, "config.yaml")
-    config = SimulationConfig(config_path)
     project_root = Path(scenario_path).resolve().parents[1]
-    dataset = load_dataset(config.data_file, project_root=project_root)
+    spec = resolve_dataset(scenario_name, project_root=project_root)
+    config = SimulationConfig(str(spec.config_path))
+    dataset = load_dataset(spec)
     return config, dataset
 
 
 def setup_camera_system(dataset, step_range, config, cam_num: int, device='cuda'):
-    """Generate encircling cameras and return a MultiCameraSystem."""
-    if cam_num == 2:
-        cam_positions, cam_radius = generate_encircling_cameras(
-            dataset, step_range, config.intrinsics_params, config.H, config.W,
-            cam_num=4, padding=1
-        )
-        cam_poses = np.hstack((
-            cam_positions[:2],
-            np.tile(np.array([1, 0, 0, 0]), (2, 1))
-        )).astype(np.float32)
-    else:
-        cam_positions, cam_radius = generate_encircling_cameras(
-            dataset, step_range, config.intrinsics_params, config.H, config.W,
-            cam_num=cam_num, padding=1
-        )
-        cam_poses = np.hstack((
-            cam_positions,
-            np.tile(np.array([1, 0, 0, 0]), (cam_num, 1))
-        )).astype(np.float32)
+    """Compatibility adapter for the package encircling-camera builder.
 
-    return MultiCameraSystem.create_homogeneous_system(
-        state_class=CameraState,
-        intrinsics=config.intrinsics_params,
-        H=config.H, W=config.W,
-        poses_or_RTs=cam_poses,
-        near_clip=config.near_clip, far_clip=config.far_clip,
-        size=config.size,
-        device=device
+    Older runners initialized quaternions as ``[1, 0, 0, 0]`` before calling
+    ``simulate_vision`` with auto-aim. Auto-aim replaces those orientations, so
+    the package's valid identity quaternion produces identical observations.
+    """
+    return build_camera_system(
+        dataset,
+        tuple(step_range),
+        config,
+        CameraConfig.encircling(count=cam_num, device=device),
     )
 
 
@@ -88,9 +62,19 @@ def print_global_metrics(label: str, metric_data: dict) -> str:
     total_N = np.sum(metric_data['N'])
     total_weights = np.sum(metric_data['w'])
 
-    global_recall = sum_tp / total_N if total_N > 0 else 0.0
-    global_hallucination = sum_fp / total_weights if total_weights > 0 else 0.0
-    global_dmota = 1.0 - ((sum_fn + sum_fp) / total_N) if total_N > 0 else 0.0
+    if total_N <= 0:
+        global_recall = global_hallucination = global_dmota = 0.0
+    else:
+        summary = EvaluationSummary(
+            float(sum_tp),
+            float(sum_fp),
+            float(sum_fn),
+            float(total_N),
+            float(total_weights),
+        )
+        global_recall = summary.recall
+        global_hallucination = summary.hallucination
+        global_dmota = summary.dmota
 
     return f"{global_recall:.3f} & {global_hallucination:.3f} & {global_dmota:.3f} &"
 

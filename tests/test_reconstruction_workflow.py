@@ -5,7 +5,11 @@ import pytest
 
 from dfr import CameraConfig, OutputConfig, load_dataset
 from dfr.config import ReconstructionParams
-from dfr.reconstruction import build_camera_system
+from dfr.reconstruction import add_bounded_projection_noise, build_camera_system
+from dfr.camera_state import CameraState
+from dfr.camera_system import MultiCameraSystem
+from dfr.utils import generate_encircling_cameras
+from experiments.common import load_scenario, setup_camera_system
 from dfr.reconstruction.pipeline import (
     default_reconstruction_params,
     default_training_params,
@@ -139,6 +143,101 @@ def test_camera_builder_supports_explicit_and_encircling_layouts_on_cpu(tmp_path
     np.testing.assert_allclose(explicit_system.cameras[0].state.pose_np, explicit.poses[0])
 
 
+def test_common_camera_adapter_matches_legacy_auto_aim_projections(tmp_path):
+    dataset, config_path = make_scenario(tmp_path)
+    simulation = SimulationConfig(str(config_path))
+    positions, _ = generate_encircling_cameras(
+        dataset,
+        (0,),
+        simulation.intrinsics_params,
+        simulation.H,
+        simulation.W,
+        cam_num=4,
+    )
+    legacy_poses = np.hstack(
+        (positions[:2], np.tile(np.array([1, 0, 0, 0]), (2, 1)))
+    ).astype(np.float32)
+    legacy = MultiCameraSystem.create_homogeneous_system(
+        CameraState,
+        simulation.intrinsics_params,
+        simulation.H,
+        simulation.W,
+        legacy_poses,
+        simulation.near_clip,
+        simulation.far_clip,
+        simulation.size,
+        "cpu",
+    )
+    adapted = setup_camera_system(dataset, (0,), simulation, 2, device="cpu")
+
+    legacy_output = legacy.simulate_vision(
+        dataset.positions_at_time_step(0), renderer="projection_only"
+    )
+    adapted_output = adapted.simulate_vision(
+        dataset.positions_at_time_step(0), renderer="projection_only"
+    )
+
+    np.testing.assert_allclose(legacy_output[0], adapted_output[0], atol=1e-6)
+    for old, new in zip(legacy_output[1], adapted_output[1]):
+        np.testing.assert_allclose(old, new, atol=1e-5)
+
+
+def test_common_scenario_loader_delegates_to_canonical_registry(tmp_path):
+    expected, config_path = make_scenario(tmp_path)
+
+    config, loaded = load_scenario("tiny", str(config_path.parent))
+
+    assert config.W == 64
+    assert loaded.metadata["dataset_name"] == "tiny"
+    np.testing.assert_array_equal(loaded.trajectories, expected.trajectories)
+
+
+def test_request_supports_explicit_per_frame_scales_and_noise(tmp_path):
+    dataset, config_path = make_scenario(tmp_path)
+    request = ReconstructionRequest(
+        dataset=dataset,
+        frames=(0, 0),
+        cameras=CameraConfig.encircling(device="cuda"),
+        training=default_training_params(1),
+        reconstruction=default_reconstruction_params(),
+        frame_scales=(0.5, 0.75),
+        projection_noise_std=1.0,
+        scenario_config=config_path,
+    )
+
+    assert request.scale_for_index(0) == 0.5
+    assert request.scale_for_index(1) == 0.75
+    with pytest.raises(ValueError, match="mutually exclusive"):
+        ReconstructionRequest(
+            dataset=dataset,
+            frames=(0,),
+            cameras=CameraConfig.encircling(device="cuda"),
+            training=default_training_params(1),
+            reconstruction=default_reconstruction_params(),
+            scale=0.5,
+            frame_scales=(0.5,),
+            scenario_config=config_path,
+        )
+
+
+def test_projection_noise_is_seeded_and_bounded(tmp_path):
+    dataset, config_path = make_scenario(tmp_path)
+    simulation = SimulationConfig(str(config_path))
+    cameras = setup_camera_system(dataset, (0,), simulation, 2, device="cpu")
+    projections = [np.array([[31.5, 31.5]]) for _ in range(2)]
+
+    first = add_bounded_projection_noise(
+        projections, cameras, 3.0, np.random.default_rng(7)
+    )
+    second = add_bounded_projection_noise(
+        projections, cameras, 3.0, np.random.default_rng(7)
+    )
+
+    for actual, repeated in zip(first, second):
+        np.testing.assert_allclose(actual, repeated)
+        assert np.all((actual >= 0) & (actual <= 64))
+
+
 def test_public_pipeline_returns_typed_run_without_writing(monkeypatch, tmp_path):
     dataset, _ = make_scenario(tmp_path)
     expected = make_frame()
@@ -149,7 +248,10 @@ def test_public_pipeline_returns_typed_run_without_writing(monkeypatch, tmp_path
     monkeypatch.setattr(
         reconstruction_pipeline,
         "_reconstruct_frame",
-        lambda request, frame, simulation, cameras: (expected, object()),
+        lambda request, frame_index, frame, simulation, cameras, rng: (
+            expected,
+            object(),
+        ),
     )
 
     run = reconstruction_pipeline.reconstruct(
@@ -168,3 +270,16 @@ def test_public_pipeline_returns_typed_run_without_writing(monkeypatch, tmp_path
 def test_default_training_params_rejects_invalid_iterations(iterations):
     with pytest.raises(ValueError, match="positive"):
         default_training_params(iterations)
+
+
+def test_representative_scenario_runner_dispatches_to_public_workflow():
+    source = (
+        Path(__file__).resolve().parents[1] / "experiments" / "run_scenarios.py"
+    ).read_text(encoding="utf-8")
+    managed = source.split("def run_single_scenario", 1)[1].split(
+        "def _run_single_scenario_legacy", 1
+    )[0]
+
+    assert "run = reconstruct(" in managed
+    assert "frame_scales=frame_scales" in managed
+    assert "projection_noise_std=" in managed

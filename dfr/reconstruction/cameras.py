@@ -53,3 +53,40 @@ def build_camera_system(
         size=simulation.size,
         device=config.device,
     )
+
+
+def add_bounded_projection_noise(
+    projections: list[np.ndarray],
+    camera_system: MultiCameraSystem,
+    standard_deviation: float,
+    rng: np.random.Generator,
+) -> list[np.ndarray]:
+    """Add Gaussian pixel noise while resampling coordinates outside each image."""
+    if standard_deviation < 0:
+        raise ValueError("standard_deviation must be non-negative.")
+    if standard_deviation == 0:
+        return [np.asarray(projection).copy() for projection in projections]
+    noisy = []
+    for projection, camera in zip(projections, camera_system.cameras):
+        source = np.asarray(projection)
+        result = source.copy()
+        pending = np.ones(len(source), dtype=bool)
+        attempts = 0
+        while np.any(pending):
+            attempts += 1
+            if attempts > 10_000:
+                raise RuntimeError("Could not sample bounded projection noise.")
+            candidate = source[pending] + rng.normal(
+                0.0, standard_deviation, size=(int(np.sum(pending)), 2)
+            )
+            inside = (
+                (candidate[:, 0] >= 0)
+                & (candidate[:, 0] <= camera.state.W)
+                & (candidate[:, 1] >= 0)
+                & (candidate[:, 1] <= camera.state.H)
+            )
+            accepted = np.flatnonzero(pending)[inside]
+            result[accepted] = candidate[inside]
+            pending[accepted] = False
+        noisy.append(result)
+    return noisy

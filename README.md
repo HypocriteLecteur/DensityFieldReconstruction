@@ -358,7 +358,10 @@ Omit `output` to return arrays without writing files. The current backend
 requires CUDA and a scenario YAML providing image dimensions, intrinsics, and
 clip planes; a dataset loaded by scenario name retains that path automatically.
 Advanced callers can pass `TrainingParams` and `ReconstructionParams` through
-the `training=` and `reconstruction=` arguments.
+the `training=` and `reconstruction=` arguments. For experiment sweeps,
+`frame_scales=` accepts one fixed scale per selected frame,
+`projection_noise_std=` applies reproducible bounded pixel noise, and
+`use_decoupled=` selects the existing decoupled model backend.
 
 Evaluate an in-memory reconstruction against its source positions (or pass an
 explicit ground-truth dataset):
@@ -397,7 +400,7 @@ the resolved config and manifest at the run root, reconstructed arrays under
 and timing metrics under `metrics/`. Use `--help` for voxel, seed, output-root,
 resume, and overwrite controls.
 
-The older publication-scale multi-scenario path remains the scenario runner:
+The primary publication-scale multi-scenario path remains the scenario runner:
 
 1. Edit `CAM_NUM`, `LOG_NAME`, `DATASET_RUNS`, and relevant flags near the top
    of `experiments/run_scenarios.py`.
@@ -408,10 +411,12 @@ The older publication-scale multi-scenario path remains the scenario runner:
    python -m experiments.run_scenarios
    ```
 
-The runner loads frames, generates/aims cameras, simulates observations,
-selects a reconstruction scale, initializes and trains the Gaussian model, and
-writes checkpoints/statistics to scenario log directories. This path requires
-CUDA and `gaussian_rasterizer_simple_large`.
+Its active reconstruction path now resolves datasets/cameras through package
+services and calls `dfr.reconstruct`. When `IS_LOGGING` is enabled, final frame
+artifacts and aggregate statistics use managed reconstruction output rather
+than scenario log directories. Baseline, metric, and publication-table helpers
+in that module remain transitional. This path requires CUDA and
+`gaussian_rasterizer_simple_large`.
 
 To evaluate already generated checkpoints with the current fixed dataset and
 camera combinations:
@@ -527,7 +532,7 @@ execution.
 
 | Script | Purpose / behavior |
 |---|---|
-| `common.py` | Shared logging, scenario loading, camera setup, and metric formatting for runners; not an entry point. |
+| `common.py` | Compatibility adapters over package scenario/camera/evaluation services plus runner logging/noise helpers. |
 | `compute_metrics_from_pretrained.py` | Recompute density metrics from saved iteration checkpoints; configured in source. |
 | `dataset_viewer_test.py` | Interactive dataset/camera/scale viewer; performs work at import and is excluded from pytest. |
 | `dfr_plot.py` | Legacy 3,900-line publication/reconstruction plot collection; implicit execution is disabled pending Phase 6. |
@@ -546,7 +551,7 @@ execution.
 | `reconstruction_scale_determination.py` | Legacy reconstruction-scale studies; requires an explicit experiment subcommand. |
 | `reconstruct_one_frame.py` | Thin one-frame wrapper over `dfr.reconstruct`, with managed config, checkpoint, arrays, and metrics. |
 | `run_post_processing.py` | Post-process saved reconstruction runs and metrics; configured in source. |
-| `run_scenarios.py` | Main multi-scenario reconstruction runner; datasets/cameras configured in source. |
+| `run_scenarios.py` | Main multi-scenario runner; active reconstruction dispatches through `dfr.reconstruct`, while legacy baseline/metric helpers remain. |
 | `run_scenarios_angle_sweep.py` | Camera-angle, convergence, voxel, and initialization sensitivity experiments. |
 | `run_scenarios_flock.py` | Reconstruction workflow for flock/image-oriented datasets. |
 | `run_scenarios_table_2.py` | Legacy runner variant for Table 2 experiments. |

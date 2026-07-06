@@ -1,9 +1,8 @@
 import logging
 import sys
 import os
-import shutil
 from tqdm import tqdm
-import glob
+from pathlib import Path
 
 
 
@@ -23,6 +22,8 @@ from gaussian_rasterizer_simple_large import rasterize_gaussians
 from dfr.utils import move_figure
 from scipy.spatial import cKDTree
 from experiments.common import setup_logger, setup_camera_system, print_global_metrics
+from dfr import CameraConfig, OutputConfig, load_dataset, reconstruct
+from dfr.config import ReconstructionParams, TrainingParams
 
 import matplotlib.pyplot as plt
 
@@ -93,212 +94,96 @@ def run_multi_scenarios():
     for run_params in DATASET_RUNS:
         run_single_scenario(run_params)
 
-def run_single_scenario(run_params):
-    # 1. Parameter extraction and Logging Setup
-    name = run_params['name']
-    log_name = run_params['log_name']
-    start_step = run_params['start_step']
-    end_step = run_params['end_step']
-    step_length = run_params['step_length']
-
-    noise_std = run_params.get('noise_std', 0.0)
-
-    logger.info(f"Running scenario {name}")
-
-    scenario_path = os.path.join(os.getcwd(), *["scenarios", name])
-    config_path = os.path.join(scenario_path, "config.yaml")
-
+def run_single_scenario(run_params, *, output=None, seed=12345):
+    """Run one scenario through the typed package reconstruction workflow."""
     if CLEAN_LOGS:
-        if os.path.exists(os.path.join(scenario_path, "logs")):
-            shutil.rmtree(os.path.join(scenario_path, "logs"))
-        
-        files_to_delete = glob.glob(os.path.join(scenario_path, 'metrics_*.npz'))
-        for file_path in files_to_delete:
-            try:
-                os.remove(file_path)  # Deletes the file
-            except OSError as e:
-                print(f"Error deleting {file_path}: {e}")
-        return
+        raise ValueError(
+            "CLEAN_LOGS is unsupported for managed runs; use OutputConfig(overwrite=True)."
+        )
+    name = run_params['name']
+    start_step = int(run_params['start_step'])
+    step_length = int(run_params['step_length'])
+    project_root = Path.cwd().resolve()
+    dataset = load_dataset(name, project_root=project_root)
+    stop = run_params['end_step']
+    stop = min(int(stop), len(dataset)) if stop is not None else len(dataset)
+    frames = tuple(range(start_step, stop, step_length))
+    if not frames:
+        logger.info(f"Skipping {name}: selected frame range is empty.")
+        return None
 
-    log_file_path = os.path.join(scenario_path, *["logs", log_name])
-    if not os.path.exists(log_file_path):
-        os.makedirs(log_file_path)
-
-    # 2. Initialize Metrics (must be re-initialized for each run)
-    time_metrics = {
-        'simulate_vision_time': [],
-        'estimate_swarm_center': [],
-        'adaptive_scale_selection': [],
-        'generate_scale_space': [],
-        'estimate_scale_space_peaks': [],
-        'setup_gaussian_scale_space': [],
-        'train_gaussian_scale_space': [],
-    }
-    loss_metrics = {
-        'final_training_loss': [],
-        'final_density_field_loss': [],
-        'final_gmm_num': [],
-        'scale': []
-    }
-
-    # 3. Load Dataset
-    config = SimulationConfig(config_path) 
-    factory = DatasetFactory()
-    dataset = factory.get_dataset(config.data_file)
-
-    max_steps = dataset.trajectories.shape[0]
-    effective_end_step = end_step if end_step is not None and end_step <= max_steps else max_steps
-    
-    if start_step >= effective_end_step:
-        logger.info(f"Skipping {name}: start_step ({start_step}) >= end_step ({effective_end_step}).")
-        return
-    
-    step_range = range(start_step, effective_end_step, step_length)
-
-    # Camera Configurations
-    if CAM_NUM == 2:
-        cam_positions, cam_radius = generate_encircling_cameras(dataset, step_range, config.intrinsics_params, config.H, config.W, cam_num=4, padding=1)
-        cam_poses = np.hstack((cam_positions[:2], np.tile(np.array([1, 0, 0, 0]), (2, 1)))).astype(np.float32)
-    else:
-        cam_positions, cam_radius = generate_encircling_cameras(dataset, step_range, config.intrinsics_params, config.H, config.W, cam_num=CAM_NUM, padding=1)
-        cam_poses = np.hstack((cam_positions, np.tile(np.array([1, 0, 0, 0]), (CAM_NUM, 1)))).astype(np.float32)
-
-    # 4. System Initialization    
-    cam_system = MultiCameraSystem.create_homogeneous_system(
-        state_class=CameraState,
-        intrinsics=config.intrinsics_params,
-        H=config.H, W=config.W, 
-        poses_or_RTs=cam_poses,
-        near_clip=config.near_clip, far_clip=config.far_clip, 
-        size=config.size,
-        device='cuda')
-    reconstruction_params = {
-        'targetd_num_mode': 10,
-        # voxel method
-        'voxel_scale': 0.5,
-        'voxel_peak_threshold': 0.3,
-        'voxel_grid_max_size': 32,
-        'voxel_peaks_number': 2 * 10
-    }
-    train_params = {
-        'xyz_lr_c': 0.05,
-        'xyz_lr_final_c': 0.9,
-        'radius_lr_c': 0.05,
-        'radius_lr_final_c': 0.9,
-        'weights_lr_c': 0.10,
-        'weights_lr_final_c': 0.7,
-        'xyz_reg': 1.0,
-        'radius_reg': 0.3,
-        'radius_cutoff_inv': 0.5,
-        'lr_max_steps': 500
-    }
-    density_reconstructor = DensityReconstructor(max_iter=train_params['lr_max_steps'], use_decoupled=USE_DECOUPLED)
-
+    frame_scales = None
     if USE_GT_SCALE:
-        gt_data = np.load(scenario_path + '/reconstruction_scale.npz')
-        gt_scales = gt_data['scales_gt']
+        scale_path = project_root / "scenarios" / name / "reconstruction_scale.npz"
+        with np.load(scale_path, allow_pickle=False) as scale_data:
+            available_scales = np.asarray(scale_data['scales_gt'], dtype=float)
+        if len(available_scales) < len(frames):
+            raise ValueError(
+                f"Ground-truth scale cache has {len(available_scales)} values "
+                f"for {len(frames)} selected frames."
+            )
+        frame_scales = tuple(available_scales[:len(frames)])
 
-    # 5. Simulation Loop
-    total_num = []
-    for idx, time_step in enumerate(tqdm(step_range, desc=f"Processing {name}")):
-        positions = dataset.positions_at_time_step(time_step)
-        total_num.append(positions.shape[0])
-        # poses, _, images, masks = cam_system.simulate_vision(positions, renderer='gaussian')
-        poses, projections, _, masks = cam_system.simulate_vision(positions, renderer='projection_only')
-        
-        # add noise
-        for cam_idx in range(len(projections)):
-            max_w = cam_system.cameras[cam_idx].state.W
-            max_h = cam_system.cameras[cam_idx].state.H
-            
-            new_projections = projections[cam_idx].copy()
-            # Track which points still need valid noise
-            needs_noise = np.ones(new_projections.shape[0], dtype=bool)
-            
-            while np.any(needs_noise):
-                num_needs = np.sum(needs_noise)
-                noise = np.random.normal(0, noise_std, size=(num_needs, 2))
-                
-                # Apply noise only to the original coordinates of the points that need it
-                candidate_proj = projections[cam_idx][needs_noise] + noise
-                
-                # Check bounds
-                in_bounds = (candidate_proj[:, 0] >= 0) & (candidate_proj[:, 0] <= max_w) & \
-                            (candidate_proj[:, 1] >= 0) & (candidate_proj[:, 1] <= max_h)
-                
-                # Map the valid candidates back to their original indices
-                valid_indices = np.where(needs_noise)[0][in_bounds]
-                new_projections[valid_indices] = candidate_proj[in_bounds]
-                
-                # Mark these as done
-                needs_noise[valid_indices] = False
-                
-            projections[cam_idx] = new_projections
-        
-        if USE_GT_SCALE:
-            model, scale_spaces = \
-            density_reconstructor.process_frame(cam_system, point_sets=projections, positions=positions,
-                                                initGMM=None,
-                                                is_adaptive_scale=False, scale=gt_scales[idx],
-                                                is_store_intermediate=IS_LOGGING, is_log=IS_LOGGING,
-                                                output_dir=os.path.join(log_file_path, f"t_{time_step:03d}"),
-                                                debug=False,
-                                                train_params=train_params,
-                                                reconstruction_params=reconstruction_params)
-        else:
-            model, scale_spaces = \
-            density_reconstructor.process_frame(cam_system, point_sets=projections, positions=positions,
-                                                initGMM=None,
-                                                is_adaptive_scale=True, scale=None,
-                                                is_store_intermediate=IS_LOGGING, is_log=IS_LOGGING,
-                                                output_dir=os.path.join(log_file_path, f"t_{time_step:03d}"),
-                                                debug=False,
-                                                train_params=train_params,
-                                                reconstruction_params=reconstruction_params)
-    
-        # gmm_visualizer = MultiGMMPlotter()
-        # gmm_visualizer.add_gmm(model[0]._xyz.detach().cpu().numpy(), model[0]._radius.detach().cpu().numpy(), model[0]._weights.detach().cpu().numpy())
-        # gmm_visualizer.update()
-        # move_figure(gmm_visualizer.fig, 2800, 100)
-        # gmm_visualizer.ax.view_init(elev=33, azim=-117, roll=0)
-        # # gmm_visualizer.fig.savefig("gmm_diagram.png", transparent=True, bbox_inches='tight')
-        # plt.show()
+    if output is None and IS_LOGGING:
+        output = OutputConfig(
+            workflow="reconstruction",
+            name=f"{name} {run_params['log_name']}",
+            run_id=f"{name}-{run_params['log_name']}",
+            project_root=project_root,
+        )
+    run = reconstruct(
+        dataset,
+        frames=frames,
+        cameras=CameraConfig.encircling(count=CAM_NUM, device="cuda"),
+        frame_scales=frame_scales,
+        training=TrainingParams(
+            xyz_lr_c=0.05,
+            xyz_lr_final_c=0.9,
+            radius_lr_c=0.05,
+            radius_lr_final_c=0.9,
+            weights_lr_c=0.10,
+            weights_lr_final_c=0.7,
+            xyz_reg=1.0,
+            radius_reg=0.3,
+            radius_cutoff_inv=0.5,
+            lr_max_steps=500,
+        ),
+        reconstruction=ReconstructionParams(
+            targetd_num_mode=10,
+            voxel_scale=0.5,
+            voxel_peak_threshold=0.3,
+            voxel_grid_max_size=32,
+            voxel_peaks_number=20,
+        ),
+        seed=seed,
+        projection_noise_std=float(run_params.get('noise_std', 0.0)),
+        use_decoupled=USE_DECOUPLED,
+        output=output,
+    )
+    logger.info(f"Results for {name}: {len(run.frames)} frames reconstructed.")
+    if run.artifacts is not None:
+        timing_names = sorted(
+            {key for frame in run.frames for key in frame.time_ms}
+        )
+        run.artifacts.save_npz(
+            "statistics.npz",
+            overwrite=run.artifacts.output.resume,
+            **{
+                key: np.asarray([frame.time_ms.get(key, np.nan) for frame in run.frames])
+                for key in timing_names
+            },
+            final_training_loss=np.asarray(
+                [frame.mean_training_loss for frame in run.frames], dtype=float
+            ),
+            final_density_field_loss=np.asarray(
+                [frame.density_dissimilarity for frame in run.frames], dtype=float
+            ),
+            final_gmm_num=np.asarray([frame.gaussian_count for frame in run.frames]),
+            scale=np.asarray([frame.scale for frame in run.frames]),
+        )
+        logger.info(f"Managed outputs: {run.run_dir}")
+    return run
 
-        # 6. Collect Metrics
-        for metric_name, value in density_reconstructor.time_metrics.items():
-            time_metrics[metric_name].append(value)
-        
-        loss_metrics['final_training_loss'].append(model[0].mean_loss)
-        loss_metrics['final_gmm_num'].append(model[0]._xyz.shape[0])
-        loss_metrics['scale'].append(density_reconstructor.scale)
-
-        is_visible = np.ones((positions.shape[0],), dtype=np.bool)
-        for i in range(len(poses)):
-            is_visible = is_visible & masks[i]
-        loss_metrics['final_density_field_loss'].append(
-            calculate_gmm_dissimilarity(
-                positions[is_visible],
-                density_reconstructor.scale, 
-                model[0]._xyz, 
-                model[0]._weights, 
-                model[0]._radius, use_decoupled=USE_DECOUPLED))
-    
-    # 7. Logging and Data Saving
-    logger.info(f"Results for {name}:")
-    if time_metrics['train_gaussian_scale_space']:
-        mean_time = np.mean(np.array(time_metrics['train_gaussian_scale_space']))
-        logger.info(f"Mean 'train_gaussian_scale_space' time: {mean_time:.2f} ms")
-    else:
-        logger.info("No time steps processed.")
-    
-    save_data = {**{k: np.array(v) for k, v in time_metrics.items()}, 
-             **{k: np.array(v) for k, v in loss_metrics.items()}}
-
-    save_path = os.path.join(log_file_path, "statistics.npz")
-    if IS_LOGGING:
-        np.savez(save_path, **save_data)
-        logger.info(f"Statistics saved to: {save_path}")
-    logger.info(f"Finished scenario {name}")
 
 def run_multi_scenarios_baseline():
     for run_params in DATASET_RUNS:

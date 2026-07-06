@@ -6,9 +6,9 @@ on chat history.
 
 ## Status
 
-- **Current phase:** Phase 4 is complete. Phase 5 typed reconstruction and
-  evaluation APIs are complete; shared scenario services, runner consolidation,
-  and representative old/new agreement remain.
+- **Current phase:** Phase 4 is complete. Phase 5 typed reconstruction,
+  evaluation, shared scenario/camera services, and the representative primary
+  runner migration are complete; publication runner consolidation remains.
 - **Stable baseline:** annotated tag `v0.1.0`, commit `7cde21e`.
 - **Version storage:** local Git repository only; do not push unless the owner
   explicitly changes this policy.
@@ -256,7 +256,7 @@ without copying code or invoking an experiment module.
 
 - [x] Define a user-facing `CameraConfig` supporting explicit poses and common
   generated layouts (including encircling cameras).
-- [ ] Extract scenario loading/camera setup from `experiments/common.py` into
+- [x] Extract scenario loading/camera setup from `experiments/common.py` into
   package services; experiment-specific presentation stays in `experiments/`.
 - [x] Add typed `ReconstructionRequest`, `FrameReconstruction`, and
   `ReconstructionRun` results.
@@ -268,7 +268,7 @@ without copying code or invoking an experiment module.
   `dfr.evaluate(...)` with typed results.
 - [ ] Consolidate the repeated scenario/table/flock/angle-sweep runner loops
   into one configurable runner.
-- [ ] Verify representative old/new runs agree within declared tolerances.
+- [x] Verify representative old/new runs agree within declared tolerances.
 
 **Exit criteria:** one concise API/config drives load -> camera setup ->
 reconstruct -> evaluate, and scenario runners no longer duplicate the pipeline.
@@ -329,10 +329,11 @@ reading implementation or experiment source.
 
 The next agent should continue Phase 5:
 
-1. Adapt `experiments/common.py` camera setup to the package builder after
-   characterizing the older quaternion convention used by scenario runners.
-2. Consolidate one representative `run_scenarios*.py` loop onto
-   `dfr.reconstruct` before touching the duplicated publication variants.
+1. Extract a configurable shared scenario-run specification from the migrated
+   `run_scenarios.py` path.
+2. Move `run_scenarios_table_2.py`, `run_scenarios_table_3.py`, and
+   `run_scenarios_table_4.py` onto that shared runner, then handle flock and
+   angle-sweep specializations separately.
 3. Migrate `compute_metrics_from_pretrained.py` dataset/checkpoint discovery
    and output paths to explicit CLI/config and managed evaluation artifacts.
 4. Add saved-evaluation loading if downstream plotting needs a stable reader.
@@ -424,11 +425,39 @@ The next agent should continue Phase 5:
   hallucination=FP/predicted mass, miss=FN/ground-truth mass, and
   dMOTA=1-(FN+FP)/ground-truth mass. Reason: typed APIs and device controls must
   not silently redefine published metrics.
+- **2026-07-06 - Legacy camera quaternion:** the old runner's initial
+  `[1, 0, 0, 0]` quaternion is not retained. Encircling cameras use valid xyzw
+  identity before auto-aim; a characterization test proves post-auto-aim poses
+  and projections match. Reason: the initial orientation is overwritten and
+  should not propagate a misleading convention into the public API.
 
 ## Handoff Log
 
 Add one newest-first entry per working session. Include commit(s), verification,
 known failures, and the exact next step.
+
+### 2026-07-06 - Phase 5 shared camera and primary runner migration
+
+- Extended typed reconstruction requests with one explicit scale per frame,
+  reproducible bounded projection noise, and the existing decoupled-backend
+  switch so scenario sweeps do not need to bypass `dfr.reconstruct`.
+- Added package bounded-noise handling and kept one camera ring across all
+  selected frames, preserving legacy scenario geometry.
+- Refactored `experiments.common` scenario/camera/metric helpers into thin
+  compatibility adapters over package services.
+- Characterized the old quaternion initialization and verified identical
+  auto-aimed camera poses/projections on CPU.
+- Migrated the active `run_scenarios.py` reconstruction path to typed package
+  configs/results and managed output; removed its 207-line duplicated legacy
+  implementation, reducing the script from 855 to 740 lines.
+- Added an end-to-end CUDA comparison between direct `process_frame()` and the
+  migrated managed workflow; means, radii, and weights agree within `1e-5`.
+- Verification: canonical scenario/camera characterization; representative
+  direct-vs-workflow CUDA agreement at `1e-5`; `compileall`;
+  `git diff --check`; `pytest -m "not cuda"` (83 passed); `pytest -m cuda`
+  (6 passed, 1 skipped: optional small rasterizer unavailable).
+- Next step: extract one configurable shared runner and migrate the three table
+  variants before flock/angle-specific behavior.
 
 ### 2026-07-06 - Phase 5 typed evaluation workflow
 

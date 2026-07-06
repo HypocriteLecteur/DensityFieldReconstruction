@@ -20,6 +20,10 @@ from dfr.camera_system import MultiCameraSystem
 from dfr.config import ReconstructionParams, TrainingParams
 from dfr.density_field_reconstructor import DensityReconstructor
 from dfr.analysis import compute_dra_sweep
+from dfr import CameraConfig, load_dataset
+from dfr.reconstruction import build_camera_system
+from dfr.reconstruction.pipeline import default_training_params
+from dfr.simulation_config import SimulationConfig
 from experiments.reconstruct_one_frame import build_parser, run
 
 
@@ -160,6 +164,36 @@ def test_one_frame_cli_writes_managed_artifacts(tmp_path):
         ]
     )
 
+    # Characterize the pre-workflow numerical path using the same package
+    # camera service and resolved controls as the migrated CLI.
+    dataset = load_dataset("tiny", project_root=project)
+    simulation = SimulationConfig(str(scenario_dir / "config.yaml"))
+    camera_config = CameraConfig.encircling(count=2, device="cuda")
+    camera_system = build_camera_system(dataset, (0,), simulation, camera_config)
+    np.random.seed(12345)
+    torch.manual_seed(12345)
+    _, projections, _, _ = camera_system.simulate_vision(
+        positions, renderer="projection_only", is_auto_aim=True
+    )
+    direct_reconstructor = DensityReconstructor(
+        max_iter=1, W=64, H=64, far_clip=30
+    )
+    direct_models, _ = direct_reconstructor.process_frame(
+        camera_system,
+        point_sets=projections,
+        is_adaptive_scale=False,
+        scale=0.5,
+        positions=positions,
+        train_params=default_training_params(1),
+        reconstruction_params=ReconstructionParams(
+            targetd_num_mode=10,
+            voxel_scale=0.5,
+            voxel_peak_threshold=0.05,
+            voxel_grid_max_size=12,
+            voxel_peaks_number=8,
+        ),
+    )
+
     artifacts = run(args)
 
     assert artifacts.run_dir == (
@@ -170,6 +204,16 @@ def test_one_frame_cli_writes_managed_artifacts(tmp_path):
     assert (artifacts.data_dir / "reconstruction.npz").is_file()
     assert (artifacts.checkpoints_dir / "final_model.pth").is_file()
     assert (artifacts.metrics_dir / "summary.json").is_file()
+    with np.load(artifacts.data_dir / "reconstruction.npz") as migrated:
+        np.testing.assert_allclose(
+            migrated["means"], direct_models[0]._xyz.detach().cpu().numpy(), atol=1e-5
+        )
+        np.testing.assert_allclose(
+            migrated["radii"], direct_models[0]._radius.detach().cpu().numpy(), atol=1e-5
+        )
+        np.testing.assert_allclose(
+            migrated["weights"], direct_models[0]._weights.detach().cpu().numpy(), atol=1e-5
+        )
 
 
 def test_extracted_dra_sweep_scores_identical_mixture_as_one():

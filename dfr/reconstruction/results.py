@@ -23,6 +23,9 @@ class ReconstructionRequest:
     training: TrainingParams
     reconstruction: ReconstructionParams
     scale: Optional[float] = None
+    frame_scales: Optional[tuple[float, ...]] = None
+    projection_noise_std: float = 0.0
+    use_decoupled: bool = False
     seed: int = 12345
     output: Optional[OutputConfig] = None
     scenario_config: Optional[Path] = None
@@ -34,6 +37,17 @@ class ReconstructionRequest:
         object.__setattr__(self, "frames", frames)
         if self.scale is not None and self.scale <= 0:
             raise ValueError("ReconstructionRequest.scale must be positive.")
+        if self.frame_scales is not None:
+            values = tuple(float(value) for value in self.frame_scales)
+            if self.scale is not None:
+                raise ValueError("scale and frame_scales are mutually exclusive.")
+            if len(values) != len(frames) or any(value <= 0 for value in values):
+                raise ValueError(
+                    "frame_scales must contain one positive scale per frame."
+                )
+            object.__setattr__(self, "frame_scales", values)
+        if self.projection_noise_std < 0:
+            raise ValueError("projection_noise_std must be non-negative.")
         if self.seed < 0:
             raise ValueError("ReconstructionRequest.seed must be non-negative.")
         if self.output is not None and self.output.workflow != "reconstruction":
@@ -71,8 +85,17 @@ class ReconstructionRequest:
             "training": self.training.to_dict(),
             "reconstruction": self.reconstruction.to_dict(),
             "scale": self.scale,
+            "frame_scales": (
+                list(self.frame_scales) if self.frame_scales is not None else None
+            ),
+            "projection_noise_std": self.projection_noise_std,
+            "use_decoupled": self.use_decoupled,
             "seed": self.seed,
         }
+
+    def scale_for_index(self, index: int) -> Optional[float]:
+        """Return the fixed scale for one selected frame, or None for adaptive."""
+        return self.frame_scales[index] if self.frame_scales is not None else self.scale
 
 
 @dataclass

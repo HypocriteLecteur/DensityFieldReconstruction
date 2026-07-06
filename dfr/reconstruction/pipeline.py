@@ -15,7 +15,10 @@ from dfr.data.base import Dataset
 from dfr.data.frames import select_frame_indices
 from dfr.data.spec import DatasetSpec
 from dfr.model_checkpoint import build_checkpoint
-from dfr.reconstruction.cameras import build_camera_system
+from dfr.reconstruction.cameras import (
+    add_bounded_projection_noise,
+    build_camera_system,
+)
 from dfr.reconstruction.results import (
     FrameReconstruction,
     ReconstructionRequest,
@@ -59,10 +62,13 @@ def reconstruct(
     frames,
     cameras: CameraConfig,
     scale: Optional[float] = None,
+    frame_scales=None,
     training: Optional[TrainingParams] = None,
     reconstruction: Optional[ReconstructionParams] = None,
     device: Optional[str] = None,
     seed: int = 12345,
+    projection_noise_std: float = 0.0,
+    use_decoupled: bool = False,
     output: Optional[OutputConfig] = None,
     scenario_config: Optional[str | Path] = None,
 ) -> ReconstructionRun:
@@ -87,6 +93,13 @@ def reconstruct(
         training=training,
         reconstruction=reconstruction_config,
         scale=scale,
+        frame_scales=(
+            tuple(float(value) for value in frame_scales)
+            if frame_scales is not None
+            else None
+        ),
+        projection_noise_std=projection_noise_std,
+        use_decoupled=use_decoupled,
         seed=seed,
         output=output,
         scenario_config=config_path,
@@ -103,12 +116,15 @@ def reconstruct(
     )
     artifacts = _create_artifacts(request) if output is not None else None
     results = []
-    for frame in selected_frames:
+    rng = np.random.default_rng(seed)
+    for frame_index, frame in enumerate(selected_frames):
         result, model = _reconstruct_frame(
             request,
+            frame_index,
             frame,
             simulation,
             camera_system,
+            rng,
         )
         results.append(result)
         if artifacts is not None:
@@ -153,8 +169,12 @@ def _create_artifacts(request: ReconstructionRequest) -> RunArtifacts:
         resolved_config = {
             "run": run_config,
             "frame": request.frames[0],
-            "fixed_scale": request.scale,
+            "fixed_scale": request.scale_for_index(0),
         }
+        if request.projection_noise_std != 0:
+            resolved_config["projection_noise_std"] = request.projection_noise_std
+        if request.use_decoupled:
+            resolved_config["use_decoupled"] = True
     else:
         resolved_config = {"request": request}
     return RunArtifacts.create(
@@ -165,7 +185,7 @@ def _create_artifacts(request: ReconstructionRequest) -> RunArtifacts:
     )
 
 
-def _reconstruct_frame(request, frame, simulation, camera_system):
+def _reconstruct_frame(request, frame_index, frame, simulation, camera_system, rng):
     # Lazy imports keep data-only result/config APIs usable without loading the
     # compiled reconstruction stack.
     from dfr.density_field_reconstructor import DensityReconstructor
@@ -179,17 +199,25 @@ def _reconstruct_frame(request, frame, simulation, camera_system):
         renderer="projection_only",
         is_auto_aim=request.cameras.layout == "encircling",
     )
+    projections = add_bounded_projection_noise(
+        projections,
+        camera_system,
+        request.projection_noise_std,
+        rng,
+    )
+    fixed_scale = request.scale_for_index(frame_index)
     reconstructor = DensityReconstructor(
         max_iter=request.training.lr_max_steps,
         W=simulation.W,
         H=simulation.H,
         far_clip=simulation.far_clip,
+        use_decoupled=request.use_decoupled,
     )
     models, scale_spaces = reconstructor.process_frame(
         camera_system,
         point_sets=projections,
-        is_adaptive_scale=request.scale is None,
-        scale=request.scale,
+        is_adaptive_scale=fixed_scale is None,
+        scale=fixed_scale,
         positions=positions,
         train_params=request.training,
         reconstruction_params=request.reconstruction,
