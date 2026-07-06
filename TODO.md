@@ -6,9 +6,9 @@ on chat history.
 
 ## Status
 
-- **Current phase:** Phase 4 is complete. Phase 5 is in progress with the first
-  typed reconstruction slice complete; evaluation extraction and consolidation
-  of the legacy multi-scenario runners are next.
+- **Current phase:** Phase 4 is complete. Phase 5 typed reconstruction and
+  evaluation APIs are complete; shared scenario services, runner consolidation,
+  and representative old/new agreement remain.
 - **Stable baseline:** annotated tag `v0.1.0`, commit `7cde21e`.
 - **Version storage:** local Git repository only; do not push unless the owner
   explicitly changes this policy.
@@ -264,7 +264,7 @@ without copying code or invoking an experiment module.
   cameras, scale, reconstruction config, device, seed, and output config.
 - [x] Keep `DensityReconstructor.process_frame()` as a compatibility layer until
   all active scripts migrate.
-- [ ] Separate metric computation from plotting and provide
+- [x] Separate metric computation from plotting and provide
   `dfr.evaluate(...)` with typed results.
 - [ ] Consolidate the repeated scenario/table/flock/angle-sweep runner loops
   into one configurable runner.
@@ -329,14 +329,13 @@ reading implementation or experiment source.
 
 The next agent should continue Phase 5:
 
-1. Extract pure TP/FP/FN and derived evaluation metrics into `dfr.evaluation`
-   with typed frame/run results and explicit CPU/CUDA device behavior.
-2. Add `dfr.evaluate(...)` for a `ReconstructionRun` or saved managed run,
-   keeping plotting and table formatting separate.
-3. Adapt `experiments/common.py` camera setup to the package builder after
+1. Adapt `experiments/common.py` camera setup to the package builder after
    characterizing the older quaternion convention used by scenario runners.
-4. Consolidate one representative `run_scenarios*.py` loop onto
+2. Consolidate one representative `run_scenarios*.py` loop onto
    `dfr.reconstruct` before touching the duplicated publication variants.
+3. Migrate `compute_metrics_from_pretrained.py` dataset/checkpoint discovery
+   and output paths to explicit CLI/config and managed evaluation artifacts.
+4. Add saved-evaluation loading if downstream plotting needs a stable reader.
 5. Keep the Phase 4 supported/legacy classification in
    `experiments/README.md` current when promoting another research study.
 
@@ -420,11 +419,37 @@ The next agent should continue Phase 5:
   `dfr_plot.py` is deferred to Phase 6 and cannot launch an implicit figure.
   Reason: a finite supported surface can have managed, tested contracts without
   pretending every exploratory notebook-like script is production workflow.
+- **2026-07-06 - Evaluation semantics:** preserve the existing voxelized
+  density-mass definitions: recall=TP/ground-truth mass,
+  hallucination=FP/predicted mass, miss=FN/ground-truth mass, and
+  dMOTA=1-(FN+FP)/ground-truth mass. Reason: typed APIs and device controls must
+  not silently redefine published metrics.
 
 ## Handoff Log
 
 Add one newest-first entry per working session. Include commit(s), verification,
 known failures, and the exact next step.
+
+### 2026-07-06 - Phase 5 typed evaluation workflow
+
+- Added side-effect-free isotropic-GMM evaluation and batched TP/FP/FN density
+  integration under `dfr.evaluation.metrics`, with validated grids and explicit
+  CPU/CUDA device selection.
+- Added typed `EvaluationSummary`, `FrameEvaluation`, and `EvaluationRun`
+  results exposing historical recall, miss, hallucination, and dMOTA equations.
+- Added public `dfr.evaluate(...)` for an in-memory `ReconstructionRun` or a
+  saved managed reconstruction directory, with optional explicit ground truth,
+  bounds/config, and managed evaluation output.
+- Kept `dfr.utils` metric functions as compatibility wrappers and migrated
+  `compute_metrics_from_pretrained.py` to the package metric/aggregate APIs.
+- Added CPU tests for identical densities, derived equations, in-memory and
+  saved-run evaluation, explicit output, and validation behavior.
+- Documented the evaluation workflow and saved-run usage in README.
+- Verification: public API import; representative legacy aggregate check;
+  `compileall`; `git diff --check`; `pytest -m "not cuda"` (78 passed);
+  `pytest -m cuda` (6 passed, 1 skipped: optional small rasterizer unavailable).
+- Next step: migrate shared camera setup and one representative scenario loop,
+  then finish the legacy pretrained-evaluator CLI/output migration.
 
 ### 2026-07-06 - Phase 4 supported analysis entry points completed
 

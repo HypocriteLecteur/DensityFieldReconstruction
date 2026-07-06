@@ -17,6 +17,8 @@ from dfr.reconstruction.results import (
     ReconstructionRequest,
     ReconstructionRun,
 )
+from dfr.evaluation.pipeline import evaluate
+from dfr.evaluation.results import EvaluationRun, EvaluationSummary, FrameEvaluation
 
 __version__ = "0.1.0"
 
@@ -26,6 +28,9 @@ __all__ = [
     "Dataset",
     "DatasetSpec",
     "EvaluationConfig",
+    "EvaluationRun",
+    "EvaluationSummary",
+    "FrameEvaluation",
     "OutputConfig",
     "FrameReconstruction",
     "ReconstructionRequest",
@@ -34,6 +39,7 @@ __all__ = [
     "RunConfig",
     "ScenarioRegistry",
     "analyze",
+    "evaluate",
     "load_dataset",
     "resolve_dataset",
     "reconstruct",

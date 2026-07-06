@@ -280,30 +280,10 @@ def calculate_gmm_dissimilarity(
         return (int_ff - 2 * int_fg + int_gg) / int_ff
 
 def eval_isotropic_gmm_torch(coords, means, weights, sigmas):
-    """
-    Evaluates GMM density using PyTorch. All inputs must be tensors on the same device.
-    coords: (B, 3) tensor of query points
-    means: (K, 3) tensor of Gaussian means
-    weights: (K,) tensor of Gaussian weights
-    sigmas: (K,) tensor of Gaussian standard deviations
-    """
-    # torch.cdist computes the pairwise Euclidean distance highly efficiently.
-    # We square it to get the squared distances. Shape becomes (B, K)
-    sq_dists = torch.cdist(coords, means).pow(2)
-    
-    variances = sigmas.pow(2)
-    
-    # 3D Gaussian normalization factor: 1 / (2 * pi * sigma^2)^(3/2)
-    normalization = (2 * torch.pi * variances).pow(1.5)
-    
-    # Calculate exponential component: exp(-d^2 / 2*sigma^2)
-    exponents = -sq_dists / (2 * variances)
-    
-    # Matrix of densities for each component at each point: shape (B, K)
-    component_densities = (weights / normalization) * torch.exp(exponents)
-    
-    # Sum across all K components to get total density at each point: shape (B,)
-    return torch.sum(component_densities, dim=1)
+    """Compatibility wrapper for :func:`dfr.evaluation.evaluate_isotropic_gmm`."""
+    from dfr.evaluation.metrics import evaluate_isotropic_gmm
+
+    return evaluate_isotropic_gmm(coords, means, weights, sigmas)
 
 def compute_metrics_batched_torch(means1_np: np.ndarray,
                                   sigma1: float,
@@ -311,64 +291,20 @@ def compute_metrics_batched_torch(means1_np: np.ndarray,
                                   pred_weights: torch.Tensor,
                                   pred_sigmas: torch.Tensor,
                                   bounds, voxel_res, batch_size=500000, device='cuda'):
-    """
-    Computes TP, FP, and FN mass over a bounded 3D space in batches.
+    """Compatibility wrapper for the package density-overlap implementation."""
+    from dfr.evaluation.metrics import compute_density_overlap_masses
 
-    ``device`` may be ``"cpu"`` for tests and small analyses or a CUDA device
-    for production-sized evaluations.
-    """
-    device = torch.device(device)
-
-    # 1. Move GMM parameters to the target device
-    N = means1_np.shape[0]
-    gt_means = torch.from_numpy(means1_np).to(device=device, dtype=torch.float32)
-    gt_weights = torch.full((N, 1), 1.0, device=device, dtype=torch.float)
-    gt_sigmas = torch.full((N, 1), sigma1, device=device, dtype=torch.float)
-    pred_means = pred_means.to(device=device, dtype=torch.float32)
-    pred_weights = pred_weights.to(device=device, dtype=torch.float32)
-    pred_sigmas = pred_sigmas.to(device=device, dtype=torch.float32)
-
-    # 2. Create 1D ticks for each axis directly on the GPU
-    x_ticks = torch.arange(bounds[0][0], bounds[0][1], voxel_res, device=device)
-    y_ticks = torch.arange(bounds[1][0], bounds[1][1], voxel_res, device=device)
-    z_ticks = torch.arange(bounds[2][0], bounds[2][1], voxel_res, device=device)
-    
-    nx, ny, nz = len(x_ticks), len(y_ticks), len(z_ticks)
-    total_voxels = nx * ny * nz
-    voxel_volume = voxel_res**3
-    
-    total_tp_mass = 0.0
-    total_fp_mass = 0.0
-    total_fn_mass = 0.0
-    
-    # 3. Process in batches
-    for start_idx in range(0, total_voxels, batch_size):
-        end_idx = min(start_idx + batch_size, total_voxels)
-        
-        # 1D indices for the current batch
-        batch_indices = torch.arange(start_idx, end_idx, device=device)
-        
-        # 4. Map 1D batch indices back to 3D grid indices using tensor arithmetic
-        # This acts as a highly efficient GPU-based np.unravel_index
-        ix = batch_indices // (ny * nz)
-        iy = (batch_indices // nz) % ny
-        iz = batch_indices % nz
-        
-        # 5. Construct the 3D coordinates for this specific batch
-        batch_coords = torch.stack([x_ticks[ix], y_ticks[iy], z_ticks[iz]], dim=-1)
-        
-        # 6. Evaluate densities
-        density_gt = eval_isotropic_gmm_torch(batch_coords, gt_means, gt_weights.reshape(-1,), gt_sigmas.reshape(-1,))
-        density_pred = eval_isotropic_gmm_torch(batch_coords, pred_means, pred_weights.reshape(-1,), pred_sigmas.reshape(-1,))
-        
-        # 7. Accumulate Mass
-        # Use .item() to pull the scalar sum off the GPU back to CPU float. 
-        # This prevents the computation graph from holding onto memory across loop iterations.
-        total_tp_mass += torch.sum(torch.minimum(density_gt, density_pred)).item() * voxel_volume
-        total_fp_mass += torch.sum(torch.clamp(density_pred - density_gt, min=0)).item() * voxel_volume
-        total_fn_mass += torch.sum(torch.clamp(density_gt - density_pred, min=0)).item() * voxel_volume
-
-    return total_tp_mass, total_fp_mass, total_fn_mass
+    return compute_density_overlap_masses(
+        means1_np,
+        sigma1,
+        pred_means,
+        pred_weights,
+        pred_sigmas,
+        bounds=bounds,
+        voxel_resolution=voxel_res,
+        batch_size=batch_size,
+        device=device,
+    )
 
 def generate_encircling_cameras(dataset, step_range, intrinsic_params, H, W, cam_num, padding=1, is_3d=False):
     """

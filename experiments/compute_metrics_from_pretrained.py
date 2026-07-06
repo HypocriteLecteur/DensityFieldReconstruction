@@ -19,7 +19,7 @@ from tqdm import tqdm
 from dfr.simulation_config import SimulationConfig
 from dfr.dataset_io import DatasetFactory
 from dfr.density_field_model import GaussianModel
-from dfr.utils import compute_metrics_batched_torch
+from dfr.evaluation import EvaluationSummary, compute_density_overlap_masses
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -81,11 +81,28 @@ def aggregate_metrics(metric_data: dict) -> dict:
     sum_fn = np.sum(metric_data['fn'])
     total_N = np.sum(metric_data['N'])
     total_weights = np.sum(metric_data['w'])
+    if total_N <= 0:
+        return {
+            'recall': 0.0,
+            'hallucination': 0.0,
+            'dmota': 0.0,
+            'total_N': total_N,
+            'sum_tp': sum_tp,
+            'sum_fp': sum_fp,
+            'sum_fn': sum_fn,
+        }
 
+    summary = EvaluationSummary(
+        true_positive_mass=float(sum_tp),
+        false_positive_mass=float(sum_fp),
+        false_negative_mass=float(sum_fn),
+        ground_truth_mass=float(total_N),
+        predicted_mass=float(total_weights),
+    )
     return {
-        'recall':        sum_tp / total_N if total_N > 0 else 0.0,
-        'hallucination': sum_fp / total_weights if total_weights > 0 else 0.0,
-        'dmota':         1.0 - ((sum_fn + sum_fp) / total_N) if total_N > 0 else 0.0,
+        'recall':        summary.recall,
+        'hallucination': summary.hallucination,
+        'dmota':         summary.dmota,
         'total_N':       total_N,
         'sum_tp':        sum_tp,
         'sum_fp':        sum_fp,
@@ -217,12 +234,12 @@ def compute_metrics_single_scenario(run_params: dict):
             voxel_res = np.max(max_coords - min_coords) * 5e-3
 
             # --- iter 0 metrics ---
-            tp_i, fp_i, fn_i = compute_metrics_batched_torch(
-                means1_np=positions, sigma1=scale,
-                pred_means=model_init._xyz,
-                pred_weights=model_init._weights,
-                pred_sigmas=model_init._radius,
-                bounds=bounds, voxel_res=voxel_res,
+            tp_i, fp_i, fn_i = compute_density_overlap_masses(
+                ground_truth_means=positions, ground_truth_sigma=scale,
+                predicted_means=model_init._xyz,
+                predicted_weights=model_init._weights,
+                predicted_sigmas=model_init._radius,
+                bounds=bounds, voxel_resolution=voxel_res,
                 batch_size=50000, device='cuda',
             )
             w_i = model_init._weights.sum().item()
@@ -238,12 +255,12 @@ def compute_metrics_single_scenario(run_params: dict):
             gmm_counts_init.append(model_init._xyz.shape[0])
 
             # --- iter 99 metrics ---
-            tp_f, fp_f, fn_f = compute_metrics_batched_torch(
-                means1_np=positions, sigma1=scale,
-                pred_means=model_final._xyz,
-                pred_weights=model_final._weights,
-                pred_sigmas=model_final._radius,
-                bounds=bounds, voxel_res=voxel_res,
+            tp_f, fp_f, fn_f = compute_density_overlap_masses(
+                ground_truth_means=positions, ground_truth_sigma=scale,
+                predicted_means=model_final._xyz,
+                predicted_weights=model_final._weights,
+                predicted_sigmas=model_final._radius,
+                bounds=bounds, voxel_resolution=voxel_res,
                 batch_size=50000, device='cuda',
             )
             w_f = model_final._weights.sum().item()

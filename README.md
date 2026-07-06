@@ -360,6 +360,31 @@ clip planes; a dataset loaded by scenario name retains that path automatically.
 Advanced callers can pass `TrainingParams` and `ReconstructionParams` through
 the `training=` and `reconstruction=` arguments.
 
+Evaluate an in-memory reconstruction against its source positions (or pass an
+explicit ground-truth dataset):
+
+```python
+evaluation = dfr.evaluate(
+    run,
+    ground_truth=dataset,
+    config=dfr.EvaluationConfig(
+        voxel_resolution=0.25,
+        batch_size=200_000,
+        device="cuda",
+    ),
+)
+print(evaluation.summary.recall)
+print(evaluation.summary.hallucination)
+print(evaluation.summary.dmota)
+```
+
+`dfr.evaluate("outputs/reconstruction/<run-id>", config=...)` loads managed
+reconstruction arrays directly. Bounds default to the ground-truth extent plus
+three reconstruction scales; set `EvaluationConfig.bounds` for an exact common
+grid. Evaluation returns data without writing unless an
+`OutputConfig(workflow="evaluation", ...)` is supplied. Per-frame and aggregate
+JSON metrics then go under `outputs/evaluation/<run-id>/metrics/`.
+
 For a quick managed one-frame reconstruction, use the transitional CLI:
 
 ```powershell
@@ -396,7 +421,8 @@ python -m experiments.compute_metrics_from_pretrained
 ```
 
 This evaluator reads the hard-coded `DATASET_RUNS` and camera counts in its
-source. Review those settings before running it.
+source, but now delegates density overlap and aggregate metric equations to
+`dfr.evaluation`. Review its legacy dataset/checkpoint settings before running.
 
 ## Generated outputs
 
