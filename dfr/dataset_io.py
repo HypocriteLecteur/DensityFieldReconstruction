@@ -4,6 +4,8 @@ from abc import ABC, abstractmethod
 import os
 import h5py
 import pandas as pd
+from pathlib import Path
+from typing import Any, Mapping, Optional
 
 # --- 1. Define the Standardized Data Format ---
 # Position: (number_of_frames, number_of_agents, 3)
@@ -47,11 +49,18 @@ class CentralDifference(VelocityStrategy):
 # --- 3. Update the Dataset Interface ---
 class DatasetInterface(ABC):
     """
-    Defines the contract for all data loaders, now including velocity handling.
+    Base class for loaded point-trajectory datasets.
+
+    Positions and optional velocities use ``(frames, agents, 3)`` arrays.
+    Variable agent counts are represented with NaN-padded rows and filtered by
+    :meth:`positions_at_time_step`.
     """
     def __init__(self):
         self._trajectory_data = None
         self._velocity_data = None
+        self._timestamps = None
+        self._source_path = None
+        self._metadata = {}
     
     @property
     @abstractmethod
@@ -68,23 +77,87 @@ class DatasetInterface(ABC):
             raise ValueError("Data has not been loaded. Call load() first.")
         return self._trajectory_data
 
+    def __len__(self) -> int:
+        """Return the number of frames in the loaded trajectory."""
+        return int(self.trajectories.shape[0])
+
+    @property
+    def frame_count(self) -> int:
+        """Number of available trajectory frames."""
+        return len(self)
+
     @property
     def velocities(self) -> np.ndarray:
         if self._velocity_data is None:
-            raise ValueError("Velocity data is not available or has not been calculated.")
+            source = f" for '{self._source_path}'" if self._source_path else ""
+            raise ValueError(
+                "Velocity data is not available"
+                f"{source}. Call calculate_velocities(...) to derive it."
+            )
         return self._velocity_data
+
+    @property
+    def has_velocities(self) -> bool:
+        """Whether velocity data was loaded or calculated."""
+        return self._velocity_data is not None
+
+    @property
+    def timestamps(self) -> Optional[np.ndarray]:
+        """Frame timestamps when supplied by the source format, otherwise None."""
+        return self._timestamps
+
+    @property
+    def has_timestamps(self) -> bool:
+        """Whether the source provides frame timestamps."""
+        return self._timestamps is not None
+
+    @property
+    def source_path(self) -> Optional[Path]:
+        """Absolute source file path when loaded through DatasetFactory."""
+        return self._source_path
+
+    @property
+    def metadata(self) -> Mapping[str, Any]:
+        """Read-only-by-convention loader and coordinate metadata."""
+        return self._metadata
+
+    @property
+    def coordinate_system(self) -> Optional[str]:
+        """Coordinate-system description when known by the loader."""
+        return self._metadata.get("coordinate_system")
+
+    @property
+    def ground_truth_positions(self) -> np.ndarray:
+        """Point trajectories treated as ground truth by DFR evaluations."""
+        return self.trajectories
+
+    def normalize_time_step(self, time_step: int) -> int:
+        """Validate and normalize one frame index, including negative indices."""
+        if not isinstance(time_step, (int, np.integer)):
+            raise TypeError(
+                f"Frame index must be an integer, got {type(time_step).__name__}."
+            )
+        normalized = int(time_step)
+        if normalized < 0:
+            normalized += len(self)
+        if normalized < 0 or normalized >= len(self):
+            raise IndexError(
+                f"Frame index {time_step} is outside the valid range "
+                f"[-{len(self)}, {len(self) - 1}] for a {len(self)}-frame dataset."
+            )
+        return normalized
 
     def positions_at_time_step(self, time_step) -> np.ndarray:
         if self._trajectory_data is None:
             raise ValueError("Data has not been loaded. Call load() first.")
-        positions = self.trajectories[time_step]
+        positions = self.trajectories[self.normalize_time_step(time_step)]
         mask = ~np.isnan(positions[:, 0])
         return positions[mask]
     
     def positions_at_time_step_mask(self, time_step) -> np.ndarray:
         if self._trajectory_data is None:
             raise ValueError("Data has not been loaded. Call load() first.")
-        positions = self.trajectories[time_step]
+        positions = self.trajectories[self.normalize_time_step(time_step)]
         mask = ~np.isnan(positions[:, 0])
         return positions[mask], mask
 
@@ -248,6 +321,21 @@ class Hdf5Loader(DatasetInterface):
 
     def load(self, filepath: str) -> None:
         traj_cache, vel_cache = self._get_cache_paths(filepath)
+
+        # HDF5 group names are the source frame timestamps. Reading the key
+        # index is cheap even when trajectory arrays are served from cache.
+        try:
+            with h5py.File(filepath, 'r') as source:
+                timestamp_keys = sorted(
+                    source.keys(), key=lambda value: int(value)
+                )
+                self._timestamps = np.asarray(
+                    [int(value) for value in timestamp_keys], dtype=np.int64
+                )
+        except Exception as error:
+            raise InvalidFileFormatError(
+                f"Failed to read HDF5 timestamps from '{filepath}': {error}"
+            ) from error
         
         # 1. Check if a valid cache exists
         if os.path.exists(traj_cache) and os.path.exists(vel_cache):
@@ -267,7 +355,7 @@ class Hdf5Loader(DatasetInterface):
         try:
             print(f"  -> Processing raw HDF5: {os.path.basename(filepath)}")
             with h5py.File(filepath, 'r') as f:
-                timestamps_str = sorted(f.keys(), key=lambda x: int(x))
+                timestamps_str = timestamp_keys
                 n_frames = len(timestamps_str)
                 
                 # Identify unique agents
@@ -442,6 +530,7 @@ class CsvDronePositionLoader(DatasetInterface):
             # Extract time column
             if 'Time' not in df.columns:
                 raise InvalidFileFormatError("CSV file must contain 'Time' column.")
+            self._timestamps = df['Time'].to_numpy(copy=True)
             
             # Parse drone columns dynamically
             drone_data = self._extract_drone_positions(df)
@@ -457,6 +546,10 @@ class CsvDronePositionLoader(DatasetInterface):
             
             for agent_idx, (drone_id, positions) in enumerate(sorted(drone_data.items())):
                 self._trajectory_data[:, agent_idx, :] = positions[:, [1, 0, 2]] # coordinate frame conversion, left hand to right hand
+
+            self._metadata["coordinate_system"] = (
+                "right-handed; source X/Y axes swapped by CsvDronePositionLoader"
+            )
             
             # No velocity data in this format
             
@@ -546,22 +639,66 @@ class DatasetFactory:
         if self.verbose:
             print(f"  - Registered '{loader_class.__name__}'")
 
-    def get_dataset(self, filepath: str) -> DatasetInterface:
+    @property
+    def supported_extensions(self) -> tuple[str, ...]:
+        """All file extensions recognized by registered loaders."""
+        return tuple(
+            sorted(
+                {
+                    extension
+                    for loader_class in self._loaders
+                    for extension in loader_class().supported_extensions
+                }
+            )
+        )
+
+    def get_dataset(self, filepath: str | os.PathLike[str]) -> DatasetInterface:
         """
-        Tries all registered loaders on the file until one succeeds.
+        Load a dataset with the first compatible format-specific loader.
+
+        Raises:
+            FileNotFoundError: The source path does not exist.
+            ValueError: No loader supports the source extension.
+            InvalidFileFormatError: Compatible loaders rejected the contents.
         """
-        _, ext = os.path.splitext(filepath)
-        ext = ext.lower()
+        path = Path(filepath).expanduser().resolve()
+        if not path.exists():
+            raise FileNotFoundError(f"Dataset file does not exist: {path}")
+        if not path.is_file():
+            raise ValueError(f"Dataset path is not a file: {path}")
+
+        ext = path.suffix.lower()
 
         # Filter loaders by extension
         valid_loaders = [l for l in self._loaders if ext in l().supported_extensions]
+        if not valid_loaders:
+            supported = ", ".join(self.supported_extensions)
+            raise ValueError(
+                f"Unsupported dataset extension '{ext or '<none>'}' for '{path}'. "
+                f"Supported extensions: {supported}."
+            )
 
+        failures = []
         for loader_class in valid_loaders:
             try:
                 loader_instance = loader_class()
-                loader_instance.load(filepath)
+                loader_instance.load(str(path))
+                loader_instance._source_path = path
+                loader_instance._metadata.update(
+                    {
+                        "loader": loader_class.__name__,
+                        "source_path": str(path),
+                        "coordinate_system": loader_instance._metadata.get(
+                            "coordinate_system"
+                        ),
+                    }
+                )
                 return loader_instance
-            except InvalidFileFormatError:
-                continue
-                
-        raise ValueError(f"Could not find a suitable loader for the file: {filepath}")
+            except InvalidFileFormatError as error:
+                failures.append(f"{loader_class.__name__}: {error}")
+
+        details = "; ".join(failures)
+        raise InvalidFileFormatError(
+            f"Dataset '{path}' has a supported '{ext}' extension but could not "
+            f"be parsed. Loader errors: {details}"
+        )

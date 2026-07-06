@@ -10,13 +10,14 @@ import sys
 import os
 import shutil
 import time
+from pathlib import Path
 import numpy as np
 import torch
 from tqdm import tqdm
 from typing import Optional
 
 from dfr.simulation_config import SimulationConfig
-from dfr.dataset_io import DatasetFactory
+from dfr import load_dataset
 from dfr.camera_system import MultiCameraSystem
 from dfr.density_field_reconstructor import DensityReconstructor
 from dfr.density_field_model import GaussianModel
@@ -42,8 +43,8 @@ def load_scenario(scenario_name: str, scenario_path: str):
     """Load a scenario's config and dataset."""
     config_path = os.path.join(scenario_path, "config.yaml")
     config = SimulationConfig(config_path)
-    factory = DatasetFactory()
-    dataset = factory.get_dataset(config.data_file)
+    project_root = Path(scenario_path).resolve().parents[1]
+    dataset = load_dataset(config.data_file, project_root=project_root)
     return config, dataset
 
 

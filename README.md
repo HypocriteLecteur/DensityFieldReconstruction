@@ -96,28 +96,73 @@ the custom rasterizer extensions.
 
 ## Load a dataset
 
-Scenario configuration connects a short scenario name to a local data file.
-The current API is explicit but requires only the configuration and factory:
+Scenario configuration connects a short name to a local data file. The public
+loader accepts a registered scenario name, a scenario YAML file, an explicit
+data path, or a resolved `DatasetSpec`:
 
 ```python
 from pathlib import Path
 
-from dfr.dataset_io import DatasetFactory
-from dfr.simulation_config import SimulationConfig
+import dfr
 
-name = "jackdaw2"
-config = SimulationConfig(Path("scenarios") / name / "config.yaml")
-dataset = DatasetFactory().get_dataset(config.data_file)
+dataset = dfr.load_dataset("jackdaw2")
+# Equivalent explicit forms:
+dataset = dfr.load_dataset(Path("scenarios/jackdaw2/config.yaml"))
+dataset = dfr.load_dataset(Path("dataset/mobbing_flock_06.npz"))
 
 print(dataset.trajectories.shape)       # (frames, maximum agents, 3)
 positions = dataset.positions_at_time_step(2800)  # NaN-padded agents removed
 print(positions.shape)
 ```
 
-Supported loader formats currently include `.npy`, several `.npz` layouts,
-MATLAB `.mat`, `.rtf`, `.hdf5`, and project-specific CSV data. Positions use
-the shape `(frames, agents, 3)` after loading. Some source formats also provide
-velocities.
+Pass `project_root=...` when scenarios/data live outside this checkout. All
+resolved paths become absolute, so later frame access does not depend on the
+working directory:
+
+```python
+dataset = dfr.load_dataset("my-scenario", project_root="D:/research/dfr-project")
+spec = dfr.resolve_dataset("my-scenario", project_root="D:/research/dfr-project")
+print(spec.config_path, spec.data_path)
+```
+
+The returned object follows `dfr.Dataset`. Positions and optional velocities
+use `(frames, agents, 3)`. `len(dataset)`/`dataset.frame_count` report frame
+count; `timestamps`, `coordinate_system`, and `metadata` expose optional source
+information; `ground_truth_positions` is the trajectory used by current DFR
+evaluation. Missing optional velocities raise an actionable error rather than
+silently returning fabricated data.
+
+Use the shared selector before an analysis or reconstruction:
+
+```python
+frames = dfr.select_frame_indices(dataset, [0, 10, -1])
+sampled = dfr.select_frame_indices(dataset, slice(0, None, 20))
+```
+
+Invalid indices, empty selections, missing files, unsupported extensions, and
+malformed supported files are reported separately.
+
+### Supported loader schemas
+
+Every format uses the same loading call: `dfr.load_dataset(path)`. Minimal
+source schemas are:
+
+| Format | Required source schema | Minimal creation/use example |
+|---|---|---|
+| `.npy` | One numeric `(frames, agents, 3)` array | `np.save("points.npy", positions)` |
+| `.npz` standard | `trajectories`; optional same-shaped `velocities` | `np.savez("points.npz", trajectories=positions, velocities=velocities)` |
+| `.npz` positions | A `(frames, agents, 3)` `positions` key | `np.savez("points.npz", positions=positions)` |
+| `.mat` | MATLAB struct `swarm_data.positions` shaped `(3, agents, frames)` | `dfr.load_dataset("swarm.mat")` |
+| `.rtf` | Header `#  x(t1) ... z(t2)` followed by six numeric columns per agent | `dfr.load_dataset("two-frame-flock.rtf")` |
+| `.hdf5` | Integer timestamp groups containing `tid`, `x/y/z`, and `vx/vy/vz` datasets | `dfr.load_dataset("tracked-agents.hdf5")` |
+| `.csv` | `Time` plus complete `Drone##_X/Y/Z` column groups | `dfr.load_dataset("drones.csv")` |
+
+The HDF5 loader creates memory-mapped `.traj.cache.npy` and `.vel.cache.npy`
+files beside the source. The drone CSV loader swaps source X/Y axes and records
+that conversion in `dataset.coordinate_system`.
+
+`dfr.dataset_io.DatasetFactory` remains available as a compatibility API for
+older scripts, but new code should use `dfr.load_dataset`.
 
 Configured scenarios include `boids`, `boids_multi`, `cluster`, `clutter`,
 `jackdaw`, `jackdaw2`, `starling`, `swift`, `ue4`, and project-specific drone

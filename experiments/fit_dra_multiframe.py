@@ -18,8 +18,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
-from dfr.dataset_io import DatasetFactory
-from dfr.simulation_config import SimulationConfig
+from dfr import load_dataset as load_dfr_dataset
 from experiments.plot_dra_scale_model_order import (
     FIT_MODELS,
     SWEEPS,
@@ -75,8 +74,8 @@ def select_frames(start: int, stop: int, count: int, preferred: int) -> np.ndarr
 
 
 def load_dataset(dataset_name: str):
-    config = SimulationConfig(f"scenarios/{dataset_name}/config.yaml")
-    return DatasetFactory().get_dataset(config.data_file)
+    """Load a registered scenario through the canonical package API."""
+    return load_dfr_dataset(dataset_name)
 
 
 def seed_existing_cache(

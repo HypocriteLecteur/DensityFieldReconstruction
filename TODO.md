@@ -6,7 +6,7 @@ on chat history.
 
 ## Status
 
-- **Current phase:** Phase 1 complete; Phase 2 is next.
+- **Current phase:** Phases 1-2 complete; Phase 3 is next.
 - **Stable baseline:** annotated tag `v0.1.0`, commit `7cde21e`.
 - **Version storage:** local Git repository only; do not push unless the owner
   explicitly changes this policy.
@@ -192,18 +192,18 @@ the current scientific behavior is protected before modules move.
 
 ### Phase 2 - Canonical Data API
 
-- [ ] Define a documented dataset protocol with length/frame access, positions,
+- [x] Define a documented dataset protocol with length/frame access, positions,
   optional velocities/timestamps, coordinate metadata, and ground truth.
-- [ ] Introduce `DatasetSpec` and a registry that resolves either a known
+- [x] Introduce `DatasetSpec` and a registry that resolves either a known
   scenario name or an explicit config/data path.
-- [ ] Refactor `DatasetFactory` behind `dfr.load_dataset(...)`; keep a temporary
+- [x] Refactor `DatasetFactory` behind `dfr.load_dataset(...)`; keep a temporary
   compatibility wrapper for current callers.
-- [ ] Replace implicit working-directory assumptions with explicit project and
-  data roots.
-- [ ] Define frame-selection helpers shared by analysis and reconstruction.
-- [ ] Validate errors for missing files, unsupported formats, invalid frames,
+- [x] Replace implicit working-directory assumptions in the canonical loading
+  API and migrated DRA callers with explicit project and data roots.
+- [x] Define frame-selection helpers shared by analysis and reconstruction.
+- [x] Validate errors for missing files, unsupported formats, invalid frames,
   and absent optional fields.
-- [ ] Document every supported loader and include one minimal example each.
+- [x] Document every supported loader and include one minimal example each.
 
 **Exit criteria:** loading a named scenario or explicit dataset takes one call,
 has a stable return contract, and requires no imports from `experiments`.
@@ -320,16 +320,18 @@ reading implementation or experiment source.
 
 ## Immediate Next Actions
 
-The next agent should work on Phase 2:
+The next agent should work on Phase 3:
 
-1. Define the dataset protocol and `DatasetSpec` with tests for named scenarios
-   and explicit config/data paths.
-2. Add a scenario registry/resolver without moving existing loaders yet.
-3. Introduce `dfr.load_dataset(...)` as a documented facade over
-   `DatasetFactory`; preserve direct factory use as a compatibility path.
-4. Make project/data roots explicit and add actionable path/frame errors.
-5. Keep the 12 CPU tests and 3 available CUDA tests passing while migrating one
-   current caller at a time.
+1. Add `OutputConfig` and a `RunArtifacts` manager with an explicit output root,
+   workflow/name/run ID, and predictable subdirectories.
+2. Define and test a versioned `manifest.json` plus resolved YAML configuration;
+   include commit, timestamp, device, and resume/overwrite policy.
+3. Centralize JSON, NPZ, checkpoint, and figure paths without changing their
+   scientific contents.
+4. Migrate `plot_dra_scale_model_order.py` as the representative analysis and
+   one small reconstruction runner to the artifact contract.
+5. Keep all 22 CPU tests and 3 available CUDA tests passing; update README and
+   this handoff in the same commit.
 
 ## Decisions
 
@@ -357,11 +359,44 @@ The next agent should work on Phase 2:
   `compute_metrics_batched_torch` and support CPU execution. Reason: this makes
   metric behavior testable without changing the density/overlap equations used
   on CUDA.
+- **2026-07-06 - Dataset resolution:** canonical loading accepts a scenario
+  name, YAML config, explicit data path, or `DatasetSpec`, and stores absolute
+  paths before loading. Reason: downstream analysis/reconstruction must not
+  change behavior with the process working directory.
+- **2026-07-06 - Config-relative data:** registered scenario configs retain the
+  legacy rule that `data_file` is relative to the project root; standalone YAML
+  configs resolve relative data beside the config. Reason: preserve existing
+  scenarios while making portable external configs intuitive.
 
 ## Handoff Log
 
 Add one newest-first entry per working session. Include commit(s), verification,
 known failures, and the exact next step.
+
+### 2026-07-06 - Phase 2 canonical dataset API
+
+- Added the `dfr.data` package with a documented `Dataset` protocol,
+  `DatasetSpec`, `ScenarioRegistry`, `resolve_dataset`, `load_dataset`, and
+  shared frame selection.
+- Published common loading symbols from `dfr/__init__.py`; `DatasetFactory`
+  remains available for compatibility.
+- Added length, validated frame access, optional velocity/timestamp state,
+  source/coordinate metadata, and ground-truth position access to existing
+  dataset objects.
+- Added distinct errors for missing paths, unsupported extensions, malformed
+  supported files, invalid frames, empty selections, and missing velocities.
+- Documented and tested all loader schemas: NPY, both NPZ layouts, MATLAB,
+  two-frame RTF, timestamp-grouped HDF5, and drone CSV.
+- Migrated `experiments/common.py`, `plot_dra_scale_model_order.py`, and
+  `fit_dra_multiframe.py` to the canonical loader without moving legacy loader
+  implementations yet.
+- Verified named scenario `boids` loads correctly while the process cwd is
+  outside the repository.
+- Verification: public API import; both migrated CLI `--help` commands;
+  `compileall`; `git diff --check`; `pytest -m "not cuda"` (22 passed);
+  `pytest -m cuda` (3 passed, 1 skipped: optional small rasterizer unavailable).
+- Next step: Phase 3 output configuration, run artifacts, manifests, and the
+  first analysis/reconstruction migrations.
 
 ### 2026-07-06 - Phase 1 project contract and CPU safety net
 

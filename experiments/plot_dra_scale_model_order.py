@@ -31,9 +31,8 @@ import numpy as np
 import torch
 from scipy.spatial import cKDTree
 
-from dfr.dataset_io import DatasetFactory
+from dfr import load_dataset
 from dfr.gaussian_mixture_reduction import GMR
-from dfr.simulation_config import SimulationConfig
 
 
 @dataclass(frozen=True)
@@ -56,9 +55,7 @@ SWEEPS = {
 
 
 def load_positions(dataset_name: str, time_step: int) -> np.ndarray:
-    scenario_dir = Path("scenarios") / dataset_name
-    config = SimulationConfig(str(scenario_dir / "config.yaml"))
-    dataset = DatasetFactory().get_dataset(config.data_file)
+    dataset = load_dataset(dataset_name)
     return dataset.positions_at_time_step(time_step).astype(np.float32, copy=False)
 
 
