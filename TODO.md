@@ -6,7 +6,8 @@ on chat history.
 
 ## Status
 
-- **Current phase:** Phase 0 complete; Phase 1 is next.
+- **Current phase:** Phase 1 is in progress. The project contract and CPU
+  safety net are complete; one end-to-end CUDA reconstruction smoke test remains.
 - **Stable baseline:** annotated tag `v0.1.0`, commit `7cde21e`.
 - **Version storage:** local Git repository only; do not push unless the owner
   explicitly changes this policy.
@@ -169,22 +170,23 @@ Rules:
 
 ### Phase 1 - Safety Net and Project Contract
 
-- [ ] Replace the unfinished README with a task-oriented guide covering:
+- [x] Replace the unfinished README with a task-oriented guide covering:
   project purpose, supported datasets, installation, optional CUDA rasterizers,
   first dataset load, first analysis, first reconstruction/evaluation, output
   layout, script catalog, tests, and troubleshooting.
-- [ ] Add a concise `CONTRIBUTING.md` describing environment setup, formatting,
+- [x] Add a concise `CONTRIBUTING.md` describing environment setup, formatting,
   testing tiers, artifact policy, and how to update this TODO.
-- [ ] Decide and document supported Python/CUDA/PyTorch versions in
+- [x] Decide and document supported Python/CUDA/PyTorch versions in
   `pyproject.toml`; declare runtime and optional dependencies.
-- [ ] Move/rename `test/` to `tests/` only after confirming test discovery is
+- [x] Move/rename `test/` to `tests/` only after confirming test discovery is
   unchanged.
-- [ ] Add CPU characterization tests for dataset loading, frame selection,
+- [x] Add CPU characterization tests for dataset loading, frame selection,
   camera geometry, mode counting, scale selection, metrics, and checkpoint I/O.
-- [ ] Add marked CUDA smoke tests for one tiny reconstruction.
-- [ ] Capture one small golden workflow fixture with tolerances; do not commit
+- [x] Add marked CUDA rasterizer smoke tests with tiny inputs.
+- [ ] Add a marked CUDA smoke test for one tiny end-to-end reconstruction.
+- [x] Capture one small golden workflow fixture with tolerances; do not commit
   a large generated dataset.
-- [ ] Add a test command that skips CUDA cleanly when unavailable.
+- [x] Add a test command that skips CUDA cleanly when unavailable.
 
 **Exit criteria:** a new contributor can install the package and run CPU tests;
 the current scientific behavior is protected before modules move.
@@ -319,17 +321,17 @@ reading implementation or experiment source.
 
 ## Immediate Next Actions
 
-The next agent should work on Phase 1 only:
+The next agent should finish Phase 1, then begin Phase 2:
 
-1. Read this file and `README.md`, then inspect `pyproject.toml`,
-   `environment.txt`, and existing tests.
-2. Confirm a non-CUDA test command and document the actual environment; do not
-   guess dependency versions.
-3. Add characterization tests before moving package or experiment code.
-4. Rewrite the README around currently working commands, clearly labeling the
-   proposed high-level API as future work until implemented.
-5. Update the Status, checklist, Decisions, and Handoff Log below in the same
-   commit.
+1. Rebuild/install `gaussian_rasterizer_simple_large` in the `dfr` environment;
+   the current import fails even though CUDA/PyTorch are available.
+2. Add a very small marked end-to-end CUDA reconstruction smoke test. Keep its
+   frame/image/grid/iteration sizes low enough for a normal development run.
+3. Run `python -m pytest -m "not cuda"` and `python -m pytest -m cuda`, recording
+   the exact CUDA outcome here.
+4. Mark Phase 1 complete only after that reconstruction test passes.
+5. Start Phase 2 with the dataset protocol/`DatasetSpec` and tests; preserve
+   `DatasetFactory` as a compatibility adapter.
 
 ## Decisions
 
@@ -350,11 +352,41 @@ The next agent should work on Phase 1 only:
   machine. Do not push to GitHub unless the repository owner explicitly changes
   this decision. Reason: local version maintenance is sufficient and avoids
   exporting source code and result files.
+- **2026-07-06 - Test discovery:** restrict pytest to `tests/`. Reason: default
+  discovery imported `experiments/dataset_viewer_test.py`, which performs heavy
+  interactive work during import and caused collection to hang.
+- **2026-07-06 - Metric devices:** honor the existing `device` argument in
+  `compute_metrics_batched_torch` and support CPU execution. Reason: this makes
+  metric behavior testable without changing the density/overlap equations used
+  on CUDA.
 
 ## Handoff Log
 
 Add one newest-first entry per working session. Include commit(s), verification,
 known failures, and the exact next step.
+
+### 2026-07-06 - Phase 1 project contract and CPU safety net
+
+- Replaced the unfinished README with verified installation, loading, analysis,
+  reconstruction/evaluation, output, testing, troubleshooting, and complete
+  experiment-script documentation.
+- Added `CONTRIBUTING.md`; expanded package metadata/dependencies and pytest
+  configuration in `pyproject.toml`; synchronized `environment.txt`.
+- Moved tests to `tests/`, isolated discovery from interactive experiment files,
+  and added a small JSON trajectory fixture.
+- Added 12 passing CPU characterization tests for loaders/frame filtering,
+  velocity strategies, camera projection/culling, projection-only rendering,
+  mode count, scale search, density metrics, typed configs, and checkpoint I/O.
+- Replaced the oversized CUDA rasterizer tests with explicitly marked 64x64
+  smoke tests. They currently skip because the rasterizer modules cannot be
+  imported in the discovered `D:/miniconda3/envs/dfr` environment.
+- Fixed `compute_metrics_batched_torch` to use its requested device and return
+  its accumulated Python floats without invalid `.item()` calls.
+- Verification: metadata parse; `compileall` for `dfr`, `experiments`, and
+  `tests`; `git diff --check`; `pytest -m "not cuda"` (12 passed, 1 skipped);
+  `pytest -m cuda` (1 module skipped because extensions are unavailable).
+- Next step: restore the large rasterizer in the project environment and add a
+  tiny end-to-end CUDA reconstruction smoke test to finish Phase 1.
 
 ### 2026-07-06 - Baseline and architecture plan
 

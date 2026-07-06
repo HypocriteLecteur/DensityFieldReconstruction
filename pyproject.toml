@@ -5,6 +5,37 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "dfr"
 version = "0.1.0"
+description = "Multi-camera density field reconstruction and flock analysis"
+readme = "README.md"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "blessed",
+    "h5py",
+    "matplotlib",
+    "numba",
+    "numpy",
+    "opencv-python",
+    "pandas",
+    "plotly",
+    "pyyaml",
+    "scikit-learn",
+    "scipy",
+    "seaborn",
+    "torch>=2.7",
+    "tqdm",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8"]
+cuda13 = ["cupy-cuda13x>=14"]
 
 [tool.setuptools.packages.find]
 include = ["dfr*", "experiments*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+cache_dir = "outputs/.pytest_cache"
+markers = [
+    "cuda: requires a CUDA-capable PyTorch installation and compiled rasterizer extensions",
+]

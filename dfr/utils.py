@@ -312,13 +312,21 @@ def compute_metrics_batched_torch(means1_np: np.ndarray,
                                   pred_sigmas: torch.Tensor,
                                   bounds, voxel_res, batch_size=500000, device='cuda'):
     """
-    Computes TP, FP, and FN mass over a bounded 3D space using GPU acceleration.
+    Computes TP, FP, and FN mass over a bounded 3D space in batches.
+
+    ``device`` may be ``"cpu"`` for tests and small analyses or a CUDA device
+    for production-sized evaluations.
     """
-    # 1. Move GMM parameters to the target device (GPU)
+    device = torch.device(device)
+
+    # 1. Move GMM parameters to the target device
     N = means1_np.shape[0]
-    gt_means = torch.from_numpy(means1_np).cuda().float()
+    gt_means = torch.from_numpy(means1_np).to(device=device, dtype=torch.float32)
     gt_weights = torch.full((N, 1), 1.0, device=device, dtype=torch.float)
     gt_sigmas = torch.full((N, 1), sigma1, device=device, dtype=torch.float)
+    pred_means = pred_means.to(device=device, dtype=torch.float32)
+    pred_weights = pred_weights.to(device=device, dtype=torch.float32)
+    pred_sigmas = pred_sigmas.to(device=device, dtype=torch.float32)
 
     # 2. Create 1D ticks for each axis directly on the GPU
     x_ticks = torch.arange(bounds[0][0], bounds[0][1], voxel_res, device=device)
@@ -360,7 +368,7 @@ def compute_metrics_batched_torch(means1_np: np.ndarray,
         total_fp_mass += torch.sum(torch.clamp(density_pred - density_gt, min=0)).item() * voxel_volume
         total_fn_mass += torch.sum(torch.clamp(density_gt - density_pred, min=0)).item() * voxel_volume
 
-    return total_tp_mass.item(), total_fp_mass.item(), total_fn_mass.item()
+    return total_tp_mass, total_fp_mass, total_fn_mass
 
 def generate_encircling_cameras(dataset, step_range, intrinsic_params, H, W, cam_num, padding=1, is_3d=False):
     """

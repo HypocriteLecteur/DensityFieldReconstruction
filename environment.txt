@@ -1,6 +1,7 @@
-# python=3.13
-# torch
-# cupy (optional)
+# Supported Python: 3.12-3.13
+# Install a CUDA-compatible PyTorch build before this file.
+# Optional for cuda_circles rendering on CUDA 13: cupy-cuda13x>=14
+numpy
 scipy
 opencv-python
 blessed
@@ -13,3 +14,5 @@ numba
 h5py
 pandas
 seaborn
+matplotlib
+plotly
