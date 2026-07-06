@@ -164,6 +164,50 @@ that conversion in `dataset.coordinate_system`.
 `dfr.dataset_io.DatasetFactory` remains available as a compatibility API for
 older scripts, but new code should use `dfr.load_dataset`.
 
+## Typed workflow configuration
+
+Common workflow settings use composable, YAML/JSON-safe dataclasses:
+
+```python
+from dfr import (
+    AnalysisConfig,
+    CameraConfig,
+    EvaluationConfig,
+    OutputConfig,
+    RunConfig,
+    resolve_dataset,
+)
+from dfr.config import ReconstructionParams, TrainingParams
+
+camera = CameraConfig.encircling(count=4, padding=1.25, is_3d=False)
+# Or provide [x, y, z, qx, qy, qz, qw] rows:
+camera = CameraConfig.explicit([
+    [-10, 0, 0, 0, 0, 0, 1],
+    [0, -10, 0, 0, 0, 0, 1],
+])
+
+analysis = AnalysisConfig(frames=(0, 10, 20), scales=(0.5, 1.0, 2.0))
+evaluation = EvaluationConfig(voxel_resolution=0.25, batch_size=200_000)
+
+run = RunConfig(
+    dataset=resolve_dataset("jackdaw2"),
+    output=OutputConfig(
+        workflow="analysis",
+        name="jackdaw2 scale analysis",
+        run_id="jackdaw2-scales",
+    ),
+    camera=camera,
+    analysis=analysis,
+    evaluation=evaluation,
+    seed=12345,
+)
+print(run.serializable())
+```
+
+`RunConfig` schema version 1 also composes the existing `TrainingParams` and
+`ReconstructionParams`. `RunConfig.from_dict(...)` restores a configuration
+loaded from YAML/JSON; unknown schema versions fail explicitly.
+
 Configured scenarios include `boids`, `boids_multi`, `cluster`, `clutter`,
 `jackdaw`, `jackdaw2`, `starling`, `swift`, `ue4`, and project-specific drone
 datasets. Their large source datasets are local and ignored by Git; a config is

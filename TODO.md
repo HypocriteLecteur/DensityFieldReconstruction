@@ -6,9 +6,7 @@ on chat history.
 
 ## Status
 
-- **Current phase:** Phase 3 in progress. Artifact management and the first
-  analysis/reconstruction migrations are complete; shared workflow config types
-  remain.
+- **Current phase:** Phases 1-3 complete; Phase 4 is next.
 - **Stable baseline:** annotated tag `v0.1.0`, commit `7cde21e`.
 - **Version storage:** local Git repository only; do not push unless the owner
   explicitly changes this policy.
@@ -220,7 +218,7 @@ has a stable return contract, and requires no imports from `experiments`.
   to the output contract before migrating the rest.
 - [x] Add a temporary warning/helper for legacy `figs/` and `results/` writes.
 - [x] Add `DatasetSpec` (completed in Phase 2).
-- [ ] Add `CameraConfig`, `AnalysisConfig`, `EvaluationConfig`, and top-level
+- [x] Add `CameraConfig`, `AnalysisConfig`, `EvaluationConfig`, and top-level
   `RunConfig`, building on existing typed reconstruction configs.
 - [x] Ensure current dataclass, path, NumPy, tensor, device, and resolved output
   configs serialize through YAML/JSON without Python-only values.
@@ -324,18 +322,19 @@ reading implementation or experiment source.
 
 ## Immediate Next Actions
 
-The next agent should finish Phase 3:
+The next agent should work on Phase 4:
 
-1. Define focused `CameraConfig`, `AnalysisConfig`, `EvaluationConfig`, and
-   top-level `RunConfig` contracts. Avoid fields that are specific to only one
-   paper figure or experiment.
-2. Use `CameraConfig` in `reconstruct_one_frame.py` and preserve its current CLI.
-3. Add dict/YAML round-trip tests for the new nested configs, including
-   `DatasetSpec`, existing training/reconstruction configs, and `OutputConfig`.
-4. Decide whether `fit_dra_multiframe.py` should migrate now or during Phase 4;
-   record the decision instead of partially changing its cache hierarchy.
-5. Keep all 28 CPU tests and 4 available CUDA tests passing, then mark Phase 3
-   complete and proceed to the reusable analysis API.
+1. Create `dfr.analysis` with typed mode-curve and scale-analysis result objects
+   that contain data only (no plotting or implicit saving).
+2. Move pure DRA scale/model-order computation and fit functions from
+   `plot_dra_scale_model_order.py` into package modules with CPU tests for the
+   non-CUDA fitting paths.
+3. Make the DRA plot script a thin CLI/config/cache/plot wrapper around those
+   package functions; preserve its managed artifact layout.
+4. Migrate `fit_dra_multiframe.py` alongside that extraction so both scripts
+   share one analysis implementation and result schema.
+5. Keep all 38 CPU tests and 4 available CUDA tests passing before expanding to
+   the larger parameter-manifold scripts.
 
 ## Decisions
 
@@ -382,11 +381,39 @@ The next agent should finish Phase 3:
   one-frame runner now, but defer the stable Python workflow API to Phase 5.
   Reason: users need a straightforward current command without freezing the
   eventual orchestration architecture prematurely.
+- **2026-07-06 - Shared config scope:** common configs contain only reusable
+  camera layout, frame/scale selection, evaluation-grid, dataset, output,
+  training, reconstruction, and seed fields. Reason: paper-specific controls
+  belong in experiment configs rather than the package-wide contract.
+- **2026-07-06 - Multiframe DRA timing:** migrate `fit_dra_multiframe.py` during
+  Phase 4 analysis extraction, not as an isolated Phase 3 path rewrite. Reason:
+  its per-frame caches and fit objects should adopt the same typed result schema
+  as the single-frame DRA implementation once that package API exists.
 
 ## Handoff Log
 
 Add one newest-first entry per working session. Include commit(s), verification,
 known failures, and the exact next step.
+
+### 2026-07-06 - Phase 3 shared workflow configuration
+
+- Added validated `CameraConfig` for encircling layouts or explicit
+  `[x, y, z, qx, qy, qz, qw]` poses, plus `AnalysisConfig`,
+  `EvaluationConfig`, and schema-versioned nested `RunConfig`.
+- Added `DatasetSpec` and `OutputConfig` dict restoration; extended artifact
+  serialization to prefer each config's stable `to_dict` contract.
+- Preserved the historic `targetd_num_mode` field while exposing a correctly
+  named `target_mode_count` compatibility property.
+- Migrated the one-frame runner to `CameraConfig`/`RunConfig` and the DRA runner
+  to `AnalysisConfig` without changing their CLIs.
+- Added complete nested YAML round-trip tests, explicit-pose normalization,
+  unknown-schema rejection, and validation tests for camera, analysis,
+  evaluation, and run settings.
+- Documented the typed configuration API in README.
+- Verification: public config API import; both managed CLI `--help` commands;
+  `compileall`; `git diff --check`; `pytest -m "not cuda"` (38 passed);
+  `pytest -m cuda` (4 passed, 1 skipped: optional small rasterizer unavailable).
+- Next step: Phase 4 `dfr.analysis` result types and DRA computation extraction.
 
 ### 2026-07-06 - Phase 3 artifact foundation and first migrations
 

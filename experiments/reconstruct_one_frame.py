@@ -16,6 +16,8 @@ import torch
 
 from dfr import (
     OutputConfig,
+    CameraConfig,
+    RunConfig,
     RunArtifacts,
     load_dataset,
     resolve_dataset,
@@ -74,9 +76,14 @@ def _validate_args(args: argparse.Namespace) -> None:
         raise ValueError("--resume requires an explicit --run-id.")
 
 
-def _camera_system(dataset, frame: int, config, count: int) -> MultiCameraSystem:
+def _camera_system(
+    dataset, frame: int, config, camera_config: CameraConfig
+) -> MultiCameraSystem:
     # The established two-camera configuration uses adjacent positions from a
     # four-camera ring, avoiding the degenerate opposite-camera pair.
+    if camera_config.layout != "encircling":
+        raise ValueError("The transitional CLI currently supports encircling cameras.")
+    count = camera_config.count
     generated_count = 4 if count == 2 else count
     camera_positions, _ = generate_encircling_cameras(
         dataset,
@@ -85,7 +92,8 @@ def _camera_system(dataset, frame: int, config, count: int) -> MultiCameraSystem
         config.H,
         config.W,
         cam_num=generated_count,
-        padding=1,
+        padding=camera_config.padding,
+        is_3d=camera_config.is_3d,
     )
     camera_positions = camera_positions[:count]
     identity_quaternions = np.tile(
@@ -103,7 +111,7 @@ def _camera_system(dataset, frame: int, config, count: int) -> MultiCameraSystem
         near_clip=config.near_clip,
         far_clip=config.far_clip,
         size=config.size,
-        device="cuda",
+        device=camera_config.device,
     )
 
 
@@ -127,7 +135,12 @@ def run(args: argparse.Namespace) -> RunArtifacts:
 
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
-    cameras = _camera_system(dataset, frame, simulation_config, args.camera_count)
+    camera_config = CameraConfig.encircling(
+        count=args.camera_count,
+        padding=1.0,
+        device="cuda",
+    )
+    cameras = _camera_system(dataset, frame, simulation_config, camera_config)
     camera_poses, projections, _, visibility_masks = cameras.simulate_vision(
         positions,
         renderer="projection_only",
@@ -153,26 +166,31 @@ def run(args: argparse.Namespace) -> RunArtifacts:
         voxel_grid_max_size=args.voxel_grid_max_size,
         voxel_peaks_number=args.voxel_peaks_number,
     )
+    output_config = OutputConfig(
+        workflow="reconstruction",
+        name=f"{spec.name} frame {frame}",
+        root=args.output_root,
+        run_id=args.run_id,
+        project_root=project_root,
+        resume=args.resume,
+        overwrite=args.overwrite_run,
+    )
+    run_config = RunConfig(
+        dataset=spec,
+        output=output_config,
+        camera=camera_config,
+        training=train_params,
+        reconstruction=reconstruction_params,
+        seed=args.seed,
+    )
     artifacts = RunArtifacts.create(
-        OutputConfig(
-            workflow="reconstruction",
-            name=f"{spec.name} frame {frame}",
-            root=args.output_root,
-            run_id=args.run_id,
-            project_root=project_root,
-            resume=args.resume,
-            overwrite=args.overwrite_run,
-        ),
+        output_config,
         resolved_config={
-            "dataset": spec,
+            "run": run_config,
             "frame": frame,
-            "camera_count": args.camera_count,
             "fixed_scale": args.scale,
-            "seed": args.seed,
-            "training": train_params,
-            "reconstruction": reconstruction_params,
         },
-        device="cuda",
+        device=camera_config.device,
         metadata={"entrypoint": "experiments.reconstruct_one_frame"},
     )
 

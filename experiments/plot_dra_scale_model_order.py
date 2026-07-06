@@ -31,7 +31,7 @@ import numpy as np
 import torch
 from scipy.spatial import cKDTree
 
-from dfr import OutputConfig, RunArtifacts, load_dataset
+from dfr import AnalysisConfig, OutputConfig, RunArtifacts, load_dataset
 from dfr.gaussian_mixture_reduction import GMR
 
 
@@ -664,12 +664,17 @@ def main() -> None:
         raise ValueError("Voxel resolution fraction and batch size must be positive.")
 
     project_root = Path(__file__).resolve().parents[1]
+    analysis_config = AnalysisConfig(
+        frames=tuple(SWEEPS[name].time_step for name in args.datasets),
+        scales=tuple(float(value) for value in NORMALIZED_SCALES),
+        device="cuda",
+    )
     resolved_config = {
         "datasets": args.datasets,
         "sweeps": {
             name: {"time_step": SWEEPS[name].time_step} for name in args.datasets
         },
-        "normalized_scales": NORMALIZED_SCALES,
+        "analysis": analysis_config,
         "model_order_steps": MODEL_ORDER_STEPS,
         "fit_models": FIT_MODELS,
         "voxel_res_fraction": args.voxel_res_fraction,

@@ -33,3 +33,26 @@ class DatasetSpec:
             object.__setattr__(
                 self, "project_root", self.project_root.expanduser().resolve()
             )
+
+    def to_dict(self) -> dict[str, Optional[str]]:
+        """Return a JSON/YAML-safe resolved representation."""
+        return {
+            "name": self.name,
+            "data_path": str(self.data_path),
+            "config_path": str(self.config_path) if self.config_path else None,
+            "project_root": str(self.project_root) if self.project_root else None,
+        }
+
+    @classmethod
+    def from_dict(cls, values: dict) -> "DatasetSpec":
+        """Restore a DatasetSpec previously produced by :meth:`to_dict`."""
+        return cls(
+            name=values["name"],
+            data_path=Path(values["data_path"]),
+            config_path=(
+                Path(values["config_path"]) if values.get("config_path") else None
+            ),
+            project_root=(
+                Path(values["project_root"]) if values.get("project_root") else None
+            ),
+        )

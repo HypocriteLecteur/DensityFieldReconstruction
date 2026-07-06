@@ -76,6 +76,9 @@ def to_serializable(value: Any) -> Any:
         if value.requires_grad:
             value = value.detach()
         return value.cpu().tolist()
+    to_dict = getattr(value, "to_dict", None)
+    if callable(to_dict):
+        return to_serializable(to_dict())
     if is_dataclass(value) and not isinstance(value, type):
         return to_serializable(asdict(value))
     if isinstance(value, Mapping):
@@ -148,6 +151,23 @@ class OutputConfig:
             "resume": self.resume,
             "overwrite": self.overwrite,
         }
+
+    @classmethod
+    def from_dict(cls, values: Mapping[str, Any]) -> "OutputConfig":
+        """Restore an output configuration from YAML/JSON-safe values."""
+        return cls(
+            workflow=str(values["workflow"]),
+            name=str(values["name"]),
+            root=Path(values.get("root", "outputs")),
+            run_id=values.get("run_id"),
+            project_root=(
+                Path(values["project_root"])
+                if values.get("project_root") is not None
+                else None
+            ),
+            resume=bool(values.get("resume", False)),
+            overwrite=bool(values.get("overwrite", False)),
+        )
 
 
 @dataclass(slots=True)
