@@ -215,6 +215,31 @@ not usable until its `data_file` exists.
 
 ## Analyze a dataset
 
+The shortest supported workflow uses the public facade and an explicit
+analysis kind. It never saves implicitly:
+
+```python
+import dfr
+
+dataset = dfr.load_dataset("jackdaw2")
+curve = dfr.analyze(
+    dataset,
+    kind="modes",
+    config=dfr.AnalysisConfig(
+        frames=(2800,),
+        scales=(0.5, 0.75, 1.0, 1.5, 2.0),
+        device="cuda",
+    ),
+)
+print(curve.mode_counts)
+```
+
+`kind="modes"` interprets scales in dataset coordinate units.
+`kind="dra"` interprets them as multiples of mean nearest-neighbour distance
+and performs the CUDA-intensive scale/model-order reconstruction analysis.
+The facade currently accepts exactly one frame; use the lower-level APIs for
+custom or multiframe pipelines.
+
 ### Count density modes at one scale
 
 ```python
@@ -260,6 +285,46 @@ Reusable DRA computation and fitting now live under `dfr.analysis`, including
 `ModeCurveResult`, `ScaleAnalysisResult`, and `ManifoldAnalysisResult` contain
 data only and support explicit NPZ save/load. Plotting and managed-run decisions
 remain in the experiment entry points.
+
+### Fit the parameter manifold
+
+Reusable centered-3PL fitting and cache compatibility are also available
+without importing an experiment:
+
+```python
+import numpy as np
+
+import dfr
+from dfr.analysis import fit_centered_3pl_curves, load_legacy_manifold_cache
+
+dataset = dfr.load_dataset("jackdaw")
+frame_ids = np.arange(350, 550)
+animal_counts = [len(dataset.positions_at_time_step(frame)) for frame in frame_ids]
+cache = load_legacy_manifold_cache("scenarios/jackdaw")
+fit = fit_centered_3pl_curves(
+    frame_ids=frame_ids,
+    animal_counts=animal_counts,
+    scale_ranges=cache.scale_ranges,
+    mode_counts=cache.mode_counts,
+    dataset_name="jackdaw",
+)
+fit.result.save_npz("outputs/jackdaw-manifold.npz")
+print(fit.result.parameters)  # k, sigma_half, log10_gamma
+```
+
+`scale_for_mode_count` inverts a fitted curve to select a scale for a desired
+mode count. `fit_shape_curve` and `project_to_shape_curve` provide the
+intrinsic shape analysis. The legacy loader reads `modes.npy`,
+`scale_range.npy`, and optional `nn_dists.npy`; new fitted tables should use
+`ManifoldAnalysisResult.save_npz` at an explicit managed output path.
+
+`python -m experiments.parameter_manifold --no-display` reproduces the full
+historic study. Inputs are the four configured biological datasets and their
+legacy scenario caches. It performs CUDA mode counting if a cache is missing,
+then fits the shared package model and runs PCA, t-SNE/UMAP, clustering, and
+publication plotting. Runtime can be minutes to hours depending on cache state;
+the script still owns its historic figures and cache-generation policy while
+the reusable numerical operations live in `dfr.analysis`.
 
 ## Reconstruct and evaluate
 

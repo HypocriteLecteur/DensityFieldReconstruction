@@ -214,7 +214,9 @@ class ManifoldAnalysisResult:
         if not self.parameter_names:
             raise ValueError("parameter_names must not be empty.")
         self.parameters = np.asarray(self.parameters, dtype=np.float64)
-        self.frame_ids = _one_dimensional("frame_ids", self.frame_ids, np.int64)
+        self.frame_ids = np.asarray(self.frame_ids, dtype=np.int64)
+        if self.frame_ids.ndim != 1:
+            raise ValueError("frame_ids must be a one-dimensional array.")
         if self.parameters.ndim != 2:
             raise ValueError("parameters must be a two-dimensional array.")
         if self.parameters.shape != (len(self.frame_ids), len(self.parameter_names)):

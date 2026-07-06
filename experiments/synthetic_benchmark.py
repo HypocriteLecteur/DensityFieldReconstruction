@@ -17,7 +17,7 @@ import numpy as np
 from scipy.optimize import curve_fit
 from tqdm import tqdm
 
-from experiments.parameter_manifold import model_centered_3pl
+from dfr.analysis import centered_3pl_excess as model_centered_3pl
 
 
 # ======================================================================

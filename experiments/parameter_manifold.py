@@ -19,8 +19,6 @@ Usage:
 import sys, os
 
 import numpy as np
-from scipy.optimize import curve_fit
-from scipy.spatial.distance import cdist as scipy_cdist
 from scipy.special import expm1
 from tqdm import tqdm
 import warnings
@@ -33,38 +31,24 @@ from dfr.simulation_config import SimulationConfig
 from dfr.dataset_io import DatasetFactory
 from dfr.mode_finding import mode_counting, mode_counting_modified, find_scale_interval
 from dfr.utils import move_figure
+from dfr.analysis import (
+    PARAMETER_NAMES,
+    centered_3pl_excess,
+    fit_centered_3pl_curves,
+    fit_shape_curve,
+    load_legacy_manifold_cache,
+    median_nearest_neighbour_distance,
+    project_to_shape_curve,
+)
 
 
 # ======================================================================
 # 0. Model
 # ======================================================================
 
-def model_centered_3pl(x, params, N):
-    """Centered 3PL with sigma_half and log10_gamma.
-
-    params = [k, sigma_half, log10_gamma]
-    Returns m(x) - 1 (caller adds D=1).
-    """
-    k, sigma_half, log10_gamma = params
-    gamma = 10.0 ** log10_gamma
-    g_safe = max(gamma, 1e-6)
-    scaling = expm1(np.log(2.0) / g_safe)
-    scaling_safe = max(scaling, 1e-12)
-    log_ratio = np.clip(k * np.log(np.maximum(x / sigma_half, 1e-12)) +
-                         np.log(scaling_safe), -500, 500)
-    return (N - 1.0) / np.power(1.0 + np.exp(log_ratio), gamma)
-
-
-PARAM_NAMES = ["k", "sigma_half", "log10_gamma"]
-P0 = lambda med: [2.0, med, 0.0]
-BOUNDS = ([0.1, 1e-6, -2.0], [20.0, np.inf, 5.0])
-
-
-def compute_avg_nn_dist(pos_np):
-    """Compute median nearest-neighbor distance on CPU (robust, avoids CUDA races)."""
-    d = scipy_cdist(pos_np, pos_np)
-    np.fill_diagonal(d, 1e10)
-    return max(float(np.median(np.min(d, axis=1))), 1e-8)
+model_centered_3pl = centered_3pl_excess  # compatibility for research imports
+compute_avg_nn_dist = median_nearest_neighbour_distance
+PARAM_NAMES = list(PARAMETER_NAMES)
 
 
 # ======================================================================
@@ -98,6 +82,8 @@ def load_cached_data(run_params):
     If cache is missing, compute the scaling law on-the-fly and save it.
     """
     name = run_params["name"]
+    num_test_scale = 40
+    save_every = 50
     nn_dists = None  # populated if cache exists or computed fresh
     sp = os.path.join(os.getcwd(), "scenarios", name)
     os.makedirs(sp, exist_ok=True)
@@ -126,8 +112,9 @@ def load_cached_data(run_params):
 
     # Detect incomplete (partial) saves: rows that are all zero are unprocessed
     if cache_exists:
-        existing_modes = np.load(mp)
-        existing_scales = np.load(srp)
+        existing_cache = load_legacy_manifold_cache(sp)
+        existing_modes = existing_cache.mode_counts
+        existing_scales = existing_cache.scale_ranges
         # A valid mode count is never 0 — find last complete row
         row_sums = existing_modes.sum(axis=1)
         zero_rows = np.where(row_sums == 0)[0]
@@ -143,8 +130,6 @@ def load_cached_data(run_params):
 
     if not cache_exists:
         print(f"  [CACHE MISS] Computing scaling law for '{name}' on-the-fly ({len(step_range)} steps)...")
-        num_test_scale = 40
-
         # --- Phase 1: find scale_range for each time step ---
         scale_range = np.zeros((len(step_range), 2))
         for i, s in enumerate(tqdm(step_range, desc=f"  Scale range [{name}]")):
@@ -167,7 +152,6 @@ def load_cached_data(run_params):
 
         # --- Phase 2: mode counting at each scale for each time step ---
         all_modes = np.zeros((len(step_range), num_test_scale))
-        save_every = 50  # incremental save to avoid losing progress
         for i, s in enumerate(tqdm(step_range, desc=f"  Mode counting [{name}]")):
             pos_np = dataset.positions_at_time_step(s)
             pos = torch.from_numpy(pos_np).cuda().float()
@@ -234,14 +218,15 @@ def load_cached_data(run_params):
                                  for s in tqdm(step_range, desc=f"  NN dist [{name}]")])
             np.save(nnp, nn_dists)
         else:
-            nn_dists = np.load(nnp)
+            nn_dists = np.load(nnp, allow_pickle=False)
 
         print(f"\n  [CACHE SAVED] {name}: modes={all_modes.shape}, scales={scale_range.shape}")
 
     else:
-        all_modes = np.load(mp)
-        scale_range = np.load(srp)
-        nn_dists = np.load(nnp) if os.path.exists(nnp) else None
+        cached = load_legacy_manifold_cache(sp)
+        all_modes = cached.mode_counts
+        scale_range = cached.scale_ranges
+        nn_dists = cached.nearest_neighbour_distances
         if nn_dists is None:
             print(f"  Computing NN distances for '{name}' ({len(step_range)} steps)...")
             nn_dists = np.array([compute_avg_nn_dist(dataset.positions_at_time_step(s))
@@ -315,52 +300,27 @@ def load_cached_data(run_params):
 
 def fit_all_steps(step_range, N_array, scale_range, all_modes,
                   saturation=0.8, num_test_scale=40):
-    """Fit centered_3pl_log to all time steps of one dataset."""
-    n_steps = all_modes.shape[0]
-    params = [None] * n_steps
-    fitted = [None] * n_steps
-    resid_var = np.full(n_steps, np.nan)
-    success = np.zeros(n_steps, dtype=bool)
-
-    for i in range(n_steps):
-        N = N_array[i]
-        s_start, s_end = scale_range[i]
-        test_scales = np.logspace(np.log10(max(s_start, 1e-6)),
-                                  np.log10(max(s_end, 1e-5)), num_test_scale)
-        modes = all_modes[i]
-
-        # Trim plateau
-        bi = int(np.argmax(modes <= saturation * N))
-        if bi == 0:
-            bi = max(1, int(np.argmax(modes <= min(saturation + 0.1, 0.99) * N)))
-
-        x_data = test_scales[bi:]
-        y_data = modes[bi:]
-
-        if len(x_data) < 5:
-            continue
-
-        try:
-            popt, _ = curve_fit(
-                lambda x, *p: model_centered_3pl(x, p, N),
-                x_data, y_data,
-                p0=P0(float(np.median(test_scales))),
-                sigma=np.maximum(y_data, 1.0),
-                absolute_sigma=True, bounds=BOUNDS, maxfev=5000,
-            )
-            params[i] = popt
-            fitted[i] = model_centered_3pl(test_scales, popt, N) + 1.0
-            resid_var[i] = np.mean((y_data - (model_centered_3pl(x_data, popt, N) + 1.0))**2)
-            success[i] = True
-        except (RuntimeError, ValueError):
-            continue
-
+    """Compatibility adapter over :func:`dfr.analysis.fit_centered_3pl_curves`."""
+    if all_modes.shape[1] != num_test_scale:
+        raise ValueError("num_test_scale must match the cached mode-count width.")
+    batch = fit_centered_3pl_curves(
+        step_range,
+        N_array,
+        scale_range,
+        all_modes,
+        saturation=saturation,
+    )
+    params = [None] * len(step_range)
+    for source_index, values in zip(
+        np.flatnonzero(batch.success), batch.result.parameters
+    ):
+        params[source_index] = values
     return {
         "params": params,
-        "fitted": fitted,
-        "resid_var": resid_var,
-        "success": success,
-        "test_scales": test_scales,  # stored from last step (for plotting)
+        "fitted": list(batch.fitted_curves),
+        "resid_var": batch.residual_variances,
+        "success": batch.success,
+        "test_scales": batch.scale_grids[-1],
     }
 
 
@@ -679,52 +639,6 @@ def print_manifold_summary(all_params, all_N, all_names, labels):
 # ======================================================================
 # 6b. Intrinsic manifold: shape curve + scale axis
 # ======================================================================
-
-def fit_shape_curve(k_vals, log_gamma_vals):
-    """Fit k = f(log10_gamma) via Hill model: k = c + a/(1+((lg-d)/s)^p).
-
-    The Hill model captures the physical shape: steep decay from high k
-    (at low log10_gamma) down to a flat asymptote ~1-2 (at high log10_gamma).
-    Naturally bounded at both ends, more flexible than sigmoid, no oscillation.
-
-    Returns:
-        params: (a, d, s, p, c) Hill parameters
-        lg_grid, k_grid: dense sampling of the fitted curve (x=lg, y=k)
-    """
-    from scipy.optimize import curve_fit
-
-    def hill_model(lg, a, d, s, p, c):
-        return c + a / (1.0 + np.power(np.maximum((lg - d) / s, 1e-10), p))
-
-    popt, _ = curve_fit(hill_model, log_gamma_vals, k_vals,
-                        p0=[20, -1, 0.5, 2, 0], maxfev=10000)
-
-    lg_grid = np.linspace(log_gamma_vals.min(), log_gamma_vals.max(), 500)
-    k_grid = hill_model(lg_grid, *popt)
-
-    return popt, lg_grid, k_grid
-
-
-def project_to_shape_curve(k, log_gamma, lg_grid, k_grid):
-    """Project each point (k, log_gamma) onto the nearest point of the shape curve.
-
-    The shape coordinate is the projected k-value on the Hill curve.
-
-    Returns:
-        k_proj: projected k coordinate along the shape curve
-        lg_proj: projected log10_gamma on the curve
-    """
-    k_proj = np.zeros(len(k))
-    lg_proj = np.zeros(len(k))
-
-    for i in range(len(k)):
-        dist2 = (k_grid - k[i])**2 + (lg_grid - log_gamma[i])**2
-        idx = np.argmin(dist2)
-        k_proj[i] = k_grid[idx]
-        lg_proj[i] = lg_grid[idx]
-
-    return k_proj, lg_proj
-
 
 def plot_intrinsic_manifold(all_params, all_names, all_N, shape_fit, k_proj,
                             synthetic_params=None, synthetic_labels=None):
