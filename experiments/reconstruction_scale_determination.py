@@ -1398,15 +1398,30 @@ def run_single_scenario_effective_volume_find_formula(run_params):
     return N_area, N_volume, effective_area, effective_volume, avg_nn_dist_area, avg_nn_dist_volume, ellipsoid_area, ellipsoid_volume, moments_area, moments_volume, blurred_volume, blurred_volume_estim
 
 if __name__ == "__main__":
-    # run_multi_scenarios_mode_counting()
-    # run_multi_scenarios_gt_scale()
+    import argparse
 
-    # run_multi_scenarios_scale_estimation()
-    # plt.show()
-
-    # run_multi_scenarios_scale_estimation_after_training()
-    run_multi_scenarios_effective_volume_estimation()
-
-    # run_multi_scenarios_effective_volume_find_formula()
-
-    # examine_scale_estimation_single_time_step()
+    parser = argparse.ArgumentParser(
+        description="Legacy reconstruction-scale studies; choose one explicitly."
+    )
+    parser.add_argument(
+        "experiment",
+        choices=(
+            "mode-counting",
+            "ground-truth-scale",
+            "scale-estimation",
+            "post-training-scale",
+            "effective-volume",
+            "effective-volume-formula",
+            "single-frame",
+        ),
+    )
+    selected = parser.parse_args().experiment
+    {
+        "mode-counting": run_multi_scenarios_mode_counting,
+        "ground-truth-scale": run_multi_scenarios_gt_scale,
+        "scale-estimation": run_multi_scenarios_scale_estimation,
+        "post-training-scale": run_multi_scenarios_scale_estimation_after_training,
+        "effective-volume": run_multi_scenarios_effective_volume_estimation,
+        "effective-volume-formula": run_multi_scenarios_effective_volume_find_formula,
+        "single-frame": examine_scale_estimation_single_time_step,
+    }[selected]()

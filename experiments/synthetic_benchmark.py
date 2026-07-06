@@ -1,7 +1,7 @@
 """
 Precompute 3PL fits for synthetic spatial point processes.
-Cached to scenarios/_synthetic/synthetic_params.npz so parameter_manifold
-doesn't recompute them every run.
+The CLI writes a managed cache; compatibility callers may explicitly target
+the historic ``scenarios/_synthetic`` cache used by parameter_manifold.
 
 Processes span the spectrum: regular → random → clustered
   - Poisson (homogeneous)
@@ -11,12 +11,20 @@ Processes span the spectrum: regular → random → clustered
   - Matern (uniform disk clusters with Poisson parents)
   - Log-Gaussian Cox (doubly stochastic, clustered)
 """
+import argparse
 import sys, os
+from pathlib import Path
 
 import numpy as np
 from scipy.optimize import curve_fit
 from tqdm import tqdm
 
+from dfr.analysis import (
+    add_managed_output_arguments,
+    count_modes,
+    create_analysis_artifacts,
+    median_nearest_neighbour_distance,
+)
 from dfr.analysis import centered_3pl_excess as model_centered_3pl
 
 
@@ -132,16 +140,20 @@ def lgcp(N, n_grid=20, volume=1000.0, rng=None):
 
 def compute_mode_curve(positions, scales):
     """Mode count at each scale."""
-    import torch
-    from dfr.mode_finding import mode_counting
-    from scipy.spatial.distance import cdist as scipy_cdist
-    pos = torch.from_numpy(positions).cuda().float()
-    d = scipy_cdist(positions, positions)
-    np.fill_diagonal(d, 1e10)
-    avg_nn = max(float(np.median(np.min(d, axis=1))), 1e-8)
+    avg_nn = median_nearest_neighbour_distance(positions)
     tol = max(avg_nn * 1e-3, 1e-8)
-    return np.array([mode_counting(pos, pos.clone(), s, max_iter=400, tol=tol)
-                     for s in scales])
+    return np.array(
+        [
+            count_modes(
+                positions,
+                s,
+                device="cuda",
+                max_iter=400,
+                tolerance=tol,
+            )
+            for s in scales
+        ]
+    )
 
 
 def fit_3pl(scales, mode_counts, N):
@@ -160,9 +172,9 @@ def fit_3pl(scales, mode_counts, N):
 # Main: generate and cache
 # ======================================================================
 
-def run_all(n_trials=30, N=200):
+def run_all(n_trials=30, N=200, *, seed=42, cache_dir=None):
     """Generate synthetic data, fit 3PL, save to cache."""
-    rng = np.random.default_rng(42)
+    rng = np.random.default_rng(seed)
     scales = np.logspace(-1, 1.5, 40)
 
     configs = [
@@ -200,12 +212,12 @@ def run_all(n_trials=30, N=200):
                   f"lg={arr[:,2].mean():.3f}+-{arr[:,2].std():.3f}")
 
     # Save cache
-    cache_dir = os.path.join(os.getcwd(), "scenarios", "_synthetic")
+    cache_dir = Path(cache_dir or Path.cwd() / "scenarios" / "_synthetic")
     os.makedirs(cache_dir, exist_ok=True)
-    cache_file = os.path.join(cache_dir, "synthetic_params.npz")
+    cache_file = cache_dir / "synthetic_params.npz"
     np.savez(cache_file, *all_params)
     # Save labels separately
-    label_file = os.path.join(cache_dir, "synthetic_labels.npy")
+    label_file = cache_dir / "synthetic_labels.npy"
     np.save(label_file, np.array(all_labels, dtype=object))
     print(f"\n  Cached {sum(len(p) for p in all_params)} fits across {len(all_params)} processes")
     print(f"  -> {cache_file}")
@@ -213,11 +225,11 @@ def run_all(n_trials=30, N=200):
     return all_params, all_labels
 
 
-def load_cached():
+def load_cached(cache_dir=None):
     """Load precomputed synthetic params. Returns (all_params, all_labels)."""
-    cache_dir = os.path.join(os.getcwd(), "scenarios", "_synthetic")
-    cache_file = os.path.join(cache_dir, "synthetic_params.npz")
-    label_file = os.path.join(cache_dir, "synthetic_labels.npy")
+    cache_dir = Path(cache_dir or Path.cwd() / "scenarios" / "_synthetic")
+    cache_file = cache_dir / "synthetic_params.npz"
+    label_file = cache_dir / "synthetic_labels.npy"
     if not os.path.exists(cache_file):
         return None, None
     data = np.load(cache_file, allow_pickle=True)
@@ -227,7 +239,32 @@ def load_cached():
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--trials", type=int, default=30)
+    parser.add_argument("--agents", type=int, default=200)
+    parser.add_argument("--seed", type=int, default=42)
+    add_managed_output_arguments(parser)
+    args = parser.parse_args()
+    if args.trials < 1 or args.agents < 2:
+        raise ValueError("trials must be positive and agents must be at least two.")
+    artifacts = create_analysis_artifacts(
+        args,
+        name="synthetic parameter benchmark",
+        resolved_config={
+            "analysis": "synthetic_benchmark",
+            "trials": args.trials,
+            "agents": args.agents,
+            "seed": args.seed,
+        },
+        entrypoint="experiments.synthetic_benchmark",
+    )
     print("=" * 60)
     print("  Precomputing synthetic 3PL fits")
     print("=" * 60)
-    run_all(n_trials=30, N=200)
+    run_all(
+        n_trials=args.trials,
+        N=args.agents,
+        seed=args.seed,
+        cache_dir=artifacts.data_dir,
+    )
+    print(f"Outputs: {artifacts.run_dir}")

@@ -1932,12 +1932,28 @@ def finding_effective_volume():
     print(np.abs(blurred_volume - exact_volume) / exact_volume)
 
 if __name__ == "__main__":
-    # verify_power_law_for_infinite_N()
+    import argparse
 
-    verify_convergence_for_finite_N()
-    # finding_power_law_for_finite_N()
-
-    # discovery_of_dimensional_crossover()
-    # veriry_dimensional_crossover()
-
-    # finding_effective_volume()
+    parser = argparse.ArgumentParser(
+        description="Legacy exploratory power-law analyses; choose one explicitly."
+    )
+    parser.add_argument(
+        "experiment",
+        choices=(
+            "infinite-limit",
+            "finite-convergence",
+            "finite-fit",
+            "dimensional-crossover",
+            "verify-crossover",
+            "effective-volume",
+        ),
+    )
+    selected = parser.parse_args().experiment
+    {
+        "infinite-limit": verify_power_law_for_infinite_N,
+        "finite-convergence": verify_convergence_for_finite_N,
+        "finite-fit": finding_power_law_for_finite_N,
+        "dimensional-crossover": discovery_of_dimensional_crossover,
+        "verify-crossover": veriry_dimensional_crossover,
+        "effective-volume": finding_effective_volume,
+    }[selected]()

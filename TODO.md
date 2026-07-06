@@ -6,10 +6,9 @@ on chat history.
 
 ## Status
 
-- **Current phase:** Phase 5 in progress. The first typed reconstruction
-  workflow slice is complete; evaluation extraction and consolidation of the
-  legacy multi-scenario runners remain. Phase 4 long-tail script cleanup can
-  proceed independently after active/historical scripts are classified.
+- **Current phase:** Phase 4 is complete. Phase 5 is in progress with the first
+  typed reconstruction slice complete; evaluation extraction and consolidation
+  of the legacy multi-scenario runners are next.
 - **Stable baseline:** annotated tag `v0.1.0`, commit `7cde21e`.
 - **Version storage:** local Git repository only; do not push unless the owner
   explicitly changes this policy.
@@ -246,7 +245,8 @@ directory and can be reproduced from the saved config and manifest.
 - [x] Add deterministic CPU golden-fit/cache/result tests and a CUDA identity
   test for extracted DRA computation.
 - [x] Add compatibility tests against representative existing research caches.
-- [ ] Reduce all analysis scripts to CLI/config wrappers and document each script's
+- [x] Reduce all supported analysis scripts to explicit CLI/config entry points
+  and document each script's
   inputs, outputs, runtime expectations, and example command.
 
 **Exit criteria:** mode count and scale analysis can be run from an imported API
@@ -337,8 +337,8 @@ The next agent should continue Phase 5:
    characterizing the older quaternion convention used by scenario runners.
 4. Consolidate one representative `run_scenarios*.py` loop onto
    `dfr.reconstruct` before touching the duplicated publication variants.
-5. Separately classify the remaining Phase 4 exploratory scripts as active or
-   historical before migrating their outputs.
+5. Keep the Phase 4 supported/legacy classification in
+   `experiments/README.md` current when promoting another research study.
 
 ## Decisions
 
@@ -413,11 +413,46 @@ The next agent should continue Phase 5:
 - **2026-07-06 - Camera orientation:** generated encircling cameras auto-aim at
   each reconstructed frame, while explicit poses preserve their supplied
   quaternions. Reason: an explicit pose should not be silently reoriented.
+- **2026-07-06 - Supported analysis surface:** supported Phase 4 CLIs are the
+  two DRA workflows, 3PL/2PL manifold workflows, mechanistic derivation,
+  synthetic benchmark, and mode-count validation. `power_law.py` and
+  `reconstruction_scale_determination.py` preserve explicit legacy studies;
+  `dfr_plot.py` is deferred to Phase 6 and cannot launch an implicit figure.
+  Reason: a finite supported surface can have managed, tested contracts without
+  pretending every exploratory notebook-like script is production workflow.
 
 ## Handoff Log
 
 Add one newest-first entry per working session. Include commit(s), verification,
 known failures, and the exact next step.
+
+### 2026-07-06 - Phase 4 supported analysis entry points completed
+
+- Added `experiments/README.md` as the detailed analysis command catalog with
+  support classification, inputs, outputs, runtime expectations, examples,
+  legacy caveats, and ownership boundaries for every analysis-oriented module.
+- Migrated the 3PL/2PL manifold, mechanistic derivation, synthetic benchmark,
+  and mode-count validation commands to managed analysis runs; supported CLIs
+  no longer contain direct `figs/`, `results/`, or current-working-directory
+  output assumptions.
+- Added shared managed-analysis parser/artifact helpers under `dfr.analysis`
+  instead of repeating output/run collision plumbing in every experiment.
+- Extracted symmetric-2PL fitting into `dfr.analysis.manifold` with a typed
+  result and golden recovery test; the experiment now owns presentation rather
+  than reusable curve fitting.
+- Made project roots, seeds, run IDs, resume/overwrite policies, trial counts,
+  and agent counts explicit where applicable.
+- Replaced hard-coded default execution in `power_law.py` and
+  `reconstruction_scale_determination.py` with required experiment dispatch;
+  disabled `dfr_plot.py`'s implicit animation pending Phase 6.
+- Added contract tests that supported CLIs stay off legacy output roots, remain
+  cataloged, and preserve explicit dispatch for legacy studies.
+- Verification: all eight supported/legacy analysis `--help` commands;
+  supported-output static contract; `compileall`; `git diff --check`;
+  `pytest -m "not cuda"` (73 passed); `pytest -m cuda` (5 passed, 1 skipped:
+  optional small rasterizer unavailable).
+- Next step: resume Phase 5 with typed evaluation metrics and
+  `dfr.evaluate(...)`.
 
 ### 2026-07-06 - Phase 5 typed reconstruction workflow
 

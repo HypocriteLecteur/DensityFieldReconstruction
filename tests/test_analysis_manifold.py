@@ -5,9 +5,11 @@ from dfr.analysis import (
     ManifoldAnalysisResult,
     centered_3pl_excess,
     fit_centered_3pl_curves,
+    fit_symmetric_2pl_curves,
     load_legacy_manifold_cache,
     project_to_shape_curve,
     scale_for_mode_count,
+    symmetric_2pl_mode_count,
 )
 
 
@@ -61,6 +63,18 @@ def test_recommended_scale_inverts_centered_3pl():
 
     assert predicted == pytest.approx(26.0)
     assert scale_for_mode_count(parameters, 101, 51) == pytest.approx(1.3)
+
+
+def test_symmetric_2pl_batch_recovers_golden_parameters():
+    scales = np.logspace(-1, 1, 20)
+    observed = symmetric_2pl_mode_count(scales, 3.2, 1.4, 101)
+    fitted = fit_symmetric_2pl_curves(
+        [7], [101], [[0.1, 10.0]], observed[None, :], dataset_name="demo"
+    )
+
+    assert fitted.success.tolist() == [True]
+    assert fitted.result.parameter_names == ("k", "sigma_half")
+    np.testing.assert_allclose(fitted.result.parameters[0], [3.2, 1.4], atol=1e-8)
 
 
 def test_shape_projection_selects_nearest_curve_samples():

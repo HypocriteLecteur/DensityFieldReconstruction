@@ -14,25 +14,34 @@ If the 3PL form emerges naturally from point density alone, the
 empirical curves should collapse onto the Poisson prediction after
 scaling by avg_nn_dist. Deviations reveal genuine collective structure.
 """
-import sys, os
+import argparse
+from pathlib import Path
 
 import numpy as np
-import torch
 from scipy.spatial.distance import cdist as scipy_cdist
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 
-from dfr.mode_finding import mode_counting
+from dfr import load_dataset
+from dfr.analysis import (
+    add_managed_output_arguments,
+    count_modes,
+    create_analysis_artifacts,
+    median_nearest_neighbour_distance,
+)
 
 
 def mode_counting_np(positions, scale, max_iter=400):
     """Convenience wrapper returning mode count for numpy array."""
-    pos = torch.from_numpy(positions).cuda().float()
-    d = scipy_cdist(positions, positions)
-    np.fill_diagonal(d, 1e10)
-    avg_nn = max(float(np.median(np.min(d, axis=1))), 1e-8)
+    avg_nn = median_nearest_neighbour_distance(positions)
     tol = max(avg_nn * 1e-3, 1e-8)
-    return mode_counting(pos, pos.clone(), scale, max_iter=max_iter, tol=tol)
+    return count_modes(
+        positions,
+        scale,
+        device="cuda",
+        max_iter=max_iter,
+        tolerance=tol,
+    )
 
 
 def poisson_point_cloud(N, volume=1000.0, rng=None):
@@ -64,13 +73,35 @@ def compute_mode_curve(positions, scales, **kwargs):
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--agents", type=int, default=200)
+    parser.add_argument("--trials", type=int, default=5)
+    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--no-display", action="store_true")
+    add_managed_output_arguments(parser)
+    args = parser.parse_args()
+    if args.no_display:
+        plt.show = lambda: None
+    if args.agents < 2 or args.trials < 1:
+        raise ValueError("agents must be at least two and trials must be positive.")
+    artifacts = create_analysis_artifacts(
+        args,
+        name="mechanistic mode derivation",
+        resolved_config={
+            "analysis": "mechanistic_derivation",
+            "agents": args.agents,
+            "trials": args.trials,
+            "seed": args.seed,
+        },
+        entrypoint="experiments.mechanistic_derivation",
+    )
     print("=" * 70)
     print("  Mechanistic derivation: mode-count curve from point process theory")
     print("=" * 70)
 
-    rng = np.random.default_rng(42)
-    N = 200
-    n_trials = 5
+    rng = np.random.default_rng(args.seed)
+    N = args.agents
+    n_trials = args.trials
     scales = np.logspace(-1, 1.5, 40)
 
     # --- 1. Uniform Poisson (null model) ---
@@ -95,16 +126,13 @@ def main():
     # --- 3. Load empirical data for comparison ---
     print("\n3. Loading empirical flock data...")
     from experiments.parameter_manifold import DATASET_RUNS, load_cached_data
-    from dfr.simulation_config import SimulationConfig
-    from dfr.dataset_io import DatasetFactory
     empirical_curves = {}
     for rp in DATASET_RUNS:
         name = rp["name"]
-        sr, Na, scr, am, _ = load_cached_data(rp)
+        sr, Na, scr, am, _ = load_cached_data(rp, project_root=args.project_root)
         if sr is None: continue
         # Take the first few frames as examples
-        config = SimulationConfig(f"scenarios/{name}/config.yaml")
-        dataset = DatasetFactory().get_dataset(config.data_file)
+        dataset = load_dataset(name, project_root=args.project_root)
         for step_idx in [0, min(50, len(sr)-1)]:
             s = sr[step_idx]
             pos = dataset.positions_at_time_step(s)
@@ -159,9 +187,22 @@ def main():
     ax.legend(fontsize=6, frameon=False, ncol=2)
 
     plt.tight_layout()
-    plt.savefig("figs/mechanistic_derivation.png", bbox_inches="tight", dpi=300)
+    figure_path = artifacts.figures_dir / "mechanistic_derivation.png"
+    plt.savefig(figure_path, bbox_inches="tight", dpi=300)
     plt.show()
-    print("  -> Saved figs/mechanistic_derivation.png")
+    print(f"  -> Saved {figure_path}")
+    artifacts.save_npz(
+        "synthetic_curves.npz",
+        overwrite=args.resume,
+        scales=scales,
+        poisson_mean=poisson_mean,
+        poisson_std=poisson_std,
+        cluster_stds=np.asarray(sorted(cluster_curves)),
+        cluster_means=np.stack([cluster_curves[key][0] for key in sorted(cluster_curves)]),
+        cluster_standard_deviations=np.stack(
+            [cluster_curves[key][1] for key in sorted(cluster_curves)]
+        ),
+    )
 
     # --- Key theoretical insight ---
     print("\n" + "=" * 70)
@@ -191,6 +232,7 @@ Empirical flocks lie BELOW the Poisson curve (fewer modes at same normalized
 scale), indicating clustering structure. The steepness k reflects how
 strongly the points deviate from spatial uniformity.
 """)
+    print(f"Outputs: {artifacts.run_dir}")
 
 
 if __name__ == "__main__":

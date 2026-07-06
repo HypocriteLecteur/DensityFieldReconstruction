@@ -5,14 +5,18 @@ cluster counts. Measures accuracy as a function of scale and N.
 Generates isotropic Gaussian clusters in 3D with controlled separation,
 runs the full mode-counting pipeline, and computes error metrics.
 """
-import sys, os
+import argparse
+from pathlib import Path
 
 import numpy as np
-import torch
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 
-from dfr.mode_finding import mode_counting
+from dfr.analysis import (
+    add_managed_output_arguments,
+    count_modes,
+    create_analysis_artifacts,
+)
 
 
 def generate_clusters(n_clusters, points_per_cluster, cluster_std, separation,
@@ -57,19 +61,20 @@ def test_mode_counting_accuracy(positions, true_n_clusters, scales, tol):
         mode_counts: list of mode counts at each scale
         errors: absolute error |predicted - true| at each scale
     """
-    pos = torch.from_numpy(positions).cuda().float()
     mode_counts = []
     errors = []
     for sc in scales:
-        n = mode_counting(pos, pos.clone(), sc, max_iter=400, tol=tol)
+        n = count_modes(
+            positions, sc, device="cuda", max_iter=400, tolerance=tol
+        )
         mode_counts.append(n)
         errors.append(abs(n - true_n_clusters))
     return mode_counts, errors
 
 
-def run_validation(n_runs=5):
+def run_validation(seed=42):
     """Systematic validation across different cluster configurations."""
-    rng = np.random.default_rng(42)
+    rng = np.random.default_rng(seed)
     n_total_range = [50, 100, 200, 500]
     separation_ratios = [1.0, 2.0, 5.0, 10.0]  # separation / cluster_std
     cluster_std = 1.0
@@ -116,7 +121,7 @@ def run_validation(n_runs=5):
     return results
 
 
-def plot_validation(results):
+def plot_validation(results, output_path: Path):
     """Plot validation results: accuracy curves and error heatmap."""
     fig, axes = plt.subplots(1, 2, figsize=(14, 5.5))
 
@@ -156,17 +161,31 @@ def plot_validation(results):
     ax.set_title("Minimum mode-count error\n(fraction of true clusters)")
 
     plt.tight_layout()
-    plt.savefig("figs/validate_mode_counting.png", bbox_inches="tight", dpi=300)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    plt.savefig(output_path, bbox_inches="tight", dpi=300)
     plt.show()
-    print("  -> Saved figs/validate_mode_counting.png")
+    print(f"  -> Saved {output_path}")
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--no-display", action="store_true")
+    parser.add_argument("--seed", type=int, default=42)
+    add_managed_output_arguments(parser)
+    args = parser.parse_args()
+    if args.no_display:
+        plt.show = lambda: None
+    artifacts = create_analysis_artifacts(
+        args,
+        name="validate mode counting",
+        resolved_config={"analysis": "validate_mode_counting", "seed": args.seed},
+        entrypoint="experiments.validate_mode_counting",
+    )
     print("=" * 60)
     print("  Validating mode_counting on synthetic data")
     print("=" * 60)
 
-    results = run_validation()
+    results = run_validation(seed=args.seed)
 
     # Summary table
     print(f"\n  {'N':>5} {'sep':>5} {'n_true':>7} {'best_scale/nn':>14} {'min_err':>8}")
@@ -182,7 +201,23 @@ def main():
     print(f"\n  Mean relative error: {np.mean(all_errors):.3f}")
     print(f"  Perfect recoveries: {sum(1 for e in all_errors if e == 0)}/{len(all_errors)}")
 
-    plot_validation(results)
+    records = []
+    for result in results.values():
+        records.append(
+            {
+                key: value
+                for key, value in result.items()
+                if key not in {"scales", "mode_counts", "errors"}
+            }
+        )
+    artifacts.save_json(
+        "validation_summary.json",
+        {"records": records, "mean_relative_error": float(np.mean(all_errors))},
+        category="metrics",
+        overwrite=args.resume,
+    )
+    plot_validation(results, artifacts.figures_dir / "validate_mode_counting.png")
+    print(f"  Outputs: {artifacts.run_dir}")
 
 
 if __name__ == "__main__":

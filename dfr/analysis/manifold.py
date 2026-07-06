@@ -113,6 +113,91 @@ class Centered3PLFitBatch:
     scale_grids: tuple[np.ndarray, ...]
 
 
+@dataclass
+class Symmetric2PLFitBatch:
+    """Aligned success mask and compact symmetric-2PL parameter table."""
+
+    result: ManifoldAnalysisResult
+    success: np.ndarray
+    aligned_parameters: np.ndarray
+
+
+def symmetric_2pl_mode_count(
+    x, k: float, sigma_half: float, number_of_agents: int
+) -> np.ndarray:
+    """Evaluate the symmetric two-parameter mode-count curve."""
+    if k <= 0 or sigma_half <= 0 or number_of_agents < 2:
+        raise ValueError("k, sigma_half, and number_of_agents must be positive.")
+    values = np.asarray(x, dtype=np.float64)
+    return 1.0 + (number_of_agents - 1.0) / (
+        1.0 + np.power(values / sigma_half, k)
+    )
+
+
+def fit_symmetric_2pl_curves(
+    frame_ids,
+    animal_counts,
+    scale_ranges,
+    mode_counts,
+    *,
+    dataset_name: Optional[str] = None,
+    max_function_evaluations: int = 5000,
+) -> Symmetric2PLFitBatch:
+    """Fit the symmetric 2PL model to aligned historic mode-count curves."""
+    frames = np.asarray(frame_ids, dtype=np.int64)
+    counts = np.asarray(animal_counts, dtype=np.int64)
+    ranges = np.asarray(scale_ranges, dtype=np.float64)
+    modes = np.asarray(mode_counts, dtype=np.float64)
+    if frames.ndim != 1 or len(frames) == 0:
+        raise ValueError("frame_ids must be a non-empty 1D array.")
+    if counts.shape != frames.shape or np.any(counts < 2):
+        raise ValueError("animal_counts must align with frames and be at least 2.")
+    if ranges.shape != (len(frames), 2) or np.any(ranges <= 0):
+        raise ValueError("scale_ranges must have shape (frames, 2) and be positive.")
+    if np.any(ranges[:, 1] <= ranges[:, 0]):
+        raise ValueError("Every scale range must satisfy start < stop.")
+    if modes.ndim != 2 or modes.shape[0] != len(frames) or modes.shape[1] < 3:
+        raise ValueError("mode_counts must have shape (frames, at least three scales).")
+
+    parameters = np.full((len(frames), 2), np.nan)
+    success = np.zeros(len(frames), dtype=bool)
+    for index, (number_of_agents, scale_range, observed) in enumerate(
+        zip(counts, ranges, modes)
+    ):
+        scales = np.logspace(
+            np.log10(max(scale_range[0], 1e-12)),
+            np.log10(max(scale_range[1], 1e-11)),
+            modes.shape[1],
+        )
+        try:
+            fitted, _ = curve_fit(
+                lambda x, k, sigma_half: symmetric_2pl_mode_count(
+                    x, k, sigma_half, number_of_agents
+                ),
+                scales,
+                observed,
+                p0=(2.0, float(np.median(scales))),
+                bounds=((0.1, 1e-6), (50.0, np.inf)),
+                maxfev=max_function_evaluations,
+            )
+        except (RuntimeError, ValueError, FloatingPointError):
+            continue
+        parameters[index] = fitted
+        success[index] = True
+    names = (
+        np.asarray([dataset_name] * int(success.sum()), dtype=str)
+        if dataset_name is not None
+        else None
+    )
+    result = ManifoldAnalysisResult(
+        parameter_names=("k", "sigma_half"),
+        parameters=parameters[success],
+        frame_ids=frames[success],
+        dataset_names=names,
+    )
+    return Symmetric2PLFitBatch(result, success, parameters)
+
+
 def fit_centered_3pl_curves(
     frame_ids,
     animal_counts,

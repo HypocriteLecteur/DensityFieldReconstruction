@@ -7,28 +7,27 @@ inflated k variance in the 3PL. Model: m(sigma) = 1 + (N-1)/(1 + (sigma/sigma_ha
 This is the standard Hill equation with Hill coefficient k.
 """
 import sys, os
+from pathlib import Path
 
 import numpy as np
-from scipy.spatial.distance import cdist as scipy_cdist
-from scipy.optimize import curve_fit
-from tqdm import tqdm
-import torch
 
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 
-from dfr.simulation_config import SimulationConfig
-from dfr.dataset_io import DatasetFactory
 from dfr.utils import move_figure
+from dfr.analysis import (
+    add_managed_output_arguments,
+    create_analysis_artifacts,
+    fit_symmetric_2pl_curves,
+    symmetric_2pl_mode_count,
+)
 
 
 # ======================================================================
 # 0. Model & data loading (reuses existing caches)
 # ======================================================================
 
-def model_2pl(x, k, sigma_half, N):
-    """Symmetric 2PL: m(sigma) = 1 + (N-1)/(1 + (sigma/sigma_half)^k)."""
-    return 1.0 + (N - 1.0) / (1.0 + (x / sigma_half) ** k)
+model_2pl = symmetric_2pl_mode_count  # compatibility for research imports
 
 
 DATASET_RUNS = [
@@ -46,6 +45,14 @@ DATASET_COLORS = {
 SYN_COLORS = ['#e74c3c', '#f39c12', '#2ecc71', '#3498db', '#9b59b6',
               '#e67e22', '#1abc9c', '#9b59b6', '#34495e', '#95a5a6',
               '#d35400', '#c0392b']
+_FIGURE_DIR = Path("figs")
+
+
+def _save_figure(filename: str) -> Path:
+    target = _FIGURE_DIR / filename
+    target.parent.mkdir(parents=True, exist_ok=True)
+    plt.savefig(target, bbox_inches="tight", dpi=300)
+    return target
 
 
 def set_style():
@@ -57,51 +64,30 @@ def set_style():
     })
 
 
-def compute_avg_nn_dist(pos_np):
-    d = scipy_cdist(pos_np, pos_np)
-    np.fill_diagonal(d, 1e10)
-    return max(float(np.median(np.min(d, axis=1))), 1e-8)
-
-
 # ======================================================================
 # 1. Fit 2PL to all cached data
 # ======================================================================
 
-def fit_2pl_all():
+def fit_2pl_all(project_root=None):
     """Load cached mode-count data, fit 2PL, return per-frame parameters."""
     all_params_list, all_N_list, all_names_list = [], [], []
     raw_data = {}
 
     # Import load_cached_data from the 3PL version (reuses modes.npy + scale_range.npy)
-    from experiments.parameter_manifold import load_cached_data, fit_all_steps
+    from experiments.parameter_manifold import load_cached_data
 
     for rp in DATASET_RUNS:
         name = rp["name"]
         print(f"\n{'='*60}\nDataset: {name}\n{'='*60}")
-        sr, Na, scr, am, _ = load_cached_data(rp)
+        sr, Na, scr, am, _ = load_cached_data(rp, project_root=project_root)
         if sr is None: continue
 
-        params_2pl = []
-        for i in tqdm(range(len(sr)), desc=f"  Fitting 2PL [{name}]"):
-            s_start, s_end = scr[i]
-            scales = np.logspace(np.log10(max(s_start, 1e-12)),
-                                 np.log10(max(s_end, 1e-11)), 40)
-            true_modes = am[i]
-            N = int(Na[i])
-            def fn(x, k, sh):
-                return model_2pl(x, k, sh, N)
-            try:
-                popt, _ = curve_fit(fn, scales, true_modes,
-                                    p0=[2.0, np.median(scales)],
-                                    bounds=([0.1, 1e-6], [50, np.inf]),
-                                    maxfev=5000)
-                params_2pl.append(popt)
-            except Exception:
-                params_2pl.append([np.nan, np.nan])
-
-        params_2pl = np.array(params_2pl)
-        valid = ~np.isnan(params_2pl[:, 0])
-        pv = params_2pl[valid]
+        fitted = fit_symmetric_2pl_curves(
+            sr, Na, scr, am, dataset_name=name
+        )
+        params_2pl = fitted.aligned_parameters
+        valid = fitted.success
+        pv = fitted.result.parameters
         n_ok = valid.sum()
         print(f"  OK: {n_ok}/{len(sr)}")
 
@@ -115,7 +101,8 @@ def fit_2pl_all():
 
     # Load nn_dists from cache
     for name in raw_data:
-        nnp = os.path.join(os.getcwd(), "scenarios", name, "nn_dists.npy")
+        root = Path(project_root or Path.cwd()).expanduser().resolve()
+        nnp = root / "scenarios" / name / "nn_dists.npy"
         if os.path.exists(nnp):
             raw_data[name]["nn_dists"] = np.load(nnp)
 
@@ -159,15 +146,15 @@ def plot_manifold_2pl(all_params, all_N, all_names):
               f"k_CV={np.std(k[m])/np.mean(k[m]):.3f}")
 
     plt.tight_layout()
-    plt.savefig("figs/manifold_2pl.png", bbox_inches="tight", dpi=300)
+    _save_figure("manifold_2pl.png")
     plt.show()
-    print("  -> Saved figs/manifold_2pl.png")
+    print(f"  -> Saved {_FIGURE_DIR / 'manifold_2pl.png'}")
 
 
-def plot_synthetic_overlay(all_params, all_names):
+def plot_synthetic_overlay(all_params, all_names, cache_dir=None):
     """Overlay synthetic 2PL fits on the empirical manifold."""
     from experiments.synthetic_benchmark import load_cached
-    syn_params_list, syn_labels = load_cached()
+    syn_params_list, syn_labels = load_cached(cache_dir)
     if syn_params_list is None:
         print("  [SKIP] No synthetic cache found")
         return
@@ -209,9 +196,9 @@ def plot_synthetic_overlay(all_params, all_names):
     ax.legend(fontsize=6, frameon=False, ncol=2)
 
     plt.tight_layout()
-    plt.savefig("figs/manifold_2pl_synthetic.png", bbox_inches="tight", dpi=300)
+    _save_figure("manifold_2pl_synthetic.png")
     plt.show()
-    print("  -> Saved figs/manifold_2pl_synthetic.png")
+    print(f"  -> Saved {_FIGURE_DIR / 'manifold_2pl_synthetic.png'}")
 
 
 def plot_temporal_2pl(raw_data):
@@ -269,9 +256,9 @@ def plot_temporal_2pl(raw_data):
               f"sh={np.mean(sh):.3f} (CV={sh_cv:.4f}), {tau_str}")
 
     plt.tight_layout()
-    plt.savefig("figs/manifold_2pl_temporal.png", bbox_inches="tight", dpi=300)
+    _save_figure("manifold_2pl_temporal.png")
     plt.show()
-    print("  -> Saved figs/manifold_2pl_temporal.png")
+    print(f"  -> Saved {_FIGURE_DIR / 'manifold_2pl_temporal.png'}")
 
 
 def plot_N_dependence_2pl(all_params, all_N, all_names):
@@ -288,9 +275,9 @@ def plot_N_dependence_2pl(all_params, all_N, all_names):
         ax.legend(fontsize=7)
 
     plt.tight_layout()
-    plt.savefig("figs/manifold_2pl_N_dependence.png", bbox_inches="tight", dpi=300)
+    _save_figure("manifold_2pl_N_dependence.png")
     plt.show()
-    print("  -> Saved figs/manifold_2pl_N_dependence.png")
+    print(f"  -> Saved {_FIGURE_DIR / 'manifold_2pl_N_dependence.png'}")
 
     print("\n  N-dependence (2PL, Pearson r):")
     for ds in datasets:
@@ -305,10 +292,19 @@ def plot_N_dependence_2pl(all_params, all_N, all_names):
 # ======================================================================
 
 def main():
+    global _FIGURE_DIR
     import argparse
-    p = argparse.ArgumentParser()
+    p = argparse.ArgumentParser(description="Fit and plot the symmetric 2PL manifold")
     p.add_argument("--no-display", action="store_true")
+    add_managed_output_arguments(p)
     args = p.parse_args()
+    artifacts = create_analysis_artifacts(
+        args,
+        name="parameter manifold 2PL",
+        resolved_config={"analysis": "parameter_manifold_2pl", "datasets": DATASET_RUNS},
+        entrypoint="experiments.parameter_manifold_2pl",
+    )
+    _FIGURE_DIR = artifacts.figures_dir
     if args.no_display:
         plt.show = lambda: None
         print("[--no-display]\n")
@@ -316,8 +312,15 @@ def main():
     print("Parameter Manifold — 2PL model (symmetric sigmoid, gamma=1)")
     print("=" * 60)
 
-    all_params, all_N, all_names, raw_data = fit_2pl_all()
+    all_params, all_N, all_names, raw_data = fit_2pl_all(args.project_root)
     k, sh = all_params[:, 0], all_params[:, 1]
+    artifacts.save_npz(
+        "manifold_2pl_fits.npz",
+        overwrite=args.resume,
+        parameters=all_params,
+        number_of_agents=all_N,
+        dataset_names=all_names,
+    )
 
     print(f"\n{'='*60}")
     print(f"Total: {len(all_params)} fits, {len(set(all_names))} species")
@@ -326,7 +329,11 @@ def main():
 
     # Figures
     plot_manifold_2pl(all_params, all_N, all_names)
-    plot_synthetic_overlay(all_params, all_names)
+    plot_synthetic_overlay(
+        all_params,
+        all_names,
+        args.project_root / "scenarios" / "_synthetic",
+    )
     plot_temporal_2pl(raw_data)
     plot_N_dependence_2pl(all_params, all_N, all_names)
 
@@ -344,7 +351,13 @@ def main():
             ratio = sh_m / (nn + 1e-10)
             print(f"  {ds:<12} {np.mean(sh_m):>8.3f} {np.mean(nn):>8.3f} {np.mean(ratio):>8.3f}")
 
-    print(f"\nDone.")
+    artifacts.save_json(
+        "summary.json",
+        {"fit_count": len(all_params), "datasets": sorted(set(all_names))},
+        category="metrics",
+        overwrite=args.resume,
+    )
+    print(f"\nDone. Outputs: {artifacts.run_dir}")
 
 
 if __name__ == "__main__":

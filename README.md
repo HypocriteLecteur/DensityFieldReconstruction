@@ -275,9 +275,10 @@ python -m experiments.fit_dra_multiframe --datasets jackdaw2 --frames-per-datase
 ```
 
 These analyses are CUDA-intensive and cache intermediate `.npz` data so a run
-can resume. `parameter_manifold.py`, `parameter_manifold_2pl.py`, and
-`power_law.py` contain additional research analyses, but still use hard-coded
-settings and should be inspected before running.
+can resume. The parameter-manifold, mechanistic, synthetic, and validation
+analyses now expose explicit managed CLIs. `power_law.py` remains a legacy
+study collection and requires a named experiment subcommand; see
+`experiments/README.md` before running it.
 
 Reusable DRA computation and fitting now live under `dfr.analysis`, including
 `ScaleAnalysisResult`, `create_scale_analysis`,
@@ -487,6 +488,13 @@ cleanly when the compiled extensions or a CUDA device are unavailable.
 
 ## Experiment script catalog
 
+Detailed support status, inputs, outputs, runtime expectations, and commands
+for every analysis-oriented entry point are maintained in
+[`experiments/README.md`](experiments/README.md). In particular, supported
+Phase 4 analyses use managed output, legacy power/scale studies require an
+explicit subcommand, and direct `dfr_plot.py` execution is disabled until its
+Phase 6 decomposition.
+
 Most scripts predate the target workflow API. "Configured in source" means the
 module has constants or an active function call that must be reviewed before
 execution.
@@ -496,20 +504,20 @@ execution.
 | `common.py` | Shared logging, scenario loading, camera setup, and metric formatting for runners; not an entry point. |
 | `compute_metrics_from_pretrained.py` | Recompute density metrics from saved iteration checkpoints; configured in source. |
 | `dataset_viewer_test.py` | Interactive dataset/camera/scale viewer; performs work at import and is excluded from pytest. |
-| `dfr_plot.py` | Legacy 3,900-line collection of reconstruction, DRA, camera, table, and publication plots; active call configured at the bottom. |
+| `dfr_plot.py` | Legacy 3,900-line publication/reconstruction plot collection; implicit execution is disabled pending Phase 6. |
 | `fit_dra_multiframe.py` | CLI for multi-frame DRA/model-order fitting, caches, reports, and fit figures. |
 | `generate_scene_animations.py` | Generate trajectory and ground-truth density MP4 animations; datasets configured in source. |
 | `inspect_3d_error.py` | Inspect and plot 3D reconstruction error from existing run data. |
 | `inspect_scenarios.py` | Interactive scenario/camera inspection. |
 | `investigate_initialization.py` | Interactive investigation of GMM initialization behavior. |
-| `mechanistic_derivation.py` | Generate figures/tests for the analytical mode-count scaling derivation. |
-| `parameter_manifold.py` | Fit, cluster, validate, and plot the 3-parameter mode-curve manifold. |
-| `parameter_manifold_2pl.py` | Two-parameter manifold and temporal/N-dependence analyses. |
+| `mechanistic_derivation.py` | Managed CUDA CLI for analytical mode-count scaling comparisons. |
+| `parameter_manifold.py` | Managed 3PL fit/clustering/publication CLI using package manifold computation. |
+| `parameter_manifold_2pl.py` | Managed symmetric-2PL manifold and temporal/N-dependence CLI. |
 | `plot_dra_scale_model_order.py` | CUDA CLI for DRA over scale and model order with resumable caches and surface fits. |
 | `plotting_utils.py` | Shared plotting/math helpers used by DRA figures; not an entry point. |
-| `power_law.py` | Large exploratory collection for synthetic/empirical mode-count scaling laws; active analysis configured at the bottom. |
+| `power_law.py` | Legacy exploratory mode-count scaling studies; requires an explicit experiment subcommand. |
 | `rasterizer_optimize.py` | Benchmark/inspect custom rasterizer performance. |
-| `reconstruction_scale_determination.py` | Legacy reconstruction-scale experiments and visualizations; configured in source. |
+| `reconstruction_scale_determination.py` | Legacy reconstruction-scale studies; requires an explicit experiment subcommand. |
 | `reconstruct_one_frame.py` | Thin one-frame wrapper over `dfr.reconstruct`, with managed config, checkpoint, arrays, and metrics. |
 | `run_post_processing.py` | Post-process saved reconstruction runs and metrics; configured in source. |
 | `run_scenarios.py` | Main multi-scenario reconstruction runner; datasets/cameras configured in source. |
@@ -521,8 +529,8 @@ execution.
 | `run_scenarios_ue4.py` | UE4 image detection and reconstruction workflow with external image paths. |
 | `search_learning_parameters.py` | Resumable grid search for learning-rate settings; writes a root CSV. |
 | `search_regularization_parameters.py` | Resumable grid search for regularization settings; writes a root CSV. |
-| `synthetic_benchmark.py` | Generate/cached synthetic point-process benchmarks for manifold validation. |
-| `validate_mode_counting.py` | Validate mode counting on separated synthetic Gaussian clusters and plot errors. |
+| `synthetic_benchmark.py` | Managed CUDA CLI for synthetic point-process manifold benchmarks. |
+| `validate_mode_counting.py` | Managed CUDA validation CLI for separated synthetic Gaussian clusters. |
 | `visualize.py` | Open the interactive GMM viewer for saved checkpoints; configured in source. |
 | `__init__.py` | Marks `experiments` as a package; not an entry point. |
 

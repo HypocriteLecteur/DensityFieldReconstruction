@@ -3859,78 +3859,29 @@ def plot_table_noise_robustness(save_dir=None):
 
 
 if __name__ == "__main__":
-    # scale_estimation()
+    import argparse
 
-    # plot_multiple_scenarios()
-
-    # overview_scaling_law()
-    # plot_scale_space_curve()
-
-    # visual_hull_diagram()
-
-    # assumption_3_error()
-
-    # visual_hull_tau_vs_visual_hull_ghost()
-    # run_geometric_visual_hulls()
-    # run_params = DATASET_RUNS[0]
-
-    # # Define the axes configurations
-    # scale_range = np.linspace(0.3, 2.0, 10)
-    # cam_num_range = np.array([3, 4, 6, 8, 10, 12, 15])
-
-    # # Keep grid_res relatively low (e.g., 40-50) or this loop will take a long time
-    # X_out, Y_out, Z_out = plot_ratio_surface(
-    #     run_params,
-    #     scales=scale_range,
-    #     cam_nums=cam_num_range,
-    #     base_tau=0.02,
-    #     idx=5,
-    #     grid_res=50
-    # )
-
-    # dra_metrics()
-
-    # best_params = one_frame_parameter_search(n_trials=200)
-
-    # one_frame_convergence()
-
-    # one_frame_dMOTA_factor_analysis(force_recalculate=False)
-
-    # one_frame_dMOTA_factor_analysis_2(force_recalculate=False)
-
-    # one_frame_dMOTA_noise(force_recalculate=True)
-
-    # one_frame_dMOTA_3d_noise()
-
-    plot_dra_and_loss(
-        save_animation_to="figs/density_anim.mp4",
-        animation_every=1,   # ~50 frames
-        animation_fps=10,    # 5-second animation
+    parser = argparse.ArgumentParser(
+        description=(
+            "Legacy mixed publication-figure module. Direct CLI execution is "
+            "disabled until Phase 6 decomposes its plotting workflows."
+        )
     )
-
-    # plot_jackdaw2_density_field()
-
-    # --- New complementary figures for DRA scale-model-order experiment ---
-    # slice_positions = (0.15, 0.40, 0.65, 0.85)
-    # plot_jackdaw2_mode_count_curve(
-    #     n_slices=4,
-    #     slice_relative_positions=slice_positions,
-    # )
-
-    # plot_jackdaw2_multiscale_density(
-    #     n_slices=4,
-    #     slice_relative_positions=slice_positions,
-    # )
-
-    # CUDA-intensive; completed scale rows are cached for resumable execution.
-    # plot_jackdaw2_dra_scale_model_order_surface()
-
-    # plot_jackdaw2_2d_observations()
-
-    # plot_jackdaw2_2d_gmm()
-
-    # plot_table_2_results()
-
-    # plot_table_time_efficiency(save_dir=None)
-
-    # plot_table_noise_robustness()
+    parser.add_argument(
+        "--list-functions",
+        action="store_true",
+        help="List the legacy figure functions available for explicit imports.",
+    )
+    args = parser.parse_args()
+    if args.list_functions:
+        print("\n".join(sorted(
+            name for name, value in globals().items()
+            if callable(value) and getattr(value, "__module__", None) == __name__
+            and not name.startswith("_")
+        )))
+    else:
+        parser.error(
+            "No implicit figure is selected. Use a supported analysis CLI or "
+            "--list-functions; dfr_plot decomposition is tracked in Phase 6."
+        )
+    raise SystemExit(0)

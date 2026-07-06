@@ -17,6 +17,7 @@ Usage:
 """
 
 import sys, os
+from pathlib import Path
 
 import numpy as np
 from scipy.special import expm1
@@ -27,13 +28,14 @@ import torch
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 
-from dfr.simulation_config import SimulationConfig
-from dfr.dataset_io import DatasetFactory
+from dfr import load_dataset
 from dfr.mode_finding import mode_counting, mode_counting_modified, find_scale_interval
 from dfr.utils import move_figure
 from dfr.analysis import (
     PARAMETER_NAMES,
+    add_managed_output_arguments,
     centered_3pl_excess,
+    create_analysis_artifacts,
     fit_centered_3pl_curves,
     fit_shape_curve,
     load_legacy_manifold_cache,
@@ -49,6 +51,14 @@ from dfr.analysis import (
 model_centered_3pl = centered_3pl_excess  # compatibility for research imports
 compute_avg_nn_dist = median_nearest_neighbour_distance
 PARAM_NAMES = list(PARAMETER_NAMES)
+_FIGURE_DIR = Path("figs")
+
+
+def _save_figure(filename: str, *, dpi: int = 300) -> Path:
+    target = _FIGURE_DIR / filename
+    target.parent.mkdir(parents=True, exist_ok=True)
+    plt.savefig(target, bbox_inches="tight", dpi=dpi)
+    return target
 
 
 # ======================================================================
@@ -77,7 +87,7 @@ def set_style():
     })
 
 
-def load_cached_data(run_params):
+def load_cached_data(run_params, project_root=None):
     """Load cached modes.npy, scale_range.npy, and nn_dists.npy for a dataset.
     If cache is missing, compute the scaling law on-the-fly and save it.
     """
@@ -85,15 +95,15 @@ def load_cached_data(run_params):
     num_test_scale = 40
     save_every = 50
     nn_dists = None  # populated if cache exists or computed fresh
-    sp = os.path.join(os.getcwd(), "scenarios", name)
+    root = Path(project_root or Path.cwd()).expanduser().resolve()
+    sp = root / "scenarios" / name
     os.makedirs(sp, exist_ok=True)
 
     mp = os.path.join(sp, "modes.npy")
     srp = os.path.join(sp, "scale_range.npy")
     nnp = os.path.join(sp, "nn_dists.npy")
 
-    config = SimulationConfig(os.path.join(sp, "config.yaml"))
-    dataset = DatasetFactory().get_dataset(config.data_file)
+    dataset = load_dataset(name, project_root=root)
 
     max_steps = dataset.trajectories.shape[0]
     end = run_params["end_step"]
@@ -420,9 +430,9 @@ def plot_pca_scree(pca_model, scaler):
         print(f"    z_{n} = ({n} - {mu:.4f}) / {s:.4f}")
 
     plt.tight_layout()
-    plt.savefig("figs/manifold_pca_scree.png", bbox_inches="tight", dpi=300)
+    _save_figure("manifold_pca_scree.png")
     plt.show()
-    print("  -> Saved figs/manifold_pca_scree.png")
+    print(f"  -> Saved {_FIGURE_DIR / 'manifold_pca_scree.png'}")
 
 
 def plot_embeddings(embeddings, names, N_array, labels):
@@ -476,9 +486,9 @@ def plot_embeddings(embeddings, names, N_array, labels):
             axes[row, col].set_visible(False)
 
     plt.tight_layout()
-    plt.savefig("figs/manifold_embeddings.png", bbox_inches="tight", dpi=300)
+    _save_figure("manifold_embeddings.png")
     plt.show()
-    print("  -> Saved figs/manifold_embeddings.png")
+    print(f"  -> Saved {_FIGURE_DIR / 'manifold_embeddings.png'}")
 
 
 def plot_parameter_space(all_params, all_names):
@@ -512,9 +522,9 @@ def plot_parameter_space(all_params, all_names):
             ax.set_yscale("log"); ax.legend(frameon=False, fontsize=6)
 
     plt.tight_layout()
-    plt.savefig("figs/manifold_parameter_space.png", bbox_inches="tight", dpi=300)
+    _save_figure("manifold_parameter_space.png")
     plt.show()
-    print("  -> Saved figs/manifold_parameter_space.png")
+    print(f"  -> Saved {_FIGURE_DIR / 'manifold_parameter_space.png'}")
 
 
 def plot_cluster_curves(all_params, all_N, all_names, labels):
@@ -565,9 +575,9 @@ def plot_cluster_curves(all_params, all_N, all_names, labels):
                 ha="right", va="bottom", color="gray")
 
     plt.tight_layout()
-    plt.savefig("figs/manifold_cluster_curves.png", bbox_inches="tight", dpi=300)
+    _save_figure("manifold_cluster_curves.png")
     plt.show()
-    print("  -> Saved figs/manifold_cluster_curves.png")
+    print(f"  -> Saved {_FIGURE_DIR / 'manifold_cluster_curves.png'}")
 
 
 def plot_param_distributions(all_params, all_names, labels):
@@ -598,9 +608,9 @@ def plot_param_distributions(all_params, all_names, labels):
             ax.set_ylabel("Count"); ax.legend(frameon=False, fontsize=7)
 
     plt.tight_layout()
-    plt.savefig("figs/manifold_param_distributions.png", bbox_inches="tight", dpi=300)
+    _save_figure("manifold_param_distributions.png")
     plt.show()
-    print("  -> Saved figs/manifold_param_distributions.png")
+    print(f"  -> Saved {_FIGURE_DIR / 'manifold_param_distributions.png'}")
 
 
 # ======================================================================
@@ -717,9 +727,9 @@ def plot_intrinsic_manifold(all_params, all_names, all_N, shape_fit, k_proj,
         print(f"    {ds:<12} k_proj={np.mean(k_proj[m]):.2f}, sigma_half={np.mean(sigma_half[m]):.3f}")
 
     plt.tight_layout()
-    plt.savefig("figs/manifold_intrinsic.png", bbox_inches="tight", dpi=300)
+    _save_figure("manifold_intrinsic.png")
     plt.show()
-    print("  -> Saved figs/manifold_intrinsic.png")
+    print(f"  -> Saved {_FIGURE_DIR / 'manifold_intrinsic.png'}")
 
 
 def plot_shape_curve_mode_curves(shape_fit, all_params, N_typical=300):
@@ -780,9 +790,9 @@ def plot_shape_curve_mode_curves(shape_fit, all_params, N_typical=300):
     ax1.legend(frameon=False, fontsize=7)
 
     plt.tight_layout()
-    plt.savefig("figs/manifold_shape_mode_curves.png", bbox_inches="tight", dpi=300)
+    _save_figure("manifold_shape_mode_curves.png")
     plt.show()
-    print("  -> Saved figs/manifold_shape_mode_curves.png")
+    print(f"  -> Saved {_FIGURE_DIR / 'manifold_shape_mode_curves.png'}")
 
 
 # ======================================================================
@@ -851,9 +861,9 @@ def plot_temporal_trajectories(raw_data, all_params, all_names):
         print(f"  {name}: k CV={np.std(k)/np.mean(k):.3f}, sigma_half CV={np.std(sh)/np.mean(sh):.3f}, {tau_str}")
 
     plt.tight_layout()
-    plt.savefig("figs/manifold_temporal.png", bbox_inches="tight", dpi=300)
+    _save_figure("manifold_temporal.png")
     plt.show()
-    print("  -> Saved figs/manifold_temporal.png")
+    print(f"  -> Saved {_FIGURE_DIR / 'manifold_temporal.png'}")
 
 
 def plot_N_dependence(all_params, all_N, all_names, shape_fit):
@@ -890,9 +900,9 @@ def plot_N_dependence(all_params, all_N, all_names, shape_fit):
         ax.legend(frameon=False, fontsize=7)
 
     plt.tight_layout()
-    plt.savefig("figs/manifold_N_dependence.png", bbox_inches="tight", dpi=300)
+    _save_figure("manifold_N_dependence.png")
     plt.show()
-    print("  -> Saved figs/manifold_N_dependence.png")
+    print(f"  -> Saved {_FIGURE_DIR / 'manifold_N_dependence.png'}")
 
     # Console: correlation coefficients
     print("\n  N-dependence (Pearson r):")
@@ -984,7 +994,7 @@ def bootstrap_cluster_stability(all_params, n_boot=100):
     return stability
 
 
-def compute_synthetic_params():
+def compute_synthetic_params(cache_dir=None):
     """Load precomputed synthetic 3PL fits from cache, or generate if missing.
 
     Returns (synthetic_params, synthetic_labels) for plot_intrinsic_manifold.
@@ -992,10 +1002,12 @@ def compute_synthetic_params():
     """
     from experiments.synthetic_benchmark import load_cached, run_all
 
-    synthetic_params, synthetic_labels = load_cached()
+    synthetic_params, synthetic_labels = load_cached(cache_dir)
     if synthetic_params is None:
         print("  [CACHE MISS] Generating synthetic 3PL fits (this may take a few minutes)...")
-        synthetic_params, synthetic_labels = run_all(n_trials=30, N=200)
+        synthetic_params, synthetic_labels = run_all(
+            n_trials=30, N=200, cache_dir=cache_dir
+        )
     else:
         print(f"  [CACHE HIT] Loaded {sum(len(p) for p in synthetic_params)} "
               f"synthetic fits across {len(synthetic_params)} process types")
@@ -1007,12 +1019,28 @@ def compute_synthetic_params():
 # ======================================================================
 
 def main():
+    global _FIGURE_DIR
     import argparse
     p = argparse.ArgumentParser(description="Parameter manifold investigation")
     p.add_argument("--no-display", action="store_true", help="Skip plt.show()")
     p.add_argument("--saturation", type=float, default=0.8,
                    help="Trim plateau at saturation * N (default: 0.8)")
+    p.add_argument("--seed", type=int, default=12345)
+    add_managed_output_arguments(p)
     args = p.parse_args()
+    artifacts = create_analysis_artifacts(
+        args,
+        name="parameter manifold 3PL",
+        resolved_config={
+            "analysis": "parameter_manifold_3pl",
+            "datasets": DATASET_RUNS,
+            "saturation": args.saturation,
+            "seed": args.seed,
+        },
+        entrypoint="experiments.parameter_manifold",
+    )
+    _FIGURE_DIR = artifacts.figures_dir
+    np.random.seed(args.seed)
     if args.no_display:
         plt.show = lambda: None
         print("[--no-display] Headless mode.\n")
@@ -1024,7 +1052,9 @@ def main():
     for rp in DATASET_RUNS:
         name = rp["name"]
         print(f"\n{'='*60}\nDataset: {name}\n{'='*60}")
-        sr, Na, scr, am, nn_dists = load_cached_data(rp)
+        sr, Na, scr, am, nn_dists = load_cached_data(
+            rp, project_root=args.project_root
+        )
         if sr is None:
             continue
 
@@ -1072,6 +1102,14 @@ def main():
     labels, method = run_clustering(emb)
     nc = len(set(labels)) - (1 if -1 in labels else 0)
     print(f"  {method}: {nc} clusters, {int(sum(labels == -1))} noise")
+    artifacts.save_npz(
+        "manifold_fits.npz",
+        overwrite=args.resume,
+        parameters=all_params,
+        number_of_agents=all_N,
+        dataset_names=all_names,
+        cluster_labels=labels,
+    )
 
     # --- Cluster stability ---
     bootstrap_cluster_stability(all_params)
@@ -1083,12 +1121,23 @@ def main():
     shape_fit = fit_shape_curve(k_vals, lg_vals)
     _, lg_grid, k_grid = shape_fit
     k_proj, lg_proj = project_to_shape_curve(k_vals, lg_vals, lg_grid, k_grid)
+    artifacts.save_npz(
+        "shape_projection.npz",
+        overwrite=args.resume,
+        shape_parameters=shape_fit[0],
+        log_gamma_grid=lg_grid,
+        k_grid=k_grid,
+        projected_k=k_proj,
+        projected_log_gamma=lg_proj,
+    )
 
     # --- Figures ---
     print(f"\n{'='*60}\nGenerating figures\n{'='*60}")
     plot_pca_scree(embeddings["pca_model"], embeddings["scaler"])
     # Synthetic point processes for shape curve comparison
-    synthetic_params, synthetic_labels = compute_synthetic_params()
+    synthetic_params, synthetic_labels = compute_synthetic_params(
+        args.project_root / "scenarios" / "_synthetic"
+    )
     plot_intrinsic_manifold(all_params, all_names, all_N, shape_fit, k_proj,
                             synthetic_params, synthetic_labels)
     plot_shape_curve_mode_curves(shape_fit, all_params)
@@ -1146,7 +1195,18 @@ def main():
 
     # --- Summary ---
     print_manifold_summary(all_params, all_N, all_names, labels)
-    print(f"\nDone.")
+    artifacts.save_json(
+        "summary.json",
+        {
+            "fit_count": n_total,
+            "datasets": sorted(set(all_names)),
+            "cluster_method": method,
+            "cluster_count": nc,
+        },
+        category="metrics",
+        overwrite=args.resume,
+    )
+    print(f"\nDone. Outputs: {artifacts.run_dir}")
 
 
 if __name__ == "__main__":

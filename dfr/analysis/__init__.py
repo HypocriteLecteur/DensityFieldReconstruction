@@ -23,17 +23,21 @@ from dfr.analysis.results import (
     ScaleAnalysisResult,
 )
 from dfr.analysis.modes import analyze_dataset_modes, compute_mode_curve, count_modes
+from dfr.analysis.cli import add_managed_output_arguments, create_analysis_artifacts
 from dfr.analysis.manifold import (
     Centered3PLFitBatch,
     LegacyManifoldCache,
     PARAMETER_NAMES,
+    Symmetric2PLFitBatch,
     centered_3pl_excess,
     fit_centered_3pl_curves,
+    fit_symmetric_2pl_curves,
     fit_shape_curve,
     load_legacy_manifold_cache,
     median_nearest_neighbour_distance,
     project_to_shape_curve,
     scale_for_mode_count,
+    symmetric_2pl_mode_count,
 )
 
 __all__ = [
@@ -44,8 +48,10 @@ __all__ = [
     "ManifoldAnalysisResult",
     "ModeCurveResult",
     "PARAMETER_NAMES",
+    "Symmetric2PLFitBatch",
     "ScaleAnalysisResult",
     "analyze_dataset_modes",
+    "add_managed_output_arguments",
     "centered_3pl_excess",
     "concatenate_frames",
     "compute_scale_model_order_surface",
@@ -53,8 +59,10 @@ __all__ = [
     "compute_dra_sweep",
     "count_modes",
     "create_scale_analysis",
+    "create_analysis_artifacts",
     "fit_design_matrix",
     "fit_centered_3pl_curves",
+    "fit_symmetric_2pl_curves",
     "fit_dra_surface",
     "fit_frames",
     "fit_one_surface_model",
@@ -67,5 +75,6 @@ __all__ = [
     "model_orders",
     "project_to_shape_curve",
     "scale_for_mode_count",
+    "symmetric_2pl_mode_count",
     "select_frames",
 ]
