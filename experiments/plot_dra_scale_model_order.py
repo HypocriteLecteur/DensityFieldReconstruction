@@ -8,10 +8,10 @@ then computes
 
     DRA = 1 - (false-positive mass + false-negative mass) / number of animals.
 
-Run from the repository root, for example::
+Run as a module, for example::
 
-    python experiments/plot_dra_scale_model_order.py
-    python experiments/plot_dra_scale_model_order.py --datasets jackdaw --force
+    python -m experiments.plot_dra_scale_model_order
+    python -m experiments.plot_dra_scale_model_order --datasets jackdaw --force
 
 CUDA is required by both the GMR implementation and the voxelized DRA metric.
 Intermediate results are cached after every scale so an interrupted sweep can
@@ -31,7 +31,7 @@ import numpy as np
 import torch
 from scipy.spatial import cKDTree
 
-from dfr import load_dataset
+from dfr import OutputConfig, RunArtifacts, load_dataset
 from dfr.gaussian_mixture_reduction import GMR
 
 
@@ -328,7 +328,14 @@ def fit_dra_surface(
     }
 
 
-def cache_surface_fit(dataset_name: str, fit: dict, output_dir: Path) -> None:
+def cache_surface_fit(
+    dataset_name: str,
+    fit: dict,
+    output_dir: Path,
+    summary_dir: Path | None = None,
+) -> None:
+    """Save machine-readable fit arrays and a JSON metric summary."""
+    summary_dir = output_dir if summary_dir is None else summary_dir
     best = fit["candidates"][fit["best_name"]]
     np.savez(
         output_dir / f"{dataset_name}_dra_surface_fit.npz",
@@ -366,7 +373,7 @@ def cache_surface_fit(dataset_name: str, fit: dict, output_dir: Path) -> None:
         },
     }
     with open(
-        output_dir / f"{dataset_name}_dra_surface_fit.json",
+        summary_dir / f"{dataset_name}_dra_surface_fit.json",
         "w",
         encoding="utf-8",
     ) as stream:
@@ -617,9 +624,20 @@ def parse_args() -> argparse.Namespace:
         help="Datasets to compute (default: all four).",
     )
     parser.add_argument(
-        "--output-dir",
+        "--output-root",
         type=Path,
-        default=Path("results") / "dra_scale_model_order",
+        default=Path("outputs"),
+        help="Managed artifact root (default: <project>/outputs).",
+    )
+    parser.add_argument(
+        "--run-id",
+        default="dra-scale-model-order",
+        help="Path-safe run ID under outputs/analysis/.",
+    )
+    parser.add_argument(
+        "--overwrite-run",
+        action="store_true",
+        help="Replace the complete managed run directory before computation.",
     )
     parser.add_argument("--force", action="store_true", help="Ignore cached data.")
     parser.add_argument(
@@ -640,20 +658,43 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    if Path.cwd() != Path(__file__).resolve().parents[1]:
-        raise RuntimeError("Run this script from the repository root.")
     if not torch.cuda.is_available():
         raise RuntimeError("This experiment requires a CUDA-capable PyTorch setup.")
     if args.voxel_res_fraction <= 0 or args.batch_size <= 0:
         raise ValueError("Voxel resolution fraction and batch size must be positive.")
 
-    args.output_dir.mkdir(parents=True, exist_ok=True)
+    project_root = Path(__file__).resolve().parents[1]
+    resolved_config = {
+        "datasets": args.datasets,
+        "sweeps": {
+            name: {"time_step": SWEEPS[name].time_step} for name in args.datasets
+        },
+        "normalized_scales": NORMALIZED_SCALES,
+        "model_order_steps": MODEL_ORDER_STEPS,
+        "fit_models": FIT_MODELS,
+        "voxel_res_fraction": args.voxel_res_fraction,
+        "batch_size": args.batch_size,
+    }
+    artifacts = RunArtifacts.create(
+        OutputConfig(
+            workflow="analysis",
+            name="DRA scale and model order",
+            root=args.output_root,
+            run_id=args.run_id,
+            project_root=project_root,
+            resume=not args.overwrite_run,
+            overwrite=args.overwrite_run,
+        ),
+        resolved_config=resolved_config,
+        device="cuda",
+        metadata={"entrypoint": "experiments.plot_dra_scale_model_order"},
+    )
     results = {}
     for dataset_name in args.datasets:
         results[dataset_name] = compute_surface(
             dataset_name=dataset_name,
             sweep=SWEEPS[dataset_name],
-            output_dir=args.output_dir,
+            output_dir=artifacts.cache_dir,
             force=args.force,
             voxel_res_fraction=args.voxel_res_fraction,
             batch_size=args.batch_size,
@@ -665,7 +706,12 @@ def main() -> None:
         fits[dataset_name] = fit_dra_surface(
             normalized_scales, components, number_of_animals, dra
         )
-        cache_surface_fit(dataset_name, fits[dataset_name], args.output_dir)
+        cache_surface_fit(
+            dataset_name,
+            fits[dataset_name],
+            artifacts.data_dir,
+            summary_dir=artifacts.metrics_dir,
+        )
         best = fits[dataset_name]["candidates"][fits[dataset_name]["best_name"]]
         print(
             f"[{dataset_name}] fit={fits[dataset_name]['best_name']}, "
@@ -676,9 +722,24 @@ def main() -> None:
     plot_surfaces(
         results,
         fits,
-        args.output_dir / "dra_scale_model_order_3d.png",
+        artifacts.figures_dir / "dra_scale_model_order_3d.png",
         show=args.show,
     )
+    artifacts.save_json(
+        "fit_index.json",
+        {
+            name: {
+                "selected_model": fit["best_name"],
+                "rmse": fit["candidates"][fit["best_name"]]["rmse"],
+                "cv_rmse": fit["candidates"][fit["best_name"]]["cv_rmse"],
+                "r_squared": fit["candidates"][fit["best_name"]]["r_squared"],
+            }
+            for name, fit in fits.items()
+        },
+        category="metrics",
+        overwrite=True,
+    )
+    print(f"Managed run directory: {artifacts.run_dir}")
 
 
 if __name__ == "__main__":

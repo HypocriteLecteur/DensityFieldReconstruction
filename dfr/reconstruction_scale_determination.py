@@ -722,7 +722,9 @@ def reconstruct_visual_hull(cameras, images, scale=0.5, grid_max_size=32, grid_m
     
     # 3. Voxel Carving (Intersection of viewing cones)
     for i, cam in enumerate(cameras):
-        KP = torch.tensor(cam.state.K @ cam.state.P, device=device, dtype=torch.float32)
+        KP = (cam.state.K @ cam.state.P).to(
+            device=device, dtype=torch.float32
+        ).contiguous()
         proj = KP @ pnts_h
         
         # Perspective divide

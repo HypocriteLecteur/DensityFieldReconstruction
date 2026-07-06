@@ -6,7 +6,9 @@ on chat history.
 
 ## Status
 
-- **Current phase:** Phases 1-2 complete; Phase 3 is next.
+- **Current phase:** Phase 3 in progress. Artifact management and the first
+  analysis/reconstruction migrations are complete; shared workflow config types
+  remain.
 - **Stable baseline:** annotated tag `v0.1.0`, commit `7cde21e`.
 - **Version storage:** local Git repository only; do not push unless the owner
   explicitly changes this policy.
@@ -210,16 +212,18 @@ has a stable return contract, and requires no imports from `experiments`.
 
 ### Phase 3 - Artifact and Configuration Foundation
 
-- [ ] Add `OutputConfig`, run ID generation, and a `RunArtifacts` path manager.
-- [ ] Write resolved config and a versioned manifest for every saved run.
-- [ ] Centralize JSON/NPZ/checkpoint/figure saving with explicit overwrite and
+- [x] Add `OutputConfig`, run ID generation, and a `RunArtifacts` path manager.
+- [x] Write resolved config and a versioned manifest for every saved run.
+- [x] Centralize JSON/NPZ/checkpoint/figure saving with explicit overwrite and
   resume behavior.
-- [ ] Migrate one representative analysis script and one reconstruction runner
+- [x] Migrate one representative analysis script and one reconstruction runner
   to the output contract before migrating the rest.
-- [ ] Add a temporary warning/helper for legacy `figs/` and `results/` writes.
-- [ ] Add `DatasetSpec`, `CameraConfig`, `AnalysisConfig`, `EvaluationConfig`,
-  and top-level `RunConfig`, building on existing typed reconstruction configs.
-- [ ] Ensure configs round-trip through YAML/JSON without Python-only values.
+- [x] Add a temporary warning/helper for legacy `figs/` and `results/` writes.
+- [x] Add `DatasetSpec` (completed in Phase 2).
+- [ ] Add `CameraConfig`, `AnalysisConfig`, `EvaluationConfig`, and top-level
+  `RunConfig`, building on existing typed reconstruction configs.
+- [x] Ensure current dataclass, path, NumPy, tensor, device, and resolved output
+  configs serialize through YAML/JSON without Python-only values.
 
 **Exit criteria:** migrated workflows place everything under one predictable run
 directory and can be reproduced from the saved config and manifest.
@@ -320,18 +324,18 @@ reading implementation or experiment source.
 
 ## Immediate Next Actions
 
-The next agent should work on Phase 3:
+The next agent should finish Phase 3:
 
-1. Add `OutputConfig` and a `RunArtifacts` manager with an explicit output root,
-   workflow/name/run ID, and predictable subdirectories.
-2. Define and test a versioned `manifest.json` plus resolved YAML configuration;
-   include commit, timestamp, device, and resume/overwrite policy.
-3. Centralize JSON, NPZ, checkpoint, and figure paths without changing their
-   scientific contents.
-4. Migrate `plot_dra_scale_model_order.py` as the representative analysis and
-   one small reconstruction runner to the artifact contract.
-5. Keep all 22 CPU tests and 3 available CUDA tests passing; update README and
-   this handoff in the same commit.
+1. Define focused `CameraConfig`, `AnalysisConfig`, `EvaluationConfig`, and
+   top-level `RunConfig` contracts. Avoid fields that are specific to only one
+   paper figure or experiment.
+2. Use `CameraConfig` in `reconstruct_one_frame.py` and preserve its current CLI.
+3. Add dict/YAML round-trip tests for the new nested configs, including
+   `DatasetSpec`, existing training/reconstruction configs, and `OutputConfig`.
+4. Decide whether `fit_dra_multiframe.py` should migrate now or during Phase 4;
+   record the decision instead of partially changing its cache hierarchy.
+5. Keep all 28 CPU tests and 4 available CUDA tests passing, then mark Phase 3
+   complete and proceed to the reusable analysis API.
 
 ## Decisions
 
@@ -367,11 +371,49 @@ The next agent should work on Phase 3:
   legacy rule that `data_file` is relative to the project root; standalone YAML
   configs resolve relative data beside the config. Reason: preserve existing
   scenarios while making portable external configs intuitive.
+- **2026-07-06 - Managed run identity:** use
+  `outputs/<workflow>/<run-id>/` with required explicit resume/overwrite
+  policies. Reason: accidental reuse must fail, while legitimate resumable
+  analyses retain caches and verify their resolved scientific configuration.
+- **2026-07-06 - Provenance schemas:** manifest and resolved-config schemas
+  start at version 1. Reason: saved runs need a migration point independent of
+  Python class layout or package version.
+- **2026-07-06 - Transitional reconstruction CLI:** add a thin managed
+  one-frame runner now, but defer the stable Python workflow API to Phase 5.
+  Reason: users need a straightforward current command without freezing the
+  eventual orchestration architecture prematurely.
 
 ## Handoff Log
 
 Add one newest-first entry per working session. Include commit(s), verification,
 known failures, and the exact next step.
+
+### 2026-07-06 - Phase 3 artifact foundation and first migrations
+
+- Added `OutputConfig` and `RunArtifacts` with project-root-relative output
+  resolution, safe generated/explicit run IDs, canonical subdirectories, and
+  path-traversal protection.
+- Added schema-versioned `manifest.json` and resolved `config.yaml` with UTC
+  timestamps, local Git commit, package version, device, metadata, and resume
+  count.
+- Added explicit collision/resume/overwrite behavior plus centralized atomic
+  JSON, NPZ, checkpoint, and figure writers.
+- Added serialization for dataclasses, paths, datetime/enum values, NumPy
+  values/arrays, Torch devices/tensors, mappings, and sequences.
+- Added `warn_legacy_output` for `figs/`, `results/`, and scenario log writes.
+- Migrated `plot_dra_scale_model_order.py` to managed analysis runs: caches in
+  `cache/`, fit arrays in `data/`, summaries in `metrics/`, and plots in
+  `figures/`; it no longer requires the repository cwd.
+- Added `experiments/reconstruct_one_frame.py`, a transitional explicit CLI for
+  dataset/frame/camera/scale/iterations/voxel/seed settings. It saves final
+  arrays, checkpoint, metrics, manifest, and config under one run.
+- Removed an unnecessary tensor copy in voxel carving found by the new CUDA
+  runner test.
+- Verification: both migrated CLI `--help` commands; `compileall`;
+  `git diff --check`; `pytest -m "not cuda"` (28 passed); `pytest -m cuda`
+  (4 passed, 1 skipped: optional small rasterizer unavailable).
+- Next step: finish Phase 3 with shared workflow config types and nested config
+  round trips, then begin Phase 4 analysis extraction.
 
 ### 2026-07-06 - Phase 2 canonical dataset API
 

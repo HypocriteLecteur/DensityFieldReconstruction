@@ -198,7 +198,7 @@ The most structured current analysis entry points expose command-line help:
 
 ```powershell
 python -m experiments.plot_dra_scale_model_order --help
-python -m experiments.plot_dra_scale_model_order --datasets jackdaw2 --output-dir outputs/analysis/jackdaw2-dra
+python -m experiments.plot_dra_scale_model_order --datasets jackdaw2 --output-root outputs --run-id jackdaw2-dra
 
 python -m experiments.fit_dra_multiframe --help
 python -m experiments.fit_dra_multiframe --datasets jackdaw2 --frames-per-dataset 3 --output-dir outputs/analysis/jackdaw2-multiframe
@@ -211,8 +211,20 @@ settings and should be inspected before running.
 
 ## Reconstruct and evaluate
 
-The high-level reconstruction API described in `TODO.md` is not implemented
-yet. The current end-to-end path is the scenario runner:
+For a quick managed one-frame reconstruction, use the transitional CLI:
+
+```powershell
+python -m experiments.reconstruct_one_frame --dataset jackdaw2 --frame 2800 --camera-count 2 --scale 1.0 --iterations 100 --run-id jackdaw2-frame-2800
+```
+
+Omit `--scale` to use the current adaptive scale selector. The command writes
+the resolved config and manifest at the run root, reconstructed arrays under
+`data/`, the final Gaussian checkpoint under `checkpoints/`, and the summary
+and timing metrics under `metrics/`. Use `--help` for voxel, seed, output-root,
+resume, and overwrite controls.
+
+The high-level Python reconstruction API described in `TODO.md` is not
+implemented yet. The current multi-frame path remains the scenario runner:
 
 1. Edit `CAM_NUM`, `LOG_NAME`, `DATASET_RUNS`, and relevant flags near the top
    of `experiments/run_scenarios.py`.
@@ -240,8 +252,39 @@ source. Review those settings before running it.
 
 ## Generated outputs
 
-`outputs/` is the canonical root for all new work and is ignored by Git. Until
-the migration is complete, active legacy scripts may still write elsewhere:
+`outputs/` is the canonical root for all new work and is ignored by Git.
+`OutputConfig` and `RunArtifacts` now create managed runs with provenance and
+safe persistence:
+
+```python
+from dfr import OutputConfig, RunArtifacts
+
+artifacts = RunArtifacts.create(
+    OutputConfig(
+        workflow="analysis",
+        name="jackdaw2 scale sweep",
+        run_id="jackdaw2-scale-sweep",
+        resume=True,
+    ),
+    resolved_config={"dataset": "jackdaw2", "frames": [2800]},
+    device="cuda",
+)
+
+artifacts.save_json(
+    "summary.json",
+    {"recommended_scale": 1.25},
+    category="metrics",
+    overwrite=True,
+)
+print(artifacts.run_dir)
+```
+
+Relative output roots resolve from the project root, not `os.getcwd()`.
+Existing run IDs require an explicit policy: `resume=True` preserves artifacts
+and verifies that the resolved scientific config matches; `overwrite=True`
+replaces the managed run. The two policies are mutually exclusive.
+
+Until migration is complete, active legacy scripts may still write elsewhere:
 
 | Location | Current use | Policy |
 |---|---|---|
@@ -251,7 +294,7 @@ the migration is complete, active legacy scripts may still write elsewhere:
 | `scenarios/*/logs/` | Reconstruction checkpoints/statistics | Legacy runner output |
 | Repository root | A few grid-search CSV/log files | Legacy; migration required |
 
-New code should use this provisional layout:
+Managed runs use this layout:
 
 ```text
 outputs/<workflow>/<run-id>/
@@ -265,8 +308,17 @@ outputs/<workflow>/<run-id>/
   cache/
 ```
 
-Library functions should return results and save only when given an explicit
-path. The artifact manager that enforces this contract is planned in Phase 3.
+Every managed run writes a schema-versioned `manifest.json` (timestamp, Git
+commit, package version, device, and metadata) plus a fully resolved
+`config.yaml`. JSON, NPZ, checkpoint, and figure writers reject path traversal
+and require explicit overwrite for existing files. Library functions should
+still return results and save only when given an explicit output configuration.
+
+`experiments.plot_dra_scale_model_order` is the first migrated analysis. It
+writes resumable sweep caches to `cache/`, fit arrays to `data/`, summaries to
+`metrics/`, and its surface plot to `figures/`. Use `--overwrite-run` to replace
+its entire run or `--force` to recompute cached sweep values inside a resumed
+run.
 
 ## Tests
 
@@ -311,6 +363,7 @@ execution.
 | `power_law.py` | Large exploratory collection for synthetic/empirical mode-count scaling laws; active analysis configured at the bottom. |
 | `rasterizer_optimize.py` | Benchmark/inspect custom rasterizer performance. |
 | `reconstruction_scale_determination.py` | Legacy reconstruction-scale experiments and visualizations; configured in source. |
+| `reconstruct_one_frame.py` | Transitional one-frame reconstruction CLI with managed config, manifest, checkpoint, arrays, and metrics. |
 | `run_post_processing.py` | Post-process saved reconstruction runs and metrics; configured in source. |
 | `run_scenarios.py` | Main multi-scenario reconstruction runner; datasets/cameras configured in source. |
 | `run_scenarios_angle_sweep.py` | Camera-angle, convergence, voxel, and initialization sensitivity experiments. |

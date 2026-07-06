@@ -19,6 +19,7 @@ from dfr.camera_state import CameraState
 from dfr.camera_system import MultiCameraSystem
 from dfr.config import ReconstructionParams, TrainingParams
 from dfr.density_field_reconstructor import DensityReconstructor
+from experiments.reconstruct_one_frame import build_parser, run
 
 
 def test_tiny_two_camera_reconstruction():
@@ -105,3 +106,66 @@ def test_tiny_two_camera_reconstruction():
     assert torch.isfinite(models[0]._xyz).all()
     assert torch.isfinite(models[0]._radius).all()
     assert torch.isfinite(models[0]._weights).all()
+
+
+def test_one_frame_cli_writes_managed_artifacts(tmp_path):
+    project = tmp_path / "project"
+    data_dir = project / "dataset"
+    scenario_dir = project / "scenarios" / "tiny"
+    data_dir.mkdir(parents=True)
+    scenario_dir.mkdir(parents=True)
+    positions = np.array(
+        [
+            [-0.5, -0.5, -0.25],
+            [0.5, -0.5, 0.25],
+            [-0.5, 0.5, 0.25],
+            [0.5, 0.5, -0.25],
+        ],
+        dtype=np.float32,
+    )
+    np.save(data_dir / "tiny.npy", positions[None, ...])
+    (scenario_dir / "config.yaml").write_text(
+        "data_file: dataset/tiny.npy\n"
+        "cam_poses:\n"
+        "  - [-10, 0, 0, 0, 0, 0, 1]\n"
+        "  - [0, -10, 0, 0, 0, 0, 1]\n"
+        "intrinsics_params: [[60, 0, 31.5], [0, 60, 31.5], [0, 0, 1]]\n"
+        "H: 64\nW: 64\nnear_clip: 1\nfar_clip: 30\niter: 1\n"
+        "size: 0.2\nsave_video: false\nfps: 30\ndpi: 100\n",
+        encoding="utf-8",
+    )
+    args = build_parser().parse_args(
+        [
+            "--dataset",
+            "tiny",
+            "--frame",
+            "0",
+            "--iterations",
+            "1",
+            "--scale",
+            "0.5",
+            "--voxel-grid-max-size",
+            "12",
+            "--voxel-peaks-number",
+            "8",
+            "--voxel-peak-threshold",
+            "0.05",
+            "--project-root",
+            str(project),
+            "--output-root",
+            "outputs",
+            "--run-id",
+            "cli-smoke",
+        ]
+    )
+
+    artifacts = run(args)
+
+    assert artifacts.run_dir == (
+        project / "outputs" / "reconstruction" / "cli-smoke"
+    ).resolve()
+    assert artifacts.manifest_path.is_file()
+    assert artifacts.config_path.is_file()
+    assert (artifacts.data_dir / "reconstruction.npz").is_file()
+    assert (artifacts.checkpoints_dir / "final_model.pth").is_file()
+    assert (artifacts.metrics_dir / "summary.json").is_file()
