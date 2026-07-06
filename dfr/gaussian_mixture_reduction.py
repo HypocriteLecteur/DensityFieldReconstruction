@@ -25,8 +25,8 @@ class GMR:
         means: torch.Tensor, 
         radii: torch.Tensor, 
         weights: torch.Tensor,
-        L: int, DEVICE='cuda'
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        L: int, DEVICE='cuda', snapshot_Ls=None
+    ):
         """
         PyTorch/GPU implementation of the simple, greedy Gaussian Mixture Reduction 
         algorithm, which forces merged components to be isotropic (spherical).
@@ -38,14 +38,26 @@ class GMR:
             radii (torch.Tensor): Initial component standard deviations (N, 1).
             weights (torch.Tensor): Initial component weights (N, 1). Assumed unnormalized.
             L (int): Target number of components.
+            snapshot_Ls (optional iterable of int): If supplied, retain and
+                return reduced mixtures at these component counts during the
+                same merge trajectory. ``L`` must be the smallest requested
+                count. This avoids rerunning the full reduction for a sweep.
 
         Returns:
-            Tuple[torch.Tensor, torch.Tensor, torch.Tensor]: 
-                Final means (L, D), unnormalized weights (L), and covariances (L, D, D).
+            Without ``snapshot_Ls``, final means (L, D), unnormalized weights
+            (L), and covariances (L, D, D). With ``snapshot_Ls``, a dictionary
+            mapping each requested component count to that same tuple.
         """
         
         # 0. Setup and Initial Checks
         N, D = means.shape  # N: initial components, D: dimension (assumed 3)
+        snapshot_targets = None
+        if snapshot_Ls is not None:
+            snapshot_targets = {int(target) for target in snapshot_Ls}
+            if not snapshot_targets or min(snapshot_targets) != L:
+                raise ValueError("L must be the smallest snapshot_Ls value.")
+            if min(snapshot_targets) < 1 or max(snapshot_targets) > N:
+                raise ValueError("snapshot_Ls values must be between 1 and N.")
         
         # Move all inputs to the target device
         means = means.to(DEVICE)
@@ -56,7 +68,13 @@ class GMR:
             # Short-circuit: no merging needed
             radii_sq = radii.squeeze(-1) ** 2
             initial_covs = torch.diag_embed(radii_sq.unsqueeze(-1).repeat(1, D))
-            return means, weights.squeeze(-1), initial_covs
+            result = (means, weights.squeeze(-1), initial_covs)
+            return {N: result} if snapshot_targets is not None else result
+
+        if snapshot_targets is not None:
+            return GMR._runnalls_sweep_inplace(
+                means, radii, weights, L, snapshot_targets, DEVICE
+            )
 
         current_num = N
         
@@ -130,6 +148,13 @@ class GMR:
         
         # We also need to track the unnormalized weights separately for the final output
         unnorm_weights_list = weights.squeeze(-1).tolist()
+        snapshots = {}
+        if snapshot_targets is not None and N in snapshot_targets:
+            snapshots[N] = (
+                means.clone(),
+                weights.squeeze(-1).clone(),
+                covs.clone(),
+            )
         
         while current_num > L:
             # 1. Find the pair with the minimum cost
@@ -188,6 +213,13 @@ class GMR:
             current_norm_weights = torch.tensor(norm_weights_list, device=DEVICE)   # (C,)
             current_covs = torch.tensor(covs_list, device=DEVICE)         # (C, D, D)
             current_log_dets = torch.tensor(log_dets_list, device=DEVICE) # (C,)
+
+            if snapshot_targets is not None and current_num in snapshot_targets:
+                snapshots[current_num] = (
+                    current_means.clone(),
+                    torch.tensor(unnorm_weights_list, device=DEVICE),
+                    current_covs.clone(),
+                )
 
             if current_num > 1:
                 # The new component 'm' is always the last element (index: current_num - 1)
@@ -264,7 +296,151 @@ class GMR:
         final_weights = torch.tensor(unnorm_weights_list, device=DEVICE) # Return unnormalized weights
         final_covs = current_covs
         
+        if snapshot_targets is not None:
+            missing = snapshot_targets.difference(snapshots)
+            if missing:
+                raise RuntimeError(f"Failed to capture GMR snapshots: {sorted(missing)}")
+            return snapshots
         return final_means, final_weights, final_covs
+
+    @staticmethod
+    @torch.inference_mode()
+    def _runnalls_sweep_inplace(
+        means: torch.Tensor,
+        radii: torch.Tensor,
+        weights: torch.Tensor,
+        L: int,
+        snapshot_targets: set[int],
+        DEVICE='cuda',
+    ):
+        """Run one isotropic Runnalls trajectory without matrix rebuilding.
+
+        Active components occupy the first ``current_num`` slots. A merge is
+        written into slot ``i`` and slot ``j`` is removed by moving the final
+        active component into it. Only the new component's cost row/column
+        needs recomputation; all other pair costs remain valid.
+        """
+        means_work = means.to(DEVICE).clone()
+        unnorm_weights = weights.to(DEVICE).reshape(-1).clone()
+        norm_weights = unnorm_weights / unnorm_weights.sum()
+        variances = radii.to(DEVICE).reshape(-1).square().clone()
+        N, D = means_work.shape
+        log_dets = D * torch.log(variances)
+
+        # For isotropic components, moment matching has the closed form
+        # var_ij = weighted within-component variance + between-mean variance.
+        pair_weights = norm_weights[:, None] + norm_weights[None, :]
+        squared_distances = torch.cdist(means_work, means_work).square()
+        merged_variances = (
+            norm_weights[:, None] * variances[:, None]
+            + norm_weights[None, :] * variances[None, :]
+        ) / pair_weights
+        merged_variances += (
+            norm_weights[:, None]
+            * norm_weights[None, :]
+            / pair_weights.square()
+            * squared_distances
+            / D
+        )
+        merged_log_dets = D * torch.log(merged_variances)
+        cost_matrix = 0.5 * (
+            pair_weights * merged_log_dets
+            - norm_weights[:, None] * log_dets[:, None]
+            - norm_weights[None, :] * log_dets[None, :]
+        )
+        cost_matrix.fill_diagonal_(torch.inf)
+
+        snapshots = {}
+
+        def capture(component_count):
+            snapshots[component_count] = (
+                means_work[:component_count].clone(),
+                unnorm_weights[:component_count].clone(),
+                torch.diag_embed(
+                    variances[:component_count, None].expand(-1, D)
+                ).clone(),
+            )
+
+        if N in snapshot_targets:
+            capture(N)
+
+        current_num = N
+        while current_num > L:
+            flat_index = torch.argmin(
+                cost_matrix[:current_num, :current_num]
+            ).item()
+            i, j = divmod(flat_index, current_num)
+            if i > j:
+                i, j = j, i
+
+            weight_i = norm_weights[i]
+            weight_j = norm_weights[j]
+            merged_weight = weight_i + weight_j
+            merged_unnorm_weight = unnorm_weights[i] + unnorm_weights[j]
+            mean_delta = means_work[i] - means_work[j]
+            merged_mean = (
+                weight_i * means_work[i] + weight_j * means_work[j]
+            ) / merged_weight
+            merged_variance = (
+                weight_i * variances[i] + weight_j * variances[j]
+            ) / merged_weight
+            merged_variance += (
+                weight_i
+                * weight_j
+                / merged_weight.square()
+                * torch.dot(mean_delta, mean_delta)
+                / D
+            )
+
+            last = current_num - 1
+            if j != last:
+                means_work[j] = means_work[last]
+                norm_weights[j] = norm_weights[last]
+                unnorm_weights[j] = unnorm_weights[last]
+                variances[j] = variances[last]
+                log_dets[j] = log_dets[last]
+                cost_matrix[j, :current_num] = cost_matrix[last, :current_num]
+                cost_matrix[:current_num, j] = cost_matrix[:current_num, last]
+
+            means_work[i] = merged_mean
+            norm_weights[i] = merged_weight
+            unnorm_weights[i] = merged_unnorm_weight
+            variances[i] = merged_variance
+            log_dets[i] = D * torch.log(merged_variance)
+            current_num -= 1
+
+            active_weights = norm_weights[:current_num]
+            combined_weights = active_weights + norm_weights[i]
+            deltas = means_work[:current_num] - means_work[i]
+            combined_variances = (
+                active_weights * variances[:current_num]
+                + norm_weights[i] * variances[i]
+            ) / combined_weights
+            combined_variances += (
+                active_weights
+                * norm_weights[i]
+                / combined_weights.square()
+                * torch.sum(deltas.square(), dim=1)
+                / D
+            )
+            new_costs = 0.5 * (
+                combined_weights * (D * torch.log(combined_variances))
+                - active_weights * log_dets[:current_num]
+                - norm_weights[i] * log_dets[i]
+            )
+            cost_matrix[i, :current_num] = new_costs
+            cost_matrix[:current_num, i] = new_costs
+            cost_matrix[i, i] = torch.inf
+            cost_matrix[current_num, :] = torch.inf
+            cost_matrix[:, current_num] = torch.inf
+
+            if current_num in snapshot_targets:
+                capture(current_num)
+
+        missing = snapshot_targets.difference(snapshots)
+        if missing:
+            raise RuntimeError(f"Failed to capture GMR snapshots: {sorted(missing)}")
+        return snapshots
 
     @staticmethod
     def kmeans_numpy(means: np.ndarray, sigma: float, cluster_size: int):

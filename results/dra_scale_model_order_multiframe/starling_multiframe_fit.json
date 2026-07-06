@@ -1,0 +1,55 @@
+{
+  "selected_model": "log_quadratic",
+  "variables": {
+    "s": "scale / mean NND",
+    "q": "component count / N"
+  },
+  "equation": "DRA = 1 - exp(b0 + b1*ln(s) + b2*ln(q) + b3*ln(s)*ln(q) + b4*ln(s)^2 + b5*ln(q)^2); omit trailing terms not present in the selected model",
+  "coefficient_order": [
+    "intercept",
+    "ln(s)",
+    "ln(q)",
+    "ln(s)*ln(q)",
+    "ln(s)^2",
+    "ln(q)^2"
+  ],
+  "candidates": {
+    "power": {
+      "coefficients": [
+        -4.100183636250421,
+        -2.118694054171302,
+        -0.964857724637834
+      ],
+      "rmse": 0.049650948944522405,
+      "frame_cv_rmse": 0.04977336466320985,
+      "dataset_cv_rmse": null,
+      "r_squared": 0.7468510414063156
+    },
+    "power_interaction": {
+      "coefficients": [
+        -2.7141254866618985,
+        -3.8474151896682574,
+        -0.5167538852708118,
+        -0.5588846169556965
+      ],
+      "rmse": 0.01177510021587847,
+      "frame_cv_rmse": 0.012179588051602139,
+      "dataset_cv_rmse": null,
+      "r_squared": 0.9857619582328142
+    },
+    "log_quadratic": {
+      "coefficients": [
+        -1.7727361887660071,
+        -3.4118029882146903,
+        0.1459567258134582,
+        -0.5588846169556987,
+        -0.2961796874081007,
+        0.09780791102704622
+      ],
+      "rmse": 0.0071533381301500465,
+      "frame_cv_rmse": 0.007595545738680857,
+      "dataset_cv_rmse": null,
+      "r_squared": 0.9947454134864302
+    }
+  }
+}

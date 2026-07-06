@@ -22,6 +22,14 @@ from dfr.mode_finding import find_target_scale, mode_counting, model_4pl_scale_a
 from dfr.utils import move_figure
 from experiments.reconstruction_scale_determination import compute_scaling_law
 from dfr.density_field_model import GaussianModel
+from experiments.plotting_utils import (
+    _set_academic_style, _style_3d_ax,
+    build_voxel_grid, compute_gt_density,
+    render_density_shells, render_gmm_wireframes,
+    render_agent_positions, render_gmm_means,
+    render_density_field_3d, render_reconstructed_gmm_3d,
+    DEFAULT_LAYERS, FIELD_LAYERS,
+)
 
 # ── Module-level constants ────────────────────────────────────────────────────
 CAM_NUM = 2
@@ -114,22 +122,6 @@ def _build_cam_system(dataset, step_range, config, cam_num, far_clip=200, device
         near_clip=config.near_clip, far_clip=far_clip, size=config.size, device=device,
     )
 
-def _set_academic_style():
-    """Apply publication-quality academic styling to matplotlib."""
-    plt.rcParams.update({
-        "font.family": "serif",  "mathtext.fontset": "cm",
-        "font.size": 12, "axes.labelsize": 14, "axes.titlesize": 14,
-        "xtick.labelsize": 10, "ytick.labelsize": 10, "legend.fontsize": 10,
-        "figure.dpi": 300, "savefig.bbox": "tight", "savefig.pad_inches": 0.1,
-    })
-
-def _style_3d_ax(ax):
-    """Transparent panes, subtle grid, no edge color on a 3D axis."""
-    for axis in [ax.xaxis, ax.yaxis, ax.zaxis]:
-        axis.pane.fill = False
-        axis._axinfo["grid"].update({"color": (0.8, 0.8, 0.8, 0.5), "linewidth": 0.5})
-        axis.pane.set_edgecolor('none')
-
 # ═══════════════════════════════════════════════════════════════════════════════
 #  Plotting / analysis functions
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -218,9 +210,7 @@ def plot_jackdaw2_density_field():
     Gaussian components overlaid as wireframe ellipsoids, so the viewer sees
     both the field and the GMM representation.
     """
-    from experiments.run_scenarios_angle_sweep import _build_grid, _precompute_gt_density
     from dfr.utils import eval_isotropic_gmm_torch
-    import matplotlib.colors as mcolors
 
     # ── Shared setup ───────────────────────────────────────────────────────
     name = 'jackdaw2'
@@ -239,8 +229,8 @@ def plot_jackdaw2_density_field():
 
     # ── Voxel grid & GT density ────────────────────────────────────────────
     print("Building voxel grid and evaluating GT density...")
-    grid = _build_grid(positions, scale, voxel_res_factor=2.5e-2)
-    density_flat = _precompute_gt_density(positions, scale, grid)
+    grid = build_voxel_grid(positions, scale, voxel_res_factor=2.5e-2)
+    density_flat = compute_gt_density(positions, scale, grid)
     density_3d = density_flat.numpy().reshape(grid['nx'], grid['ny'], grid['nz'])
     print(f"Grid: {grid['nx']}×{grid['ny']}×{grid['nz']} = {grid['total_voxels']:,} voxels")
 
@@ -290,11 +280,6 @@ def plot_jackdaw2_density_field():
     print(f"Reconstructed max density: {rdm:.4f}  (GT max: {dm:.4f})")
 
     # ── Shared rendering parameters ────────────────────────────────────────
-    layers = [
-        {'thresh': dm * 0.10, 'alpha_min': 0.45, 'alpha_max': 0.95, 'size': 8},
-        {'thresh': dm * 0.02, 'alpha_min': 0.25, 'alpha_max': 0.80, 'size': 6},
-        {'thresh': dm * 0.002,'alpha_min': 0.08, 'alpha_max': 0.50, 'size': 4},
-    ]
     view = dict(elev=33, azim=-117, roll=0)
 
     # ═══════════════════════════════════════════════════════════════════════
@@ -305,32 +290,10 @@ def plot_jackdaw2_density_field():
     ax1.view_init(**view)
     ax1.set_axis_off()
 
-    norm_gt = mcolors.PowerNorm(gamma=0.35, vmin=0, vmax=dm)
-
-    for layer in layers:
-        mask = density_3d >= layer['thresh']
-        if not mask.any():
-            continue
-        ix, iy, iz = np.where(mask)
-        pts = np.stack([x_t_np[ix], y_t_np[iy], z_t_np[iz]], axis=-1)
-        vals = density_3d[mask]
-        colors = plt.cm.viridis(norm_gt(vals))
-        alphas = norm_gt(vals) * (layer['alpha_max'] - layer['alpha_min']) + layer['alpha_min']
-        colors[:, 3] = np.clip(alphas, layer['alpha_min'], layer['alpha_max'])
-        ax1.scatter(pts[:, 0], pts[:, 1], pts[:, 2],
-                    c=colors, s=layer['size'], edgecolors='none',
-                    depthshade=False, rasterized=True)
-
-    # Agent positions forced on top
-    agent_coll_gt = ax1.scatter(
-        positions[:, 0], positions[:, 1], positions[:, 2],
-        c='#1f2937', s=25, alpha=1.0, linewidths=0.8)
-    _orig_gt = agent_coll_gt.do_3d_projection
-    def _force_gt():
-        _orig_gt()
-        agent_coll_gt._sort_zpos = -1e9
-        return agent_coll_gt._sort_zpos
-    agent_coll_gt.do_3d_projection = _force_gt
+    render_density_field_3d(
+        ax1, density_3d, x_t_np, y_t_np, z_t_np, positions,
+        layers=DEFAULT_LAYERS,
+    )
 
     fig1.tight_layout(pad=0)
     out_gt = f"figs/scene_traj_{name}_density_gt.png"
@@ -340,104 +303,21 @@ def plot_jackdaw2_density_field():
 
     # ═══════════════════════════════════════════════════════════════════════
     #  Figure 2 — MV-DFR Reconstructed GMM
-    #  Renders the *field* as nested density shells AND overlays wireframe
-    #  ellipsoids for each Gaussian component so the GMM structure is visible.
     # ═══════════════════════════════════════════════════════════════════════
     fig2 = plt.figure(figsize=(10, 10))
     ax2 = fig2.add_subplot(111, projection='3d')
     ax2.view_init(**view)
     ax2.set_axis_off()
 
-    # --- 2a. Density field (reduced alpha so wireframes show through) -------
-    # Use the same colour scale as GT but with lower alpha range so the
-    # overlaid GMM wireframes remain visible.
-    norm_rec = mcolors.PowerNorm(gamma=0.35, vmin=0, vmax=dm)
-    field_layers = [
-        {'thresh': dm * 0.10, 'alpha_min': 0.18, 'alpha_max': 0.55, 'size': 8},
-        {'thresh': dm * 0.02, 'alpha_min': 0.10, 'alpha_max': 0.40, 'size': 6},
-        {'thresh': dm * 0.002,'alpha_min': 0.04, 'alpha_max': 0.22, 'size': 4},
-    ]
-
-    for layer in field_layers:
-        mask = recon_density_3d >= layer['thresh']
-        if not mask.any():
-            continue
-        ix, iy, iz = np.where(mask)
-        pts = np.stack([x_t_np[ix], y_t_np[iy], z_t_np[iz]], axis=-1)
-        vals = recon_density_3d[mask]
-        colors = plt.cm.viridis(norm_rec(vals))
-        alphas = norm_rec(vals) * (layer['alpha_max'] - layer['alpha_min']) + layer['alpha_min']
-        colors[:, 3] = np.clip(alphas, layer['alpha_min'], layer['alpha_max'])
-        ax2.scatter(pts[:, 0], pts[:, 1], pts[:, 2],
-                    c=colors, s=layer['size'], edgecolors='none',
-                    depthshade=False, rasterized=True)
-
-    # --- 2b. GMM component wireframe ellipsoids -----------------------------
-    # Each isotropic Gaussian is drawn as a wireframe sphere at radius = σ
-    # (1 standard deviation).  Their do_3d_projection is monkey-patched to
-    # force them in front of the density-field scatter.
     means_np = recon_means.cpu().numpy()
     sigmas_np = recon_sigmas.cpu().numpy()
     weights_np = recon_weights.cpu().numpy()
-    w_max = weights_np.max() if weights_np.size > 0 else 1.0
 
-    gmm_color = '#4169e1'  # royalblue — distinct from the viridis density field
-
-    # Sphere mesh template (unit sphere)
-    u = np.linspace(0, 2 * np.pi, 20)
-    v = np.linspace(0, np.pi, 20)
-    sx = np.outer(np.cos(u), np.sin(v))
-    sy = np.outer(np.sin(u), np.sin(v))
-    sz = np.outer(np.ones(np.size(u)), np.cos(v))
-
-    wireframe_objs = []
-    for j in range(K):
-        r = float(sigmas_np[j])
-        alpha = max(0.15, min(0.70, weights_np[j] / w_max)) if w_max > 0 else 0.25
-        rgba = (*mcolors.to_rgb(gmm_color), alpha)
-        wf = ax2.plot_wireframe(
-            means_np[j, 0] + r * sx,
-            means_np[j, 1] + r * sy,
-            means_np[j, 2] + r * sz,
-            color=rgba,
-            rstride=2, cstride=2, linewidth=1.7,
-        )
-        wireframe_objs.append(wf)
-
-    # Monkey-patch each wireframe so it sorts in front of the density field
-    # but behind the agent positions (which use _sort_zpos = -1e9) and GMM
-    # mean markers (which use -6e8).  Use default-argument binding to capture
-    # the correct `obj` per loop iteration; use a fixed value so repeated
-    # calls to do_3d_projection (one per render) don't accumulate the offset.
-    for wf in wireframe_objs:
-        _orig_wf = wf.do_3d_projection
-        def _patch(orig=_orig_wf, obj=wf):
-            orig()
-            obj._sort_zpos = -5e8
-            return obj._sort_zpos
-        wf.do_3d_projection = _patch
-
-    # GMM means as small scatter markers (also forced in front of density)
-    means_coll = ax2.scatter(means_np[:, 0], means_np[:, 1], means_np[:, 2],
-                             c=gmm_color, marker='o', s=14, alpha=0.85,
-                             edgecolors='none', depthshade=True)
-    _orig_means = means_coll.do_3d_projection
-    def _force_means():
-        _orig_means()
-        means_coll._sort_zpos = -6e8
-        return means_coll._sort_zpos
-    means_coll.do_3d_projection = _force_means
-
-    # --- 2c. Agent positions forced on top of everything --------------------
-    agent_coll_rec = ax2.scatter(
-        positions[:, 0], positions[:, 1], positions[:, 2],
-        c='#1f2937', s=25, alpha=1.0, linewidths=0.8)
-    _orig_rec = agent_coll_rec.do_3d_projection
-    def _force_rec():
-        _orig_rec()
-        agent_coll_rec._sort_zpos = -1e9
-        return agent_coll_rec._sort_zpos
-    agent_coll_rec.do_3d_projection = _force_rec
+    render_reconstructed_gmm_3d(
+        ax2, recon_density_3d, x_t_np, y_t_np, z_t_np, positions,
+        means_np, sigmas_np, weights_np,
+        max_density=dm, gmm_colour='#4169e1',
+    )
 
     fig2.tight_layout(pad=0)
     out_rec = f"figs/scene_traj_{name}_density_recon.png"
@@ -453,27 +333,92 @@ def plot_jackdaw2_density_field():
     ax3.view_init(**view)
     ax3.set_axis_off()
 
-    for j in range(K):
-        r = float(sigmas_np[j])
-        alpha = max(0.15, min(0.70, weights_np[j] / w_max)) if w_max > 0 else 0.25
-        rgba = (*mcolors.to_rgb(gmm_color), alpha)
-        ax3.plot_wireframe(
-            means_np[j, 0] + r * sx,
-            means_np[j, 1] + r * sy,
-            means_np[j, 2] + r * sz,
-            color=rgba,
-            rstride=2, cstride=2, linewidth=1.7,
-        )
-
-    ax3.scatter(means_np[:, 0], means_np[:, 1], means_np[:, 2],
-                c=gmm_color, marker='o', s=14, alpha=0.85,
-                edgecolors='none', depthshade=True)
+    render_gmm_wireframes(ax3, means_np, sigmas_np, weights_np, colour='#4169e1')
+    render_gmm_means(ax3, means_np, colour='#4169e1')
 
     fig3.tight_layout(pad=0)
     out_wf = f"figs/scene_traj_{name}_gmm_wireframes.png"
     fig3.savefig(out_wf, transparent=True, bbox_inches='tight', pad_inches=0, dpi=300)
     plt.close(fig3)
     print(f"Saved {out_wf}")
+
+
+def plot_all_ground_truth_density_fields(
+    run_params=DATASET_RUNS,
+    sample_index=-1,
+    output_dir="figs",
+):
+    """Render one GT density-field sample for each configured dataset.
+
+    ``sample_index`` indexes both the scenario's sampled time-step range and
+    ``scales_gt``.  This keeps every frame paired with the GT scale computed
+    for that exact sample; the default selects the final sampled frame.
+    """
+    os.makedirs(output_dir, exist_ok=True)
+    output_paths = []
+    view = dict(elev=33, azim=-117, roll=0)
+
+    for params in run_params:
+        name, _, start_step, end_step, step_length = _unpack(params)
+        _, dataset, scenario_path = _load_scenario(name)
+        _, _, step_range = _step_range(
+            dataset, start_step, end_step, step_length,
+        )
+        sample_steps = list(step_range)
+
+        gt_data = np.load(
+            os.path.join(scenario_path, "reconstruction_scale.npz"),
+        )
+        gt_scales = gt_data["scales_gt"]
+        if len(gt_scales) != len(sample_steps):
+            raise ValueError(
+                f"{name}: found {len(gt_scales)} GT scales for "
+                f"{len(sample_steps)} sampled frames"
+            )
+
+        time_step = sample_steps[sample_index]
+        gt_scale = float(gt_scales[sample_index])
+        positions = dataset.positions_at_time_step(time_step)
+        print(
+            f"{name}: time step {time_step}, N={positions.shape[0]}, "
+            f"GT scale={gt_scale:.4f}"
+        )
+
+        grid = build_voxel_grid(
+            positions, gt_scale, voxel_res_factor=2.5e-2,
+        )
+        density_flat = compute_gt_density(positions, gt_scale, grid)
+        density_3d = density_flat.numpy().reshape(
+            grid["nx"], grid["ny"], grid["nz"],
+        )
+
+        fig = plt.figure(figsize=(10, 10))
+        ax = fig.add_subplot(111, projection="3d")
+        ax.view_init(**view)
+        ax.set_axis_off()
+        render_density_field_3d(
+            ax,
+            density_3d,
+            grid["x_ticks"].cpu().numpy(),
+            grid["y_ticks"].cpu().numpy(),
+            grid["z_ticks"].cpu().numpy(),
+            positions,
+            layers=DEFAULT_LAYERS,
+        )
+
+        fig.tight_layout(pad=0)
+        output_path = os.path.join(
+            output_dir, f"scene_traj_{name}_density_gt.png",
+        )
+        fig.savefig(
+            output_path, transparent=True, bbox_inches="tight",
+            pad_inches=0, dpi=300,
+        )
+        plt.close(fig)
+        output_paths.append(output_path)
+        print(f"Saved {output_path}")
+
+    return output_paths
 
 
 def plot_jackdaw2_2d_gmm(density_cutoff=1e-2, num_levels=8):
@@ -943,6 +888,581 @@ def plot_scale_space_curve():
     fig.tight_layout()
     fig.savefig("figs/2d_gss_curve.png", transparent=True, bbox_inches='tight')
     # plt.show()
+
+
+def _validate_nnd_bounds(nnd_bounds):
+    """Return a validated ``(lower, upper)`` NND-normalised scale interval."""
+    bounds = np.asarray(nnd_bounds, dtype=float)
+    if bounds.shape != (2,) or not np.all(np.isfinite(bounds)):
+        raise ValueError("nnd_bounds must contain two finite numbers.")
+    lower, upper = map(float, bounds)
+    if lower <= 0 or upper <= lower:
+        raise ValueError("nnd_bounds must satisfy 0 < lower < upper.")
+    return lower, upper
+
+
+def _select_adaptive_density_scales(
+    normalized_scales,
+    mode_counts,
+    n_selected=4,
+    relative_positions=None,
+):
+    """Select scales representing the empirical mode-count transition.
+
+    All selected scales lie strictly inside the sweep bounds so their vertical
+    guides remain visually distinct from the plot frame. Scales are chosen near
+    logarithmically spaced mode-count levels, with log-scale spacing as a
+    fallback for a flat curve. When ``relative_positions`` is supplied, it
+    overrides adaptive placement with positions in the open interval (0, 1),
+    measured along the logarithmic scale range.
+    """
+    normalized_scales = np.asarray(normalized_scales, dtype=float)
+    mode_counts = np.asarray(mode_counts, dtype=float)
+    if normalized_scales.ndim != 1 or mode_counts.shape != normalized_scales.shape:
+        raise ValueError("normalized_scales and mode_counts must be equal-length 1D arrays.")
+    if n_selected < 1 or len(normalized_scales) < n_selected + 2:
+        raise ValueError(
+            "The scale sweep must contain n_selected plus two boundary samples."
+        )
+    if np.any(normalized_scales <= 0) or np.any(mode_counts < 1):
+        raise ValueError("Scales must be positive and mode counts must be at least one.")
+
+    monotone_counts = np.minimum.accumulate(mode_counts)
+    selected = set()
+    available = set(range(1, len(normalized_scales) - 1))
+    log_scales = np.log(normalized_scales)
+
+    if relative_positions is not None:
+        relative_positions = np.asarray(relative_positions, dtype=float)
+        if relative_positions.shape != (n_selected,):
+            raise ValueError("slice_relative_positions must contain exactly n_slices values.")
+        if (not np.all(np.isfinite(relative_positions))
+                or np.any(relative_positions <= 0)
+                or np.any(relative_positions >= 1)
+                or np.any(np.diff(relative_positions) <= 0)):
+            raise ValueError(
+                "slice_relative_positions must be finite, strictly increasing, "
+                "and strictly between 0 and 1."
+            )
+        targets = log_scales[0] + relative_positions * (
+            log_scales[-1] - log_scales[0]
+        )
+        for target in targets:
+            idx = min(available, key=lambda i: abs(log_scales[i] - target))
+            selected.add(idx)
+            available.remove(idx)
+
+    elif monotone_counts[0] > monotone_counts[-1]:
+        targets = np.geomspace(
+            monotone_counts[0], monotone_counts[-1], n_selected + 2,
+        )[1:-1]
+        for target in targets:
+            if len(selected) == n_selected:
+                break
+            idx = min(
+                available,
+                key=lambda i: abs(np.log(monotone_counts[i]) - np.log(target)),
+            )
+            selected.add(idx)
+            available.remove(idx)
+
+    fallback_targets = np.linspace(
+        log_scales[0], log_scales[-1], n_selected + 2,
+    )[1:-1]
+    for target in fallback_targets:
+        if len(selected) == n_selected:
+            break
+        idx = min(available, key=lambda i: abs(log_scales[i] - target))
+        selected.add(idx)
+        available.remove(idx)
+
+    indices = np.asarray(sorted(selected), dtype=int)
+    return indices, normalized_scales[indices]
+
+
+def plot_jackdaw2_mode_count_curve(
+    force_recalculate: bool = False,
+    n_scales: int = 30,
+    nnd_bounds=(0.5, 1.5),
+    n_slices: int = 4,
+    slice_relative_positions=None,
+):
+    """Plot empirical mode count vs scale for jackdaw2 frame 2800.
+
+    Computes actual mode counts via GPU mean-shift + DBSCAN at each scale,
+    then plots a log-log curve matching the style of ``plot_scale_space_curve``.
+    Results are cached to avoid recomputation on subsequent runs.
+
+    ``nnd_bounds`` controls the sweep in units of mean nearest-neighbour
+    distance; it defaults to 0.7--1.5 x NND. ``n_slices`` controls the number
+    of dashed slice guides. Optionally, ``slice_relative_positions`` specifies
+    their positions as fractions of the logarithmic scale interval.
+    """
+    from scipy.spatial import cKDTree
+    from dfr.mode_finding import mode_counting
+
+    # ── Cache setup ───────────────────────────────────────────────────────
+    cache_dir = os.path.join(os.getcwd(), "results", "dra_scale_model_order")
+    os.makedirs(cache_dir, exist_ok=True)
+    cache_path = os.path.join(cache_dir, "jackdaw2_mode_count_curve.npz")
+
+    time_step = 2800
+    config, dataset, _ = _load_scenario("jackdaw2")
+    positions = dataset.positions_at_time_step(time_step).astype(np.float32, copy=False)
+    N = len(positions)
+    print(f"[jackdaw2] frame={time_step}, N={N}")
+
+    # Mean nearest-neighbour distance
+    if N < 2:
+        raise ValueError("Need at least 2 agents for NND.")
+    distances, _ = cKDTree(positions).query(positions, k=2)
+    mean_nnd = float(np.mean(distances[:, 1]))
+    print(f"[jackdaw2] mean NND = {mean_nnd:.5g}")
+
+    lower, upper = _validate_nnd_bounds(nnd_bounds)
+    if not isinstance(n_slices, (int, np.integer)) or n_slices < 1:
+        raise ValueError("n_slices must be a positive integer.")
+    if (not isinstance(n_scales, (int, np.integer))
+            or n_scales < n_slices + 2):
+        raise ValueError("n_scales must be at least n_slices + 2.")
+    normalized_scales = np.geomspace(lower, upper, n_scales)
+    scales = normalized_scales * mean_nnd
+
+    # ── Load cache or compute ─────────────────────────────────────────────
+    need_compute = True
+    if os.path.exists(cache_path) and not force_recalculate:
+        with np.load(cache_path) as cache:
+            if ("time_step" in cache.files and int(cache["time_step"]) == time_step
+                    and "scales" in cache.files
+                    and cache["scales"].shape == scales.shape
+                    and np.allclose(cache["scales"], scales)
+                    and "mode_counts" in cache.files
+                    and cache["mode_counts"].shape == scales.shape
+                    and np.all(cache["mode_counts"] >= 1)):
+                mode_counts = cache["mode_counts"]
+                need_compute = False
+                print(f"[jackdaw2] loaded cached mode counts from {cache_path}")
+
+    if need_compute:
+        if not torch.cuda.is_available():
+            raise RuntimeError("Computing mode counts requires a CUDA-capable PyTorch installation.")
+        pos_gpu = torch.from_numpy(positions).cuda().float()
+        # Tolerance for mean-shift convergence (matching reconstruction_scale_determination.py)
+        nn_dist = torch.cdist(pos_gpu, pos_gpu) + torch.eye(N, device="cuda") * 1e10
+        avg_nn_dist = torch.median(torch.min(nn_dist, dim=1).values).item()
+        tol = max(avg_nn_dist * 5e-4, 1e-8)
+
+        mode_counts = np.full(n_scales, -1, dtype=int)
+        for i, scale in enumerate(scales):
+            relative = scale / mean_nnd
+            print(f"  scale {i+1}/{n_scales}: σ={scale:.4f} ({relative:.2f}×NND) … ", end="", flush=True)
+            mode_counts[i] = mode_counting(
+                pos_gpu, pos_gpu.clone(), float(scale),
+                max_iter=2000, tol=tol,
+            )
+            print(f"{mode_counts[i]} modes")
+
+        np.savez(
+            cache_path,
+            time_step=time_step, scales=scales, normalized_scales=normalized_scales,
+            mode_counts=mode_counts, mean_nnd=mean_nnd, N=N,
+        )
+        print(f"[jackdaw2] cached mode counts → {cache_path}")
+
+    # ── Plot ──────────────────────────────────────────────────────────────
+    plt.rcParams.update({
+        "font.family": "serif", "mathtext.fontset": "cm",
+        "font.size": 16,
+        "axes.labelsize": 18,
+        "xtick.labelsize": 15, "ytick.labelsize": 15,
+        "legend.fontsize": 13,
+        "xtick.direction": "in", "ytick.direction": "in",
+        "xtick.minor.visible": True, "ytick.minor.visible": True,
+        "axes.grid": True, "grid.alpha": 0.3, "grid.linestyle": "--",
+    })
+
+    fig, ax = plt.subplots(figsize=(10, 5), dpi=300)
+
+    ax.plot(normalized_scales, mode_counts, color="#2c3e50", lw=2,
+            label=f"jackdaw2 frame {time_step} (N={N})")
+
+    selected_indices, selected_scales = _select_adaptive_density_scales(
+        normalized_scales,
+        mode_counts,
+        n_selected=n_slices,
+        relative_positions=slice_relative_positions,
+    )
+    slice_colours = plt.get_cmap(
+        "tab10" if n_slices <= 10 else "turbo", n_slices,
+    )(np.arange(n_slices))
+    for i, (index, selected_scale, colour) in enumerate(
+        zip(selected_indices, selected_scales, slice_colours), start=1,
+    ):
+        ax.plot(
+            selected_scale,
+            mode_counts[index],
+            marker="o",
+            linestyle="none",
+            markersize=9,
+            markerfacecolor=colour,
+            markeredgecolor="white",
+            markeredgewidth=0.8,
+            label=f"Slice {i} ({selected_scale:.3f} x NND)",
+            zorder=3,
+        )
+
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    ax.set_xlim(lower, upper)
+    ax.set_xlabel(r"Normalized scale ($\sigma / \mathrm{NND}$)")
+    ax.set_ylabel("Number of Modes")
+
+    if lower <= 1.0 <= upper:
+        x_axis_transform = ax.get_xaxis_transform()
+        ax.plot(
+            1.0, 0.055,
+            marker="v",
+            markersize=10,
+            color="black",
+            linestyle="none",
+            transform=x_axis_transform,
+            clip_on=False,
+            zorder=4,
+        )
+        ax.text(
+            1.0, 0.105, "NND",
+            color="black",
+            fontsize=15,
+            fontweight="semibold",
+            ha="center",
+            va="bottom",
+            transform=x_axis_transform,
+            zorder=4,
+        )
+
+    ax.legend(
+        loc="best",
+        ncol=2,
+        frameon=False,
+        handlelength=1.6,
+        columnspacing=1.0,
+    )
+
+    fig.tight_layout()
+    out_dir = os.path.join(os.getcwd(), "figs")
+    os.makedirs(out_dir, exist_ok=True)
+    out_path = os.path.join(out_dir, "jackdaw2_mode_count_curve.png")
+    fig.savefig(out_path, transparent=True, bbox_inches="tight")
+    plt.close(fig)
+    print(f"Saved → {out_path}")
+
+
+def plot_jackdaw2_multiscale_density(
+    force_recalculate: bool = False,
+    nnd_bounds=(0.5, 1.5),
+    n_scales: int = 30,
+    n_slices: int = 4,
+    slice_relative_positions=None,
+):
+    """Render 3D density fields at representative scales for jackdaw2 frame 2800.
+
+    Shows how the density field transitions from fine-grained (small scale,
+    many local modes) to coarse (large scale, few global modes).  Uses the
+    same scatter-shell rendering as ``plot_jackdaw2_density_field``, now
+    extracted to ``plotting_utils.render_density_field_3d``.
+
+    ``n_slices`` scales are selected adaptively from the empirical mode-count
+    sweep in ``nnd_bounds``. ``slice_relative_positions`` can instead place
+    them explicitly within the logarithmic interval. Voxel grids are cached to
+    ``results/dra_scale_model_order/``.
+    """
+    from scipy.spatial import cKDTree
+
+    # ── Setup ─────────────────────────────────────────────────────────────
+    time_step = 2800
+    config, dataset, _ = _load_scenario("jackdaw2")
+    positions = dataset.positions_at_time_step(time_step).astype(np.float32, copy=False)
+    N = len(positions)
+    print(f"[multiscale] jackdaw2 frame={time_step}, N={N}")
+
+    if N < 2:
+        raise ValueError("Need at least 2 agents.")
+    distances, _ = cKDTree(positions).query(positions, k=2)
+    mean_nnd = float(np.mean(distances[:, 1]))
+    print(f"[multiscale] mean NND = {mean_nnd:.5g}")
+
+    # ── Cache ─────────────────────────────────────────────────────────────
+    cache_dir = os.path.join(os.getcwd(), "results", "dra_scale_model_order")
+    os.makedirs(cache_dir, exist_ok=True)
+    mode_cache_path = os.path.join(cache_dir, "jackdaw2_mode_count_curve.npz")
+    cache_path = os.path.join(cache_dir, "jackdaw2_multiscale_density.npz")
+
+    lower, upper = _validate_nnd_bounds(nnd_bounds)
+    if not isinstance(n_slices, (int, np.integer)) or n_slices < 1:
+        raise ValueError("n_slices must be a positive integer.")
+    if (not isinstance(n_scales, (int, np.integer))
+            or n_scales < n_slices + 2):
+        raise ValueError("n_scales must be at least n_slices + 2.")
+    expected_sweep = np.geomspace(lower, upper, n_scales)
+
+    mode_cache_valid = False
+    if os.path.exists(mode_cache_path) and not force_recalculate:
+        with np.load(mode_cache_path) as mode_cache:
+            if "scales" in mode_cache.files:
+                cached_sweep = mode_cache["scales"] / mean_nnd
+                mode_cache_valid = (
+                    "time_step" in mode_cache.files
+                    and int(mode_cache["time_step"]) == time_step
+                    and cached_sweep.shape == expected_sweep.shape
+                    and np.allclose(cached_sweep, expected_sweep)
+                    and "mode_counts" in mode_cache.files
+                    and mode_cache["mode_counts"].shape == expected_sweep.shape
+                    and np.all(mode_cache["mode_counts"] >= 1)
+                )
+
+    # Compute a missing or incompatible empirical sweep. The curve function is
+    # the single owner of that expensive CUDA calculation and its cache.
+    if not mode_cache_valid:
+        plot_jackdaw2_mode_count_curve(
+            force_recalculate=force_recalculate,
+            n_scales=n_scales,
+            nnd_bounds=nnd_bounds,
+            n_slices=n_slices,
+            slice_relative_positions=slice_relative_positions,
+        )
+
+    with np.load(mode_cache_path) as mode_cache:
+        normalized_sweep = mode_cache["scales"] / mean_nnd
+        mode_counts = mode_cache["mode_counts"].astype(int, copy=False)
+    selected_indices, normalized_scales = _select_adaptive_density_scales(
+        normalized_sweep,
+        mode_counts,
+        n_selected=n_slices,
+        relative_positions=slice_relative_positions,
+    )
+    scales = normalized_scales * mean_nnd
+    selected_mode_counts = mode_counts[selected_indices]
+    print(
+        "[multiscale] selected scales: "
+        + ", ".join(
+            f"{scale:.3f} x NND ({count} modes)"
+            for scale, count in zip(normalized_scales, selected_mode_counts)
+        )
+    )
+
+    density_data = []
+    if os.path.exists(cache_path) and not force_recalculate:
+        with np.load(cache_path, allow_pickle=True) as cached:
+            if (
+                "time_step" in cached.files
+                and int(cached["time_step"]) == time_step
+                and "normalized_scales" in cached.files
+                and cached["normalized_scales"].shape == normalized_scales.shape
+                and np.allclose(cached["normalized_scales"], normalized_scales)
+                and all(f"density_{i}" in cached.files for i in range(n_slices))
+            ):
+                density_data = [
+                    cached[f"density_{i}"].item() for i in range(n_slices)
+                ]
+                print(f"[multiscale] loaded cached density grids from {cache_path}")
+
+    if not density_data:
+        for s, norm_s in zip(scales, normalized_scales):
+            print(f"[multiscale] building grid for sigma={s:.4f} ({norm_s:.3f} x NND) ...")
+            grid = build_voxel_grid(positions, s, voxel_res_factor=2.5e-2)
+            density_flat = compute_gt_density(positions, s, grid)
+            density_3d = density_flat.numpy().reshape(grid["nx"], grid["ny"], grid["nz"])
+            density_data.append({
+                "density": density_3d,
+                "grid_nx": grid["nx"], "grid_ny": grid["ny"], "grid_nz": grid["nz"],
+                "x_ticks": grid["x_ticks"].cpu().numpy(),
+                "y_ticks": grid["y_ticks"].cpu().numpy(),
+                "z_ticks": grid["z_ticks"].cpu().numpy(),
+            })
+            print(f"  -> {grid['nx']} x {grid['ny']} x {grid['nz']} = {grid['total_voxels']:,} voxels")
+
+        payload = {
+            "time_step": time_step,
+            "normalized_scales": normalized_scales,
+            "mode_counts": selected_mode_counts,
+        }
+        payload.update({f"density_{i}": data for i, data in enumerate(density_data)})
+        np.savez(cache_path, **payload)
+        print(f"[multiscale] cached density grids -> {cache_path}")
+
+    # ── Render individual figures ─────────────────────────────────────────
+    view = dict(elev=33, azim=-117, roll=0)
+    out_dir = os.path.join(os.getcwd(), "figs")
+    os.makedirs(out_dir, exist_ok=True)
+
+    for norm_scale, mode_count, data in zip(
+        normalized_scales, selected_mode_counts, density_data,
+    ):
+        density_3d = data["density"]
+        x_t_np = data["x_ticks"]
+        y_t_np = data["y_ticks"]
+        z_t_np = data["z_ticks"]
+
+        fig = plt.figure(figsize=(10, 10))
+        ax = fig.add_subplot(111, projection="3d")
+        ax.view_init(**view)
+        ax.set_axis_off()
+
+        render_density_field_3d(
+            ax, density_3d, x_t_np, y_t_np, z_t_np, positions,
+        )
+
+        ax.text2D(0.02, 0.98, f"{norm_scale:.3f} x NND ({mode_count} modes)",
+                  transform=ax.transAxes, fontsize=16, va="top")
+
+        fig.tight_layout(pad=0)
+        label = f"scale_{norm_scale:.3f}_nnd"
+        out_path = os.path.join(out_dir, f"jackdaw2_density_{label}.png")
+        fig.savefig(out_path, transparent=True, bbox_inches="tight", pad_inches=0, dpi=300)
+        plt.close(fig)
+        print(f"Saved → {out_path}")
+
+
+def plot_jackdaw2_dra_scale_model_order_surface(
+    force_recalculate: bool = False,
+    n_scales: int = 11,
+    nnd_bounds=(0.5, 1.5),
+    voxel_res_fraction: float = 5e-3,
+    batch_size: int = 200_000,
+    show: bool = False,
+):
+    """Plot the DRA scale--model-order surface for jackdaw2 frame 2800.
+
+    The ground-truth GMM scale is swept over ``nnd_bounds`` in units of the
+    frame's mean nearest-neighbour distance. At each scale, Runnalls reduction
+    is evaluated over the same model-order grid as
+    ``experiments.plot_dra_scale_model_order``. Completed scale rows are cached
+    so an interrupted CUDA sweep can be resumed.
+    """
+    from pathlib import Path
+    from experiments.plot_dra_scale_model_order import (
+        SweepConfig,
+        compute_surface,
+        fit_dra_surface,
+    )
+
+    lower, upper = _validate_nnd_bounds(nnd_bounds)
+    if not isinstance(n_scales, (int, np.integer)) or n_scales < 2:
+        raise ValueError("n_scales must be an integer greater than or equal to 2.")
+    if voxel_res_fraction <= 0 or not np.isfinite(voxel_res_fraction):
+        raise ValueError("voxel_res_fraction must be positive and finite.")
+    if not isinstance(batch_size, (int, np.integer)) or batch_size < 1:
+        raise ValueError("batch_size must be a positive integer.")
+    if not torch.cuda.is_available():
+        raise RuntimeError("The DRA scale--model-order sweep requires CUDA.")
+
+    time_step = 2800
+    normalized_scales = np.linspace(lower, upper, n_scales)
+    _, dataset, _ = _load_scenario("jackdaw2")
+    positions = dataset.positions_at_time_step(time_step).astype(np.float32, copy=False)
+
+    result_dir = Path(os.getcwd()) / "results" / "dra_scale_model_order"
+    result_dir.mkdir(parents=True, exist_ok=True)
+    result = compute_surface(
+        dataset_name="jackdaw2",
+        sweep=SweepConfig(time_step),
+        output_dir=result_dir,
+        force=force_recalculate,
+        voxel_res_fraction=float(voxel_res_fraction),
+        batch_size=int(batch_size),
+        positions=positions,
+        normalized_scale_values=normalized_scales,
+        cache_stem="jackdaw2_frame_2800_scale_sweep",
+    )
+    (
+        normalized_scales,
+        _,
+        components,
+        dra,
+        mean_nnd,
+        number_of_animals,
+    ) = result
+    if not np.all(np.isfinite(dra)):
+        raise RuntimeError("The DRA sweep is incomplete; the cache contains non-finite values.")
+
+    fit = fit_dra_surface(normalized_scales, components, number_of_animals, dra)
+    best_fit = fit["candidates"][fit["best_name"]]
+    actual_order_percentages = 100.0 * components / number_of_animals
+    scale_grid, order_grid = np.meshgrid(
+        normalized_scales, actual_order_percentages, indexing="ij",
+    )
+
+    plt.rcParams.update({
+        "font.family": "serif", "mathtext.fontset": "cm",
+        "font.size": 14,
+        "axes.labelsize": 16,
+        "axes.titlesize": 16,
+        "xtick.labelsize": 12,
+        "ytick.labelsize": 11,
+    })
+    fig = plt.figure(figsize=(10, 8), dpi=300)
+    ax = fig.add_subplot(111, projection="3d")
+    surface = ax.plot_surface(
+        scale_grid,
+        order_grid,
+        dra,
+        cmap="viridis",
+        edgecolor="none",
+        antialiased=True,
+        alpha=0.9,
+    )
+    ax.plot_wireframe(
+        scale_grid,
+        order_grid,
+        best_fit["prediction"],
+        color="black",
+        linewidth=0.75,
+        rstride=1,
+        cstride=1,
+        label="Fitted surface",
+    )
+    ax.set_xlabel(r"Normalized scale ($\sigma / \mathrm{NND}$)", labelpad=10)
+    ax.set_ylabel("Model order / N (%)", labelpad=12)
+    # Matplotlib's projected 3D z-label is easily clipped by the adjacent
+    # colourbar. An axes-aligned label is stable across backends and exports.
+    ax.set_zlabel("")
+    ax.text2D(
+        -0.08, 0.50, "DEA",
+        transform=ax.transAxes,
+        rotation=90,
+        fontsize=16,
+        ha="center",
+        va="center",
+        clip_on=False,
+    )
+    ax.set_xlim(lower, upper)
+    model_order_tick_indices = np.unique(np.rint(np.linspace(
+        0, len(actual_order_percentages) - 1, min(5, len(actual_order_percentages)),
+    )).astype(int))
+    model_order_ticks = actual_order_percentages[model_order_tick_indices]
+    ax.set_yticks(model_order_ticks)
+    ax.set_yticklabels([
+        f"{percentage:.1f}" for percentage in model_order_ticks
+    ])
+    ax.view_init(elev=28, azim=-130)
+    ax.legend(loc="upper left", frameon=False)
+    fig.colorbar(surface, ax=ax, shrink=0.72, pad=0.08, label="DRA")
+    fig.tight_layout(rect=(0.10, 0.02, 0.98, 0.98), pad=1.5)
+
+    out_dir = Path(os.getcwd()) / "figs"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / "jackdaw2_frame_2800_dra_scale_model_order_surface.png"
+    fig.savefig(out_path, dpi=300, bbox_inches="tight", pad_inches=0.20)
+    print(
+        f"Saved -> {out_path} "
+        f"(mean NND={mean_nnd:.5g}, N={number_of_animals})"
+    )
+    if show:
+        plt.show()
+    else:
+        plt.close(fig)
+    return fig, ax, result, fit
+
 
 def visual_hull_diagram():
     run_params = {'name': 'swift', 'log_name': LOG_NAME, 'start_step': 0, 'end_step': None, 'step_length': 200}
@@ -1738,7 +2258,7 @@ def one_frame_dMOTA_factor_analysis(force_recalculate=False):
         plt.plot(comp_nums, model_dmota_results[cam_num], label=f'Ours-{cam_num}',
                  color=colormap(i), marker='o', markersize=4, linewidth=1.5)
 
-    plt.xlabel('Component Number'); plt.ylabel('DRA')
+    plt.xlabel('Component Number'); plt.ylabel('DEA')
     plt.gca().spines['top'].set_visible(False); plt.gca().spines['right'].set_visible(False)
     plt.grid(True, which="major", axis="y", linestyle="-", alpha=0.3)
     plt.legend(loc='lower right', ncol=2, frameon=False)
@@ -1746,135 +2266,293 @@ def one_frame_dMOTA_factor_analysis(force_recalculate=False):
     plt.savefig('dmota_comparison.png', bbox_inches='tight')
     plt.show()
 
-def one_frame_dMOTA_factor_analysis_2(force_recalculate=False):
-    """
-    Args:
-        force_recalculate (bool): Set to True to ignore the cache and force a new calculation.
-    """
-    cache_filename = 'dmota_cache_2.pkl'
-    cam_nums = [2, 3, 5, 7, 9]
-    target_modes = list(range(5, 26))
-    fixed_comp_nums = 20
+def one_frame_dMOTA_factor_analysis_2(
+    force_recalculate=False,
+    cam_nums=None,
+    target_modes=None,
+    train_iters=1000,
+    metric_voxel_res_factor=5e-3,
+    cache_filename="dmota_cache_2.pkl",
+):
+    """Sweep target mode count and camera count with resumable computation.
 
+    Compared with the original implementation, this version avoids training
+    history/checkpoint I/O, evaluates each GT density grid only once, reuses
+    camera projections, memoizes mode-count queries, and saves every completed
+    result so interrupted runs can resume.
+    """
+    from experiments.run_scenarios_angle_sweep import _compute_metrics_cached
+
+    cam_nums = list(cam_nums) if cam_nums is not None else [2, 3, 5, 7, 9]
+    target_modes = (
+        list(target_modes) if target_modes is not None else list(range(5, 26))
+    )
+    fixed_comp_num = 20
+
+    run_params = DATASET_RUNS[0]
+    name, _, start_step, end_step, step_length = _unpack(run_params)
+    config, dataset, _ = _load_scenario(name)
+    _, _, step_range = _step_range(
+        dataset, start_step, end_step, step_length,
+    )
+    idx = 5
+    time_step = step_range[idx]
+    positions = dataset.positions_at_time_step(time_step)
+    number_of_agents = positions.shape[0]
+
+    signature = {
+        "version": 4,
+        "dataset": name,
+        "time_step": time_step,
+        "cam_nums": tuple(cam_nums),
+        "target_modes": tuple(target_modes),
+        "fixed_comp_num": fixed_comp_num,
+        "train_iters": train_iters,
+        "metric_voxel_res_factor": metric_voxel_res_factor,
+    }
+
+    cache = None
     if not force_recalculate and os.path.exists(cache_filename):
-        print(f"✅ Found cached data in '{cache_filename}'. Loading results...")
-        with open(cache_filename, 'rb') as f:
-            cached_data = pickle.load(f)
-            gmr_dmota_results = cached_data['gmr']
-            model_dmota_results = cached_data['model']
-            computed_scales = cached_data['scales']
-    else:
-        print("⏳ No cache found (or recalculation forced). Starting heavy computations...")
+        try:
+            with open(cache_filename, "rb") as handle:
+                candidate = pickle.load(handle)
+            if candidate.get("signature") == signature:
+                cache = candidate
+                print(f"Resuming cached sweep from '{cache_filename}'.")
+            else:
+                print(f"Ignoring incompatible cache '{cache_filename}'.")
+        except (EOFError, OSError, pickle.UnpicklingError, AttributeError):
+            print(f"Ignoring unreadable cache '{cache_filename}'.")
 
-        run_params = DATASET_RUNS[0]
-        name, _, start_step, end_step, step_length = _unpack(run_params)
-        config, dataset, scenario_path = _load_scenario(name)
-        _, _, step_range = _step_range(dataset, start_step, end_step, step_length)
-
-        idx = 5
-        time_step = step_range[idx]
-        positions = dataset.positions_at_time_step(time_step)
-        N = positions.shape[0]
-
-        min_coords = np.min(positions, axis=0); max_coords = np.max(positions, axis=0)
-        voxel_res = np.max(max_coords - min_coords) * 5e-3
-
-        train_params = {
-            'xyz_lr_c': 0.11550156892954913, 'xyz_lr_final_c': 0.015263086280830469,
-            'radius_lr_c': 0.09585436467026787, 'radius_lr_final_c': 0.02420618007560584,
-            'weights_lr_c': 0.19814963583342243, 'weights_lr_final_c': 0.7979132269720964,
-            'xyz_reg': 0.21978381872642633, 'radius_reg': 0.6083537781516261,
-            'radius_cutoff_inv': 0.6013595613763145, 'lr_max_steps': 1000,
+    if cache is None:
+        cache = {
+            "signature": signature,
+            "scales": {},
+            "gmr": {},
+            "model": {cam_num: {} for cam_num in cam_nums},
         }
 
-        reconstruction_params_base = {
-            'voxel_scale': 0.5, 'voxel_peak_threshold': 0.3, 'voxel_grid_max_size': 32,
-        }
+    def save_cache():
+        """Atomically save partial progress to avoid corrupt resumptions."""
+        os.makedirs(os.path.dirname(os.path.abspath(cache_filename)), exist_ok=True)
+        temporary_path = f"{cache_filename}.tmp"
+        with open(temporary_path, "wb") as handle:
+            pickle.dump(cache, handle)
+        os.replace(temporary_path, cache_filename)
 
-        log_file_path = os.getcwd()
+    train_params = {
+        "xyz_lr_c": 0.11550156892954913,
+        "xyz_lr_final_c": 0.015263086280830469,
+        "radius_lr_c": 0.09585436467026787,
+        "radius_lr_final_c": 0.02420618007560584,
+        "weights_lr_c": 0.19814963583342243,
+        "weights_lr_final_c": 0.7979132269720964,
+        "xyz_reg": 0.21978381872642633,
+        "radius_reg": 0.6083537781516261,
+        "radius_cutoff_inv": 0.6013595613763145,
+        "lr_max_steps": train_iters,
+    }
+    reconstruction_params_base = {
+        "voxel_scale": 0.5,
+        "voxel_peak_threshold": 0.3,
+        "voxel_grid_max_size": 32,
+        "voxel_peaks_number": fixed_comp_num,
+    }
 
-        # Calculate Exact Scales for Target Modes
+    missing_scales = [
+        mode for mode in target_modes if mode not in cache["scales"]
+    ]
+    if missing_scales:
         print("Calculating exact scales to hit target modes...")
-        pos_gpu = torch.from_numpy(positions).cuda().float()
-        nn_dist = torch.cdist(pos_gpu, pos_gpu) + torch.eye(pos_gpu.shape[0], device='cuda') * 1e10
-        avg_nn_dist = torch.median(torch.min(nn_dist, dim=1).values).item()
-        f = lambda s: mode_counting(pos_gpu, pos_gpu.clone(), s, max_iter=2000, tol=avg_nn_dist*5e-4)
-        computed_scales = [find_target_scale(f, tm, 0, 5) for tm in target_modes]
+        positions_gpu = torch.from_numpy(positions).cuda().float()
+        nearest_distances = torch.cdist(positions_gpu, positions_gpu)
+        nearest_distances.fill_diagonal_(float("inf"))
+        median_nnd = torch.median(
+            torch.min(nearest_distances, dim=1).values,
+        ).item()
+        mode_count_cache = {}
 
-        # Evaluate baseline GMR over Target Modes
-        print("Evaluating baseline GMR model across target modes...")
-        gmr_dmota_results = []
-        for tm, current_scale in zip(target_modes, computed_scales):
-            bounds = np.vstack((min_coords - 3 * current_scale, max_coords + 3 * current_scale)).T
-            r_means, r_weights, r_covs = GMR.runnalls_algorithm_simple_torch(
-                means=torch.from_numpy(positions),
-                radii=torch.full((N, 1), current_scale, device='cuda', dtype=torch.float),
-                weights=torch.full((N, 1), 1.0, device='cuda', dtype=torch.float),
-                L=fixed_comp_nums, DEVICE='cuda',
-            )
-            r_radius = torch.sqrt(r_covs[:, 0, 0]).reshape((-1, 1))
-            _, total_fp_mass, total_fn_mass = compute_metrics_batched_torch(
-                means1_np=positions, sigma1=current_scale,
-                pred_means=r_means, pred_weights=r_weights, pred_sigmas=r_radius,
-                bounds=bounds, voxel_res=voxel_res, batch_size=50000, device='cuda',
-            )
-            gmr_dmota_results.append(1 - (total_fn_mass + total_fp_mass) / N)
-
-        # Evaluate Main Model over CAM_NUMs and Target Modes
-        model_dmota_results = {cam_num: [] for cam_num in cam_nums}
-        for cam_num in cam_nums:
-            print(f"Testing CAM_NUM = {cam_num}...")
-            cam_system = _build_cam_system(dataset, step_range, config, cam_num)
-            poses, projections, _, masks = cam_system.simulate_vision(positions, renderer='projection_only')
-            density_reconstructor = DensityReconstructor(max_iter=train_params['lr_max_steps'], use_decoupled=False)
-
-            for tm, current_scale in zip(target_modes, computed_scales):
-                bounds = np.vstack((min_coords - 3 * current_scale, max_coords + 3 * current_scale)).T
-                reconstruction_params = reconstruction_params_base.copy()
-                reconstruction_params['targetd_num_mode'] = tm
-                reconstruction_params['voxel_peaks_number'] = fixed_comp_nums
-
-                model, scale_spaces = density_reconstructor.process_frame(
-                    cam_system, point_sets=projections, positions=positions,
-                    initGMM=None, is_adaptive_scale=False, scale=current_scale,
-                    is_store_intermediate=True, is_log=True,
-                    output_dir=os.path.join(log_file_path, f"t_{time_step:03d}"),
-                    debug=False, train_params=train_params,
-                    reconstruction_params=reconstruction_params,
+        def count_modes(scale):
+            scale = float(scale)
+            if scale not in mode_count_cache:
+                mode_count_cache[scale] = mode_counting(
+                    positions_gpu,
+                    positions_gpu.clone(),
+                    scale,
+                    max_iter=2000,
+                    tol=median_nnd * 5e-4,
                 )
-                _, total_fp_mass, total_fn_mass = compute_metrics_batched_torch(
-                    means1_np=positions, sigma1=current_scale,
-                    pred_means=model[0]._xyz, pred_weights=model[0]._weights, pred_sigmas=model[0]._radius,
-                    bounds=bounds, voxel_res=voxel_res, batch_size=50000, device='cuda',
+            return mode_count_cache[scale]
+
+        for mode in missing_scales:
+            scale_high = 5.0
+            while count_modes(scale_high) > mode and scale_high < 80.0:
+                scale_high *= 2.0
+            cache["scales"][mode] = find_target_scale(
+                count_modes, mode, 0, scale_high,
+            )
+            save_cache()
+
+    computed_scales = [cache["scales"][mode] for mode in target_modes]
+
+    # Camera geometry and point projections are invariant across scales.
+    camera_contexts = {}
+    for cam_num in cam_nums:
+        missing = any(
+            mode not in cache["model"][cam_num] for mode in target_modes
+        )
+        if not missing:
+            continue
+        cam_system = _build_cam_system(
+            dataset, step_range, config, cam_num,
+            far_clip=config.far_clip,
+        )
+        frame_center = np.mean(positions, axis=0)
+        for camera in cam_system.cameras:
+            camera.state.aim_at_location(frame_center)
+        _, projections, _, _ = cam_system.simulate_vision(
+            positions, renderer="projection_only",
+        )
+        camera_contexts[cam_num] = (
+            cam_system,
+            projections,
+            DensityReconstructor(max_iter=train_iters, use_decoupled=False),
+        )
+
+    # One GT evaluation per mode replaces one evaluation for GMR plus one for
+    # every camera configuration in the original loop.
+    for mode, current_scale in zip(target_modes, computed_scales):
+        missing_cams = [
+            cam_num for cam_num in cam_nums
+            if mode not in cache["model"][cam_num]
+        ]
+        if mode in cache["gmr"] and not missing_cams:
+            continue
+
+        print(f"Target modes={mode}, scale={current_scale:.6g}")
+        grid = build_voxel_grid(
+            positions,
+            current_scale,
+            voxel_res_factor=metric_voxel_res_factor,
+        )
+        gt_density = compute_gt_density(positions, current_scale, grid)
+
+        if mode not in cache["gmr"]:
+            reduced_means, reduced_weights, reduced_covariances = (
+                GMR.runnalls_algorithm_simple_torch(
+                    means=torch.from_numpy(positions),
+                    radii=torch.full(
+                        (number_of_agents, 1), current_scale,
+                        device="cuda", dtype=torch.float,
+                    ),
+                    weights=torch.ones(
+                        (number_of_agents, 1),
+                        device="cuda", dtype=torch.float,
+                    ),
+                    L=fixed_comp_num,
+                    DEVICE="cuda",
                 )
-                model_dmota_results[cam_num].append(1 - (total_fn_mass + total_fp_mass) / N)
+            )
+            reduced_radii = torch.sqrt(
+                reduced_covariances[:, 0, 0],
+            ).reshape((-1, 1))
+            _, fp_mass, fn_mass = _compute_metrics_cached(
+                reduced_means,
+                reduced_weights,
+                reduced_radii,
+                gt_density,
+                grid,
+            )
+            cache["gmr"][mode] = 1 - (
+                fn_mass + fp_mass
+            ) / number_of_agents
+            save_cache()
 
-        print(f"💾 Saving computed results to '{cache_filename}'...")
-        with open(cache_filename, 'wb') as f:
-            pickle.dump({'gmr': gmr_dmota_results, 'model': model_dmota_results, 'scales': computed_scales}, f)
+        for cam_num in missing_cams:
+            print(f"  Training CAM_NUM={cam_num}...")
+            cam_system, projections, reconstructor = camera_contexts[cam_num]
+            reconstruction_params = {
+                **reconstruction_params_base,
+                "targetd_num_mode": mode,
+            }
+            model, _ = reconstructor.process_frame(
+                cam_system,
+                point_sets=projections,
+                positions=positions,
+                initGMM=None,
+                is_adaptive_scale=False,
+                scale=current_scale,
+                is_store_intermediate=False,
+                is_log=False,
+                output_dir=None,
+                debug=False,
+                train_params=train_params,
+                reconstruction_params=reconstruction_params,
+            )
+            _, fp_mass, fn_mass = _compute_metrics_cached(
+                model[0]._xyz,
+                model[0]._weights,
+                model[0]._radius,
+                gt_density,
+                grid,
+            )
+            cache["model"][cam_num][mode] = 1 - (
+                fn_mass + fp_mass
+            ) / number_of_agents
+            save_cache()
 
-    # Plotting
-    print("🎨 Generating plot...")
+        del gt_density, grid
+
+    gmr_dmota_results = [cache["gmr"][mode] for mode in target_modes]
+    model_dmota_results = {
+        cam_num: [
+            cache["model"][cam_num][mode] for mode in target_modes
+        ]
+        for cam_num in cam_nums
+    }
+
+    print("Generating plot...")
     plt.figure(figsize=(6, 4))
-    plt.rcParams['font.family'] = 'serif'; plt.rcParams['mathtext.fontset'] = 'cm'
-    plt.rcParams['axes.labelsize'] = 12; plt.rcParams['xtick.labelsize'] = 10
-    plt.rcParams['ytick.labelsize'] = 10; plt.rcParams['legend.fontsize'] = 10
-    plt.rcParams['figure.dpi'] = 300
+    plt.rcParams["font.family"] = "serif"
+    plt.rcParams["mathtext.fontset"] = "cm"
+    plt.rcParams["axes.labelsize"] = 12
+    plt.rcParams["xtick.labelsize"] = 10
+    plt.rcParams["ytick.labelsize"] = 10
+    plt.rcParams["legend.fontsize"] = 10
+    plt.rcParams["figure.dpi"] = 300
 
-    plt.plot(target_modes, gmr_dmota_results, label='GMR-2', color='black', linewidth=2.5, linestyle='--', zorder=10)
-    colormap = plt.cm.get_cmap('viridis', len(cam_nums))
-    for i, cam_num in enumerate(cam_nums):
-        plt.plot(target_modes, model_dmota_results[cam_num], label=f'Ours-{cam_num}',
-                 color=colormap(i), marker='o', markersize=4, linewidth=1.5)
+    plt.plot(
+        target_modes,
+        gmr_dmota_results,
+        label="GMR-2",
+        color="black",
+        linewidth=2.5,
+        linestyle="--",
+        zorder=10,
+    )
+    colormap = plt.cm.get_cmap("viridis", len(cam_nums))
+    for index, cam_num in enumerate(cam_nums):
+        plt.plot(
+            target_modes,
+            model_dmota_results[cam_num],
+            label=f"Ours-{cam_num}",
+            color=colormap(index),
+            marker="o",
+            markersize=4,
+            linewidth=1.5,
+        )
 
-    plt.xlabel('Number of Modes'); plt.ylabel('DRA')
+    plt.xlabel("Number of Modes")
+    plt.ylabel("DEA")
     plt.xticks(target_modes[::2])
-    plt.gca().spines['top'].set_visible(False); plt.gca().spines['right'].set_visible(False)
+    plt.gca().spines["top"].set_visible(False)
+    plt.gca().spines["right"].set_visible(False)
     plt.grid(True, which="major", axis="y", linestyle="-", alpha=0.3)
-    plt.legend(loc='lower right', ncol=2, frameon=False)
+    plt.legend(loc="lower right", ncol=2, frameon=False)
     plt.tight_layout()
-    plt.savefig('dra_target_modes_comparison.png', bbox_inches='tight')
+    plt.savefig("dra_target_modes_comparison.png", bbox_inches="tight")
     plt.show()
+
 
 def one_frame_dMOTA_noise(force_recalculate=False):
     """
@@ -2274,14 +2952,8 @@ def plot_dra_and_loss(run_params=None, baseline_deg=90, eval_every=1,
         dm, positions,
         gmm_color='#4169e1',
     ):
-        """Render one GMM frame on *ax*: density shells + wireframes + agents.
-
-        All wireframe alpha values are scaled by component weight and baked
-        into RGBA tuples — identical rendering for both static PNGs and
-        animation frames.
-        """
+        """Render one GMM frame on *ax*: density shells + wireframes + agents."""
         from dfr.utils import eval_isotropic_gmm_torch
-        import matplotlib.colors as mcolors
 
         # --- Evaluate GMM density on the voxel grid (batched on GPU) -------
         x_t = torch.as_tensor(x_t_np, device="cuda")
@@ -2301,86 +2973,21 @@ def plot_dra_and_loss(run_params=None, baseline_deg=90, eval_every=1,
             recon_flat[start:end] = dens.cpu()
         recon_3d = recon_flat.numpy().reshape(nx, ny, nz)
 
-        # --- Density shells -------------------------------------------------
-        norm_rec = mcolors.PowerNorm(gamma=0.35, vmin=0, vmax=dm)
-        field_layers = [
-            {'thresh': dm * 0.10, 'alpha_min': 0.18, 'alpha_max': 0.55, 'size': 8},
-            {'thresh': dm * 0.02, 'alpha_min': 0.10, 'alpha_max': 0.40, 'size': 6},
-            {'thresh': dm * 0.002,'alpha_min': 0.04, 'alpha_max': 0.22, 'size': 4},
-        ]
-        for layer in field_layers:
-            mask = recon_3d >= layer['thresh']
-            if not mask.any():
-                continue
-            ix_, iy_, iz_ = np.where(mask)
-            pts = np.stack([x_t_np[ix_], y_t_np[iy_], z_t_np[iz_]], axis=-1)
-            vals = recon_3d[mask]
-            colors = plt.cm.viridis(norm_rec(vals))
-            alphas = (norm_rec(vals)
-                      * (layer['alpha_max'] - layer['alpha_min'])
-                      + layer['alpha_min'])
-            colors[:, 3] = np.clip(alphas, layer['alpha_min'], layer['alpha_max'])
-            ax.scatter(pts[:, 0], pts[:, 1], pts[:, 2],
-                       c=colors, s=layer['size'], edgecolors='none',
-                       depthshade=False, rasterized=True)
-
-        # --- GMM wireframe ellipsoids (alpha scaled by weights) -------------
         means_np = means.detach().cpu().numpy()
         sigmas_np = sigmas.detach().cpu().numpy()
         weights_np = weights.detach().cpu().numpy()
-        w_max = weights_np.max() if weights_np.size > 0 else 1.0
-        K = means_np.shape[0]
 
-        u = np.linspace(0, 2 * np.pi, 20)
-        v = np.linspace(0, np.pi, 20)
-        sx = np.outer(np.cos(u), np.sin(v))
-        sy = np.outer(np.sin(u), np.sin(v))
-        sz = np.outer(np.ones(np.size(u)), np.cos(v))
-
-        wireframe_objs = []
-        for j in range(K):
-            r = float(sigmas_np[j])
-            alpha = max(0.15, min(0.70, weights_np[j] / w_max)) if w_max > 0 else 0.25
-            rgba = (*mcolors.to_rgb(gmm_color), alpha)
-            wf = ax.plot_wireframe(
-                means_np[j, 0] + r * sx,
-                means_np[j, 1] + r * sy,
-                means_np[j, 2] + r * sz,
-                color=rgba,
-                rstride=2, cstride=2, linewidth=1.7,
-            )
-            wireframe_objs.append(wf)
-
-        for wf in wireframe_objs:
-            _orig_wf = wf.do_3d_projection
-            def _patch(orig=_orig_wf, obj=wf):
-                orig()
-                obj._sort_zpos = -5e8
-                return obj._sort_zpos
-            wf.do_3d_projection = _patch
-
-        # --- GMM mean markers (forced in front of density) ------------------
-        means_coll = ax.scatter(
-            means_np[:, 0], means_np[:, 1], means_np[:, 2],
-            c=gmm_color, marker='o', s=14, alpha=0.85,
-            edgecolors='none', depthshade=True)
-        _orig_means = means_coll.do_3d_projection
-        def _force_means():
-            _orig_means()
-            means_coll._sort_zpos = -6e8
-            return means_coll._sort_zpos
-        means_coll.do_3d_projection = _force_means
-
-        # --- Agent positions (forced on top of everything) ------------------
-        agent_coll = ax.scatter(
-            positions[:, 0], positions[:, 1], positions[:, 2],
-            c='#1f2937', s=25, alpha=1.0, linewidths=0.8)
-        _orig_agent = agent_coll.do_3d_projection
-        def _force_agent():
-            _orig_agent()
-            agent_coll._sort_zpos = -1e9
-            return agent_coll._sort_zpos
-        agent_coll.do_3d_projection = _force_agent
+        # --- Render using shared utilities ---------------------------------
+        render_density_shells(
+            ax, recon_3d, x_t_np, y_t_np, z_t_np,
+            max_density=dm, layers=FIELD_LAYERS,
+        )
+        render_gmm_wireframes(
+            ax, means_np, sigmas_np, weights_np,
+            colour=gmm_color, z_sort_pos=-5e8,
+        )
+        render_gmm_means(ax, means_np, colour=gmm_color, z_sort_pos=-6e8)
+        render_agent_positions(ax, positions, z_sort_pos=-1e9)
 
     # ── 3D density-field animation ────────────────────────────────────
     if save_animation_to is not None:
@@ -2479,7 +3086,6 @@ def plot_dra_and_loss(run_params=None, baseline_deg=90, eval_every=1,
 
     # ── GT density field figure (same style as plot_jackdaw2_density_field) ──
     print("Rendering GT density field figure…")
-    import matplotlib.colors as mcolors
 
     out_dir = os.path.join(os.getcwd(), "figs")
     os.makedirs(out_dir, exist_ok=True)
@@ -2493,13 +3099,7 @@ def plot_dra_and_loss(run_params=None, baseline_deg=90, eval_every=1,
     y_t_np = y_t.cpu().numpy() if hasattr(y_t, "cpu") else np.array(y_t)
     z_t_np = z_t.cpu().numpy() if hasattr(z_t, "cpu") else np.array(z_t)
     density_3d = gt_density.numpy().reshape(nx, ny, nz)
-    dm = density_3d.max()
 
-    layers_gt = [
-        {'thresh': dm * 0.10, 'alpha_min': 0.45, 'alpha_max': 0.95, 'size': 8},
-        {'thresh': dm * 0.02, 'alpha_min': 0.25, 'alpha_max': 0.80, 'size': 6},
-        {'thresh': dm * 0.002,'alpha_min': 0.08, 'alpha_max': 0.50, 'size': 4},
-    ]
     view_gt = dict(elev=33, azim=-117, roll=0)
 
     fig_gt = plt.figure(figsize=(10, 10))
@@ -2507,32 +3107,10 @@ def plot_dra_and_loss(run_params=None, baseline_deg=90, eval_every=1,
     ax_gt.view_init(**view_gt)
     ax_gt.set_axis_off()
 
-    norm_gt = mcolors.PowerNorm(gamma=0.35, vmin=0, vmax=dm)
-
-    for layer in layers_gt:
-        mask = density_3d >= layer['thresh']
-        if not mask.any():
-            continue
-        ix, iy, iz = np.where(mask)
-        pts = np.stack([x_t_np[ix], y_t_np[iy], z_t_np[iz]], axis=-1)
-        vals = density_3d[mask]
-        colors = plt.cm.viridis(norm_gt(vals))
-        alphas = norm_gt(vals) * (layer['alpha_max'] - layer['alpha_min']) + layer['alpha_min']
-        colors[:, 3] = np.clip(alphas, layer['alpha_min'], layer['alpha_max'])
-        ax_gt.scatter(pts[:, 0], pts[:, 1], pts[:, 2],
-                      c=colors, s=layer['size'], edgecolors='none',
-                      depthshade=False, rasterized=True)
-
-    # Agent positions forced on top
-    agent_coll_gt = ax_gt.scatter(
-        positions[:, 0], positions[:, 1], positions[:, 2],
-        c='#1f2937', s=25, alpha=1.0, linewidths=0.8)
-    _orig_gt = agent_coll_gt.do_3d_projection
-    def _force_gt():
-        _orig_gt()
-        agent_coll_gt._sort_zpos = -1e9
-        return agent_coll_gt._sort_zpos
-    agent_coll_gt.do_3d_projection = _force_gt
+    render_density_field_3d(
+        ax_gt, density_3d, x_t_np, y_t_np, z_t_np, positions,
+        layers=DEFAULT_LAYERS,
+    )
 
     fig_gt.tight_layout(pad=0)
     out_gt = os.path.join(out_dir, f"dra_loss_{name}_{baseline_deg}deg_density_gt.png")
@@ -2558,7 +3136,7 @@ def plot_dra_and_loss(run_params=None, baseline_deg=90, eval_every=1,
     _draw_gmm_frame(
         ax_rec, recon_means, recon_weights, recon_sigmas,
         x_t_np, y_t_np, z_t_np, nx, ny, nz, total_voxels,
-        dm, positions,
+        float(density_3d.max()), positions,
     )
 
     fig_rec.tight_layout(pad=0)
@@ -2570,13 +3148,13 @@ def plot_dra_and_loss(run_params=None, baseline_deg=90, eval_every=1,
     # ── Style ─────────────────────────────────────────────────────────
     plt.rcParams.update({
         "font.family": "serif", "mathtext.fontset": "cm",
-        "font.size": 12, "axes.labelsize": 13, "axes.titlesize": 14,
-        "xtick.labelsize": 10, "ytick.labelsize": 10, "legend.fontsize": 9,
+        "font.size": 16, "axes.labelsize": 18, "axes.titlesize": 18,
+        "xtick.labelsize": 14, "ytick.labelsize": 14, "legend.fontsize": 13,
         "figure.dpi": 300,
     })
 
     # ── Plot ──────────────────────────────────────────────────────────
-    fig, ax1 = plt.subplots(figsize=(8, 5))
+    fig, ax1 = plt.subplots(figsize=(9, 6.5))
 
     color_cam1 = "#1f77b4"; color_cam2 = "#d62728"; color_dmota = "#2ca02c"
 
@@ -2589,7 +3167,7 @@ def plot_dra_and_loss(run_params=None, baseline_deg=90, eval_every=1,
 
     ax2 = ax1.twinx()
     ax2.plot(np.array(eval_iters), dmota_vals, color=color_dmota, linewidth=2.2, markeredgewidth=1.5, label="DRA", zorder=5)
-    ax2.set_ylabel("DRA", color=color_dmota)
+    ax2.set_ylabel("DEA", color=color_dmota)
     ax2.tick_params(axis="y", labelcolor=color_dmota)
     ax2.set_ylim(max(0.0, np.nanmin(dmota_vals) - 0.05), min(1.0, np.nanmax(dmota_vals) + 0.05))
 
@@ -2730,6 +3308,556 @@ def plot_camera_configurations(dataset_name="swift"):
     return fig, ax
 
 
+def plot_table_2_results(save_dir=None):
+    """Plot two publication-quality figures from the metrics data
+    across four datasets (Swift, Starling, Jackdaw, Jackdaw 2) and four
+    methods (GMR-2, Ours-2, Ours-3, Ours-5).
+
+    Figure 1 — DRA Capacity-Scaling Plot:
+        x-axis = Number of cameras (Ours-2, Ours-3, Ours-5).
+        y-axis = DRA ↑.
+        Four curves (one per dataset), GMR-2 as dashed horizontal baselines.
+        Shows Ours improving consistently from 2→3→5 and approaching GMR-2.
+
+    Figure 2 — Recall–Hallucination Trade-off:
+        x-axis = Hallucination ↓ (lower is better).
+        y-axis = Recall ↑ (higher is better).
+        Points coloured by method, marker-shaped by dataset.
+        Iso-DRA reference curves in the background.
+        Upper-left corner = Pareto-optimal region.
+
+    Parameters
+    ----------
+    save_dir : str or None
+        Directory for saving outputs.  Defaults to ``"figs"`` under cwd.
+    """
+    from matplotlib.lines import Line2D
+
+    # ── Table data ───────────────────────────────────────────────────────
+    # Structure: _data[dataset][method] = (Rec, Hallu, DRA)
+    datasets_order = ["Swift", "Starling", "Jackdaw", "Jackdaw 2"]
+    ours_methods  = ["Ours-2", "Ours-3", "Ours-5"]
+    all_methods   = ["GMR-2"] + ours_methods
+    cam_counts    = [2, 3, 5]          # maps to Ours-2, Ours-3, Ours-5
+
+    _data = {
+        "Swift": {
+            "GMR-2":  (0.824, 0.038, 0.792),
+            "Ours-2": (0.749, 0.245, 0.504),
+            "Ours-3": (0.831, 0.168, 0.663),
+            "Ours-5": (0.889, 0.107, 0.782),
+        },
+        "Starling": {
+            "GMR-2":  (0.904, 0.096, 0.808),
+            "Ours-2": (0.644, 0.355, 0.289),
+            "Ours-3": (0.889, 0.120, 0.768),
+            "Ours-5": (0.901, 0.113, 0.786),
+        },
+        "Jackdaw": {
+            "GMR-2":  (0.903, 0.059, 0.847),
+            "Ours-2": (0.700, 0.296, 0.405),
+            "Ours-3": (0.821, 0.177, 0.645),
+            "Ours-5": (0.873, 0.119, 0.755),
+        },
+        "Jackdaw 2": {
+            "GMR-2":  (0.938, 0.054, 0.884),
+            "Ours-2": (0.801, 0.188, 0.614),
+            "Ours-3": (0.871, 0.120, 0.752),
+            "Ours-5": (0.906, 0.085, 0.822),
+        },
+    }
+
+    # ── Colour / marker palettes ─────────────────────────────────────────
+    METHOD_COLORS = {
+        "GMR-2":  "#333333",
+        "Ours-2": "#D55E00",
+        "Ours-3": "#0072B2",
+        "Ours-5": "#009E73",
+    }
+    METHOD_MARKERS = {
+        "GMR-2": "*",
+        "Ours-2": "s",
+        "Ours-3": "D",
+        "Ours-5": "o",
+    }
+
+    DATASET_COLORS = {
+        "Swift":     "#1f77b4",
+        "Starling":  "#d62728",
+        "Jackdaw":   "#2ca02c",
+        "Jackdaw 2": "#9467bd",
+    }
+    DATASET_MARKERS = {
+        "Swift": "o", "Starling": "s", "Jackdaw": "D", "Jackdaw 2": "^",
+    }
+
+    # ── Styling ──────────────────────────────────────────────────────────
+    _set_academic_style()
+    plt.rcParams.update({
+        "font.size": 16,
+        "axes.labelsize": 18,
+        "axes.titlesize": 18,
+        "xtick.labelsize": 14,
+        "ytick.labelsize": 14,
+        "legend.fontsize": 13,
+    })
+    out_dir = save_dir or os.path.join(os.getcwd(), "figs")
+    os.makedirs(out_dir, exist_ok=True)
+
+    # ═════════════════════════════════════════════════════════════════════
+    #  Figure 1 — DRA Capacity-Scaling Plot
+    # ═════════════════════════════════════════════════════════════════════
+    fig1, ax1 = plt.subplots(figsize=(9, 6.5))
+
+    # --- GMR-2 dashed horizontal baselines (one per dataset) --------------
+    for ds in datasets_order:
+        gmr_dra = _data[ds]["GMR-2"][2]
+        ax1.axhline(
+            y=gmr_dra, color=DATASET_COLORS[ds],
+            linestyle="--", linewidth=1.2, alpha=0.55, zorder=2,
+        )
+
+    # --- Ours curves (DRA vs camera count) --------------------------------
+    for ds in datasets_order:
+        dra_vals = [_data[ds][m][2] for m in ours_methods]
+        ax1.plot(
+            cam_counts, dra_vals,
+            color=DATASET_COLORS[ds],
+            marker=DATASET_MARKERS[ds],
+            markersize=10, linewidth=2.2,
+            markeredgewidth=0.8, markeredgecolor="white",
+            label=ds,
+            zorder=5,
+        )
+
+    # --- GMR-2 legend proxy (dashed line) ---------------------------------
+    gmr_handle = Line2D([0], [0], color="#555555", linestyle="--",
+                        linewidth=1.2, label="GMR-2 (baseline)")
+    handles, labels = ax1.get_legend_handles_labels()
+    handles.insert(0, gmr_handle)
+    labels.insert(0, "GMR-2 (baseline)")
+    ax1.legend(handles, labels, loc="lower right", frameon=True,
+               fancybox=False, edgecolor="#CCCCCC", fontsize=13)
+
+    ax1.set_xlabel("Number of Cameras")
+    ax1.set_ylabel("DEA")
+    ax1.set_xticks(cam_counts)
+    ax1.set_xlim(1.5, 5.5)
+    ax1.set_ylim(0.15, 0.98)
+    ax1.spines["top"].set_visible(False)
+    ax1.spines["right"].set_visible(False)
+    ax1.grid(True, which="major", axis="y", linestyle="-", alpha=0.2)
+    ax1.grid(True, which="minor", axis="y", linestyle=":", alpha=0.08)
+
+    fig1.tight_layout(pad=2.5)
+    for fmt in ("png", "pdf"):
+        fig1.savefig(
+            os.path.join(out_dir, f"table2_dea_capacity_scaling.{fmt}"),
+            dpi=300, bbox_inches="tight",
+        )
+    print(f"Figure 1 saved → {out_dir}/table2_dea_capacity_scaling.[png|pdf]")
+
+    # ═════════════════════════════════════════════════════════════════════
+    #  Figure 2 — Recall–Hallucination Trade-off
+    # ═════════════════════════════════════════════════════════════════════
+    fig2, ax2 = plt.subplots(figsize=(9, 6.5))
+
+    # --- Iso-DRA background curves ----------------------------------------
+    # DRA = Rec · (1 − 2·Hallu) / (1 − Hallu)  →  Rec = DRA · (1−Hallu)/(1−2·Hallu)
+    hallu_grid = np.linspace(0.001, 0.42, 200)
+    iso_dra_levels = [0.3, 0.5, 0.7, 0.85]
+    for dra_lvl in iso_dra_levels:
+        rec_curve = dra_lvl * (1.0 - hallu_grid) / (1.0 - 2.0 * hallu_grid)
+        # Clip to visible range
+        valid = (rec_curve > 0.4) & (rec_curve < 1.05)
+        if valid.any():
+            ax2.plot(
+                hallu_grid[valid], rec_curve[valid],
+                color="#B0B0B0", linewidth=0.7, linestyle=":",
+                alpha=0.55, zorder=1,
+            )
+            # Label near the right end of each curve
+            idx_label = np.where(valid)[0][-1]
+            ax2.annotate(
+                f"DRA={dra_lvl}", (hallu_grid[idx_label], rec_curve[idx_label]),
+                textcoords="offset points", xytext=(4, -2),
+                fontsize=11, color="#888888", va="top",
+                alpha=0.7,
+            )
+
+    # --- Scatter points ---------------------------------------------------
+    for ds in datasets_order:
+        for method in all_methods:
+            rec, hallu, dra = _data[ds][method]
+            ax2.scatter(
+                hallu, rec,
+                c=METHOD_COLORS[method],
+                marker=DATASET_MARKERS[ds],
+                s=140 if method == "GMR-2" else 110,
+                edgecolors="white",
+                linewidths=0.8 if method == "GMR-2" else 0.5,
+                alpha=0.92,
+                zorder=6 if method == "GMR-2" else 4,
+            )
+
+    # --- Directional indicators -------------------------------------------
+    ax2.annotate("← better (lower hallucination)", xy=(0.02, 0.015),
+                 xycoords="axes fraction",
+                 fontsize=12, color="#888888", ha="left", va="bottom")
+    ax2.annotate("better (higher recall) ↑", xy=(0.02, 0.975),
+                 xycoords="axes fraction",
+                 fontsize=12, color="#888888", ha="left", va="top")
+
+    # --- Proxy legend artists ---------------------------------------------
+    method_handles = [
+        Line2D([0], [0], color=METHOD_COLORS[m], linewidth=2.5,
+               marker=METHOD_MARKERS[m], markersize=8,
+               markerfacecolor=METHOD_COLORS[m],
+               markeredgecolor="white", markeredgewidth=0.5,
+               label=m) for m in all_methods
+    ]
+    dataset_handles = [
+        Line2D([0], [0], marker=DATASET_MARKERS[ds], color="w",
+               markerfacecolor="#333333", markersize=9,
+               label=ds) for ds in datasets_order
+    ]
+
+    legend1 = ax2.legend(handles=method_handles, loc="lower left", bbox_to_anchor=(0.02, 0.10),
+                         frameon=True, fancybox=False, edgecolor="#CCCCCC",
+                         fontsize=13, title="Method", title_fontsize=14)
+    ax2.add_artist(legend1)
+    ax2.legend(handles=dataset_handles, loc="upper right",
+               frameon=True, fancybox=False, edgecolor="#CCCCCC",
+               fontsize=13, title="Dataset", title_fontsize=14)
+
+    ax2.set_xlabel("Hallucination  ↓")
+    ax2.set_ylabel("Recall  ↑")
+    ax2.set_xlim(-0.02, 0.48)
+    ax2.set_ylim(0.55, 1.05)
+    ax2.spines["top"].set_visible(False)
+    ax2.spines["right"].set_visible(False)
+    ax2.grid(True, which="major", linestyle="-", alpha=0.15)
+    ax2.grid(True, which="minor", linestyle=":", alpha=0.06)
+
+    fig2.tight_layout(pad=2.5)
+    for fmt in ("png", "pdf"):
+        fig2.savefig(
+            os.path.join(out_dir, f"table2_recall_hallu_tradeoff.{fmt}"),
+            dpi=300, bbox_inches="tight",
+        )
+    print(f"Figure 2 saved → {out_dir}/table2_recall_hallu_tradeoff.[png|pdf]")
+
+    plt.show()
+    return fig1, fig2
+
+
+def plot_table_time_efficiency(save_dir=None):
+    """Training-time scaling with iteration budget.
+
+    Single-panel scatter plot: x-axis = iterations (100, 200, 500),
+    y-axis = Training Time (msec).  Method → colour, Dataset → marker.
+
+    The figure shows that training time grows approximately linearly
+    with the iteration budget across all datasets and model variants,
+    with similar per-iteration cost regardless of dataset or capacity.
+
+    Parameters
+    ----------
+    save_dir : str or None
+        Directory for saving outputs.  Defaults to ``"figs"`` under cwd.
+    """
+    from matplotlib.lines import Line2D
+
+    # ── Table data ───────────────────────────────────────────────────────
+    datasets_order = ["Swift", "Starling", "Jackdaw", "Jackdaw 2"]
+    methods_order = ["Ours-2", "Ours-3", "Ours-5"]
+    iters_order   = [100, 200, 500]
+
+    _data = {
+        "Swift": {
+            "Ours-2": {100: 116, 200: 213, 500: 559},
+            "Ours-3": {100: 123, 200: 225, 500: 554},
+            "Ours-5": {100: 119, 200: 234, 500: 551},
+        },
+        "Starling": {
+            "Ours-2": {100: 109, 200: 203, 500: 513},
+            "Ours-3": {100: 105, 200: 289, 500: 535},
+            "Ours-5": {100: 122, 200: 214, 500: 722},
+        },
+        "Jackdaw": {
+            "Ours-2": {100: 118, 200: 218, 500: 547},
+            "Ours-3": {100: 112, 200: 234, 500: 574},
+            "Ours-5": {100: 126, 200: 256, 500: 570},
+        },
+        "Jackdaw 2": {
+            "Ours-2": {100: 128, 200: 229, 500: 556},
+            "Ours-3": {100: 128, 200: 239, 500: 544},
+            "Ours-5": {100: 126, 200: 230, 500: 564},
+        },
+    }
+
+    # ── Colour / marker palette ──────────────────────────────────────────
+    METHOD_COLORS = {
+        "Ours-2": "#D55E00",
+        "Ours-3": "#0072B2",
+        "Ours-5": "#009E73",
+    }
+    DATASET_MARKERS = {
+        "Swift": "o", "Starling": "s", "Jackdaw": "D", "Jackdaw 2": "^",
+    }
+
+    # ── Styling ──────────────────────────────────────────────────────────
+    _set_academic_style()
+    out_dir = save_dir or os.path.join(os.getcwd(), "figs")
+    os.makedirs(out_dir, exist_ok=True)
+
+    # ═════════════════════════════════════════════════════════════════════
+    #  Single panel — Training Time vs Iterations  (scatter)
+    # ═════════════════════════════════════════════════════════════════════
+    plt.rcParams.update({
+        "font.size": 16,
+        "axes.labelsize": 18,
+        "axes.titlesize": 18,
+        "xtick.labelsize": 14,
+        "ytick.labelsize": 14,
+        "legend.fontsize": 13,
+    })
+    fig, ax = plt.subplots(figsize=(9, 6.5))
+
+    for ds in datasets_order:
+        for method in methods_order:
+            times = [_data[ds][method][it] for it in iters_order]
+            ax.scatter(
+                iters_order, times,
+                c=METHOD_COLORS[method],
+                marker=DATASET_MARKERS[ds],
+                s=100, edgecolors="white", linewidths=0.7,
+                alpha=0.92, zorder=4,
+            )
+
+    # --- Shared y-range across all data ----------------------------------
+    all_t = [t for ds in datasets_order for m in methods_order
+             for it in iters_order for t in [_data[ds][m][it]]]
+    t_lo, t_hi = min(all_t), max(all_t)
+    t_pad = (t_hi - t_lo) * 0.12
+
+    # --- Ideal-linear-scaling reference line -----------------------------
+    avg_t100 = np.mean([_data[ds][m][100] for ds in datasets_order
+                        for m in methods_order])
+    #  T(k) = (avg_t100 / 100) · k   →  slope from origin through mean @ 100
+    x_line = np.array([80, 520])
+    y_line = (avg_t100 / 100.0) * x_line
+    ax.plot(x_line, y_line, color="#333333", linestyle="--",
+            linewidth=1.4, alpha=0.50, zorder=2,
+            label="ideal linear  $T(k) \\propto k$")
+
+    # --- Dual legend: methods (colour) / datasets (marker) ---------------
+    method_handles = [
+        Line2D([0], [0], marker="o", color="w",
+               markerfacecolor=METHOD_COLORS[m], markersize=9,
+               markeredgecolor="white", markeredgewidth=0.5,
+               label=m) for m in methods_order
+    ]
+    dataset_handles = [
+        Line2D([0], [0], marker=DATASET_MARKERS[ds], color="w",
+               markerfacecolor="#555555", markersize=9,
+               label=ds) for ds in datasets_order
+    ]
+
+    leg1 = ax.legend(handles=method_handles, loc="upper left",
+                     frameon=True, fancybox=False, edgecolor="#CCCCCC",
+                     fontsize=13, title="Method", title_fontsize=14)
+    ax.add_artist(leg1)
+    ax.legend(handles=dataset_handles, loc="lower right",
+              frameon=True, fancybox=False, edgecolor="#CCCCCC",
+              fontsize=13, title="Dataset", title_fontsize=14)
+
+    # --- Axis formatting -------------------------------------------------
+    ax.set_xlim(80, 520)
+    ax.set_xticks(iters_order)
+    ax.set_ylim(t_lo - t_pad, t_hi + t_pad)
+    ax.set_xlabel("Training Iterations")
+    ax.set_ylabel("Training Time (msec)")
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.grid(True, which="major", linestyle="-", alpha=0.18)
+    ax.grid(True, which="minor", linestyle=":", alpha=0.06)
+
+    # ── Save & return ────────────────────────────────────────────────────
+    fig.tight_layout(pad=3.5)
+    for fmt in ("png", "pdf"):
+        fig.savefig(
+            os.path.join(out_dir, f"table_dra_vs_iters.{fmt}"),
+            dpi=300, bbox_inches="tight",
+        )
+    print(f"Figure saved → {out_dir}/table_dra_vs_iters.[png|pdf]")
+
+    plt.show()
+    return fig, ax
+
+
+def plot_table_noise_robustness(save_dir=None):
+    """Noise robustness under varying multi-view redundancy.
+
+    Single-panel figure:  x-axis = noise level σ_n (px),
+    y-axis = DRA ↑.  Three curves (2-cam, 3-cam, 5-cam) show the
+    mean DRA across the four datasets; a shaded band marks the
+    min–max range.  Direct line labels replace a legend box.
+
+    The figure shows that adding cameras dominates the effect of
+    moderate image noise: 5-cam under high noise outperforms 2-cam
+    under low noise, and the dataset-to-dataset variation is modest.
+
+    Parameters
+    ----------
+    save_dir : str or None
+        Directory for saving outputs.  Defaults to ``"figs"`` under cwd.
+    """
+    # ── Table data ───────────────────────────────────────────────────────
+    datasets_order = ["Swift", "Starling", "Jackdaw", "Jackdaw 2"]
+    cam_labels     = ["2-cam", "3-cam", "5-cam"]
+    noise_levels   = [5, 10, 20]
+
+    # Structure: _data[dataset][cam_label][σ_n] = (Rec, DRA)
+    _data = {
+        "Swift": {
+            "2-cam": {5: (0.744, 0.497), 10: (0.741, 0.491), 20: (0.747, 0.506)},
+            "3-cam": {5: (0.833, 0.668), 10: (0.833, 0.669), 20: (0.826, 0.655)},
+            "5-cam": {5: (0.888, 0.780), 10: (0.887, 0.777), 20: (0.874, 0.753)},
+        },
+        "Starling": {
+            "2-cam": {5: (0.642, 0.282), 10: (0.648, 0.297), 20: (0.669, 0.222)},
+            "3-cam": {5: (0.890, 0.770), 10: (0.875, 0.742), 20: (0.851, 0.703)},
+            "5-cam": {5: (0.895, 0.779), 10: (0.896, 0.780), 20: (0.870, 0.734)},
+        },
+        "Jackdaw": {
+            "2-cam": {5: (0.702, 0.408), 10: (0.693, 0.391), 20: (0.683, 0.377)},
+            "3-cam": {5: (0.825, 0.652), 10: (0.814, 0.632), 20: (0.800, 0.603)},
+            "5-cam": {5: (0.877, 0.763), 10: (0.875, 0.758), 20: (0.855, 0.711)},
+        },
+        "Jackdaw 2": {
+            "2-cam": {5: (0.796, 0.609), 10: (0.796, 0.608), 20: (0.783, 0.585)},
+            "3-cam": {5: (0.866, 0.744), 10: (0.862, 0.735), 20: (0.840, 0.692)},
+            "5-cam": {5: (0.903, 0.815), 10: (0.888, 0.796), 20: (0.856, 0.737)},
+        },
+    }
+
+    # ── Zero-noise DRA baselines (from Table 1) ─────────────────────────
+    # Mapping cam labels → method names for lookup
+    _cam_to_method = {"2-cam": "Ours-2", "3-cam": "Ours-3", "5-cam": "Ours-5"}
+    _clean_dra = {
+        "Swift":     {"Ours-2": 0.504, "Ours-3": 0.663, "Ours-5": 0.782},
+        "Starling":  {"Ours-2": 0.289, "Ours-3": 0.768, "Ours-5": 0.786},
+        "Jackdaw":   {"Ours-2": 0.405, "Ours-3": 0.645, "Ours-5": 0.755},
+        "Jackdaw 2": {"Ours-2": 0.614, "Ours-3": 0.752, "Ours-5": 0.822},
+    }
+
+    # Median NND per dataset (px)
+    NND = {"Swift": 6.4, "Starling": 6.3, "Jackdaw": 8.1, "Jackdaw 2": 13.4}
+
+    # ── Colour / marker palette ──────────────────────────────────────────
+    CAM_COLORS = {
+        "2-cam": "#D55E00",
+        "3-cam": "#0072B2",
+        "5-cam": "#009E73",
+    }
+    DATASET_MARKERS = {
+        "Swift": "o", "Starling": "s", "Jackdaw": "D", "Jackdaw 2": "^",
+    }
+
+    # ── Styling ──────────────────────────────────────────────────────────
+    _set_academic_style()
+    out_dir = save_dir or os.path.join(os.getcwd(), "figs")
+    os.makedirs(out_dir, exist_ok=True)
+
+    # ═════════════════════════════════════════════════════════════════════
+    #  Single panel — DRA scatter vs normalised noise
+    # ═════════════════════════════════════════════════════════════════════
+    from matplotlib.lines import Line2D
+
+    plt.rcParams.update({
+        "font.size": 16,
+        "axes.labelsize": 18,
+        "axes.titlesize": 18,
+        "xtick.labelsize": 14,
+        "ytick.labelsize": 14,
+        "legend.fontsize": 13,
+    })
+    fig, ax = plt.subplots(figsize=(9, 6.5))
+
+    # --- Reference lines ------------------------------------------------
+    ax.axvline(x=1.0, color="#AAAAAA", linestyle="--", linewidth=1.2,
+               alpha=0.55, zorder=1)   # η = 1
+    ax.axhline(y=1.0, color="#333333", linestyle="--", linewidth=1.0,
+               alpha=0.45, zorder=1)   # zero-noise baseline
+
+    for cam in cam_labels:
+        for ds in datasets_order:
+            nnd = NND[ds]
+            base_dra = _clean_dra[ds][_cam_to_method[cam]]
+            eta_vals = [n / nnd for n in noise_levels]
+            dra_vals = [_data[ds][cam][n][1] / base_dra for n in noise_levels]
+            # Connecting line
+            ax.plot(
+                eta_vals, dra_vals,
+                color=CAM_COLORS[cam],
+                linewidth=0.9, alpha=0.45, zorder=2,
+            )
+            # Scatter markers
+            ax.scatter(
+                eta_vals, dra_vals,
+                c=CAM_COLORS[cam],
+                marker=DATASET_MARKERS[ds],
+                s=90, edgecolors="white", linewidths=0.6,
+                alpha=0.92, zorder=4,
+            )
+
+    # --- Dual legend: cam (colour) / dataset (marker) --------------------
+    cam_handles = [
+        Line2D([0], [0], marker="o", color="w",
+               markerfacecolor=CAM_COLORS[c], markersize=9,
+               markeredgecolor="white", markeredgewidth=0.5,
+               label=c) for c in cam_labels
+    ]
+    dataset_handles = [
+        Line2D([0], [0], marker=DATASET_MARKERS[ds], color="w",
+               markerfacecolor="#555555", markersize=9,
+               label=ds) for ds in datasets_order
+    ]
+    leg1 = ax.legend(handles=cam_handles, loc="lower left",
+                     frameon=True, fancybox=False, edgecolor="#CCCCCC",
+                     fontsize=13, title="Cameras", title_fontsize=14)
+    ax.add_artist(leg1)
+    ax.legend(handles=dataset_handles, loc="lower center",
+              frameon=True, fancybox=False, edgecolor="#CCCCCC",
+              fontsize=13, title="Dataset", title_fontsize=14)
+
+    # --- Axis formatting -------------------------------------------------
+    ax.set_xlim(-0.05, 3.50)
+    ax.set_ylim(0.75, 1.05)
+    ax.set_xlabel("Normalized Noise  $\\sigma_n\\,/\\,\\mathrm{NND}$")
+    ax.set_ylabel(r"DEA degradation $\%$")
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.grid(True, which="major", linestyle="-", alpha=0.18)
+    ax.grid(True, which="minor", linestyle=":", alpha=0.06)
+
+    # ── Save & return ────────────────────────────────────────────────────
+    fig.tight_layout(pad=2.5)
+    for fmt in ("png", "pdf"):
+        fig.savefig(
+            os.path.join(out_dir, f"table_noise_robustness.{fmt}"),
+            dpi=300, bbox_inches="tight",
+        )
+    print(f"Figure saved → {out_dir}/table_noise_robustness.[png|pdf]")
+
+    plt.show()
+    return fig, ax
+
+    plt.show()
+    return fig, (axes_dra, ax_gain)
+
+
 if __name__ == "__main__":
     # scale_estimation()
 
@@ -2768,7 +3896,7 @@ if __name__ == "__main__":
 
     # one_frame_dMOTA_factor_analysis(force_recalculate=False)
 
-    # one_frame_dMOTA_factor_analysis_2(force_recalculate=True)
+    # one_frame_dMOTA_factor_analysis_2(force_recalculate=False)
 
     # one_frame_dMOTA_noise(force_recalculate=True)
 
@@ -2782,6 +3910,27 @@ if __name__ == "__main__":
 
     # plot_jackdaw2_density_field()
 
+    # --- New complementary figures for DRA scale-model-order experiment ---
+    # slice_positions = (0.15, 0.40, 0.65, 0.85)
+    # plot_jackdaw2_mode_count_curve(
+    #     n_slices=4,
+    #     slice_relative_positions=slice_positions,
+    # )
+
+    # plot_jackdaw2_multiscale_density(
+    #     n_slices=4,
+    #     slice_relative_positions=slice_positions,
+    # )
+
+    # CUDA-intensive; completed scale rows are cached for resumable execution.
+    # plot_jackdaw2_dra_scale_model_order_surface()
+
     # plot_jackdaw2_2d_observations()
 
     # plot_jackdaw2_2d_gmm()
+
+    # plot_table_2_results()
+
+    # plot_table_time_efficiency(save_dir=None)
+
+    # plot_table_noise_robustness()

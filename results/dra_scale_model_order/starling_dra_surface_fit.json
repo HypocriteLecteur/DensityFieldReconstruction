@@ -1,0 +1,48 @@
+{
+  "selected_model": "log_quadratic",
+  "equation": "DRA(s,q) = 1 - exp(beta0 + beta1*ln(s) + beta2*ln(q) + beta3*ln(s)*ln(q) + beta4*ln(s)^2 + beta5*ln(q)^2), s=scale/NND, q=L/N; omit unavailable trailing terms",
+  "coefficient_order": [
+    "intercept",
+    "ln(s)",
+    "ln(q)",
+    "ln(s)*ln(q)",
+    "ln(s)^2",
+    "ln(q)^2"
+  ],
+  "candidates": {
+    "power": {
+      "coefficients": [
+        -4.141116444637696,
+        -2.103608854433797,
+        -0.9761292670631976
+      ],
+      "rmse": 0.05073189609886301,
+      "cv_rmse": 0.055153272095926034,
+      "r_squared": 0.7410241734017051
+    },
+    "power_interaction": {
+      "coefficients": [
+        -2.7574479249416344,
+        -3.8293495928223487,
+        -0.5287979799370719,
+        -0.5579210734077498
+      ],
+      "rmse": 0.011445298813998021,
+      "cv_rmse": 0.016628933922402323,
+      "r_squared": 0.9868189104453018
+    },
+    "log_quadratic": {
+      "coefficients": [
+        -1.962489543280824,
+        -3.40302588093939,
+        0.04132784240679532,
+        -0.5579210734077521,
+        -0.2898642951203345,
+        0.08414353833085064
+      ],
+      "rmse": 0.006973886215329163,
+      "cv_rmse": 0.012889521269250529,
+      "r_squared": 0.9951061939476668
+    }
+  }
+}
