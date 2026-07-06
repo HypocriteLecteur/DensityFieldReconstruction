@@ -6,7 +6,9 @@ on chat history.
 
 ## Status
 
-- **Current phase:** Phases 1-3 complete; Phase 4 is next.
+- **Current phase:** Phase 4 in progress. Reusable mode/DRA APIs and typed
+  results are complete; parameter-manifold extraction and the general analysis
+  facade remain.
 - **Stable baseline:** annotated tag `v0.1.0`, commit `7cde21e`.
 - **Version storage:** local Git repository only; do not push unless the owner
   explicitly changes this policy.
@@ -228,20 +230,22 @@ directory and can be reproduced from the saved config and manifest.
 
 ### Phase 4 - Analysis API
 
-- [ ] Move reusable mode-counting behavior from experiment scripts into
+- [x] Move reusable mode-counting behavior from experiment scripts into
   `dfr.analysis`; keep visualization separate from computation.
-- [ ] Extract scale sweep, model-order surface, fitting, caching, and recommended
-  scale selection from `parameter_manifold*.py`,
-  `plot_dra_scale_model_order.py`, `fit_dra_multiframe.py`, and related code.
-- [ ] Define typed `ModeCurveResult`, `ScaleAnalysisResult`, and
+- [x] Extract DRA scale/model-order surface computation and single/multiframe
+  fitting from `plot_dra_scale_model_order.py` and `fit_dra_multiframe.py`.
+- [ ] Extract parameter-manifold fitting, caching, and recommended-scale
+  selection from `parameter_manifold*.py` and related code.
+- [x] Define typed `ModeCurveResult`, `ScaleAnalysisResult`, and
   `ManifoldAnalysisResult` objects with save/load support.
 - [ ] Provide `dfr.analyze(...)` plus lower-level functions for researchers who
   need custom pipelines.
-- [ ] Make sampling, frame selection, random seeds, bounds, and scale grids
+- [x] Make sampling, frame selection, random seeds, bounds, and scale grids
   explicit in configuration.
-- [ ] Add unit tests against current cached/golden results with numeric
-  tolerances.
-- [ ] Reduce analysis scripts to CLI/config wrappers and document each script's
+- [x] Add deterministic CPU golden-fit/cache/result tests and a CUDA identity
+  test for extracted DRA computation.
+- [ ] Add compatibility tests against representative existing research caches.
+- [ ] Reduce all analysis scripts to CLI/config wrappers and document each script's
   inputs, outputs, runtime expectations, and example command.
 
 **Exit criteria:** mode count and scale analysis can be run from an imported API
@@ -322,19 +326,19 @@ reading implementation or experiment source.
 
 ## Immediate Next Actions
 
-The next agent should work on Phase 4:
+The next agent should continue Phase 4:
 
-1. Create `dfr.analysis` with typed mode-curve and scale-analysis result objects
-   that contain data only (no plotting or implicit saving).
-2. Move pure DRA scale/model-order computation and fit functions from
-   `plot_dra_scale_model_order.py` into package modules with CPU tests for the
-   non-CUDA fitting paths.
-3. Make the DRA plot script a thin CLI/config/cache/plot wrapper around those
-   package functions; preserve its managed artifact layout.
-4. Migrate `fit_dra_multiframe.py` alongside that extraction so both scripts
-   share one analysis implementation and result schema.
-5. Keep all 38 CPU tests and 4 available CUDA tests passing before expanding to
-   the larger parameter-manifold scripts.
+1. Extract the centered 3PL curve, cached mode-curve loading, per-frame fitting,
+   and shape-curve projection from `parameter_manifold.py` into
+   `dfr.analysis.manifold` using `ManifoldAnalysisResult`.
+2. Add a small representative cache fixture based on the existing schema and
+   compare extracted fit parameters with explicit tolerances.
+3. Define the first `dfr.analyze(...)` facade over `AnalysisConfig`, supporting
+   at least mode curves and DRA without hiding expensive CUDA work.
+4. Keep plotting/clustering/publication choices in thin experiment scripts; do
+   not move Matplotlib/UMAP/HDBSCAN presentation into core analysis.
+5. Keep all 51 CPU tests and 5 available CUDA tests passing before moving on to
+   the reconstruction workflow phase.
 
 ## Decisions
 
@@ -389,11 +393,46 @@ The next agent should work on Phase 4:
   Phase 4 analysis extraction, not as an isolated Phase 3 path rewrite. Reason:
   its per-frame caches and fit objects should adopt the same typed result schema
   as the single-frame DRA implementation once that package API exists.
+- **2026-07-06 - Analysis result boundary:** typed results contain arrays and
+  explicit NPZ save/load only; experiment scripts decide managed paths, cache
+  resume timing, and plotting. Reason: scientific computation must be reusable
+  without silently writing or importing presentation code.
+- **2026-07-06 - Legacy DRA compatibility:** keep the six-value tuple adapter
+  and accept old caches when callers supply missing dataset/agent context.
+  Reason: existing `dfr_plot.py` and expensive cached sweeps must remain usable
+  during incremental migration.
 
 ## Handoff Log
 
 Add one newest-first entry per working session. Include commit(s), verification,
 known failures, and the exact next step.
+
+### 2026-07-06 - Phase 4 mode and DRA analysis extraction
+
+- Added `dfr.analysis` with data-only `ModeCurveResult`,
+  `ScaleAnalysisResult`, and `ManifoldAnalysisResult`, including validated NPZ
+  save/load and legacy DRA cache context handling.
+- Added direct `count_modes`, `compute_mode_curve`, and
+  `analyze_dataset_modes` APIs so mode analysis no longer requires an
+  experiment import or manual Torch setup.
+- Extracted nearest-neighbor scaling, model-order grids, batched CUDA DRA,
+  resumable surface filling, design matrices, surface fits, row/column CV,
+  frame sampling, frame/dataset CV, and pooled multiframe fitting.
+- Refactored both DRA scripts to use package analysis; multiframe no longer
+  imports the single-frame experiment. Both retain managed artifacts and legacy
+  cache seeding.
+- Reduced `plot_dra_scale_model_order.py` from 688 to 361 lines and removed
+  duplicated fit/cross-validation implementations from the multiframe script.
+- Fixed frame sampling for requested counts of one or two.
+- Added deterministic result round trips, legacy cache validation, analytical
+  golden coefficients, multiframe CV, direct mode-curve tests, and an extracted
+  CUDA DRA identity test.
+- Documented direct mode and DRA analysis APIs in README.
+- Verification: both DRA CLI `--help` commands; no multiframe cross-experiment
+  import; `compileall`; `git diff --check`; `pytest -m "not cuda"` (51 passed);
+  `pytest -m cuda` (5 passed, 1 skipped: optional small rasterizer unavailable).
+- Next step: parameter-manifold computation/cache extraction and the first
+  general `dfr.analyze(...)` facade.
 
 ### 2026-07-06 - Phase 3 shared workflow configuration
 

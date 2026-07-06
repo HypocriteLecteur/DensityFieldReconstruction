@@ -12,20 +12,24 @@ import argparse
 import json
 import shutil
 import sys
-from dataclasses import dataclass
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 
+from dfr import AnalysisConfig, OutputConfig, RunArtifacts
 from dfr import load_dataset as load_dfr_dataset
-from experiments.plot_dra_scale_model_order import (
+from dfr.analysis import (
+    DRAFrameSamples as FrameGrid,
     FIT_MODELS,
-    SWEEPS,
-    SweepConfig,
-    compute_surface,
+    ScaleAnalysisResult,
+    concatenate_frames,
+    compute_scale_model_order_surface,
+    create_scale_analysis,
     fit_design_matrix,
+    fit_frames,
     fit_one_surface_model,
+    select_frames,
 )
 
 
@@ -35,42 +39,16 @@ FRAME_RANGES = {
     "starling": (0, 2),
     "jackdaw2": (2700, 3460),
 }
+PREFERRED_FRAMES = {
+    "swift": 1000,
+    "jackdaw": 400,
+    "starling": 0,
+    "jackdaw2": 2800,
+}
 
 # Every multiframe fit uses the same NND-normalized scale support. Keeping this
 # local to the experiment prevents changes to the single-frame sweep defaults.
 MULTIFRAME_NORMALIZED_SCALES = np.linspace(0.5, 1.5, 11)
-
-
-@dataclass
-class FrameGrid:
-    dataset: str
-    time_step: int
-    number_of_animals: int
-    mean_nnd: float
-    scale: np.ndarray
-    order: np.ndarray
-    dra: np.ndarray
-
-
-def select_frames(start: int, stop: int, count: int, preferred: int) -> np.ndarray:
-    """Include endpoints/preferred frame, then bisect the largest time gaps."""
-    if stop <= start:
-        raise ValueError(f"Empty frame interval [{start}, {stop}).")
-    available = stop - start
-    count = min(count, available)
-    if count == available:
-        return np.arange(start, stop, dtype=int)
-
-    selected = {start, stop - 1, min(max(preferred, start), stop - 1)}
-    while len(selected) < count:
-        ordered = sorted(selected)
-        gaps = [(right - left, left, right) for left, right in zip(ordered, ordered[1:])]
-        _, left, right = max(gaps)
-        midpoint = (left + right) // 2
-        if midpoint in selected:
-            midpoint += 1
-        selected.add(midpoint)
-    return np.asarray(sorted(selected), dtype=int)
 
 
 def load_dataset(dataset_name: str):
@@ -86,10 +64,11 @@ def seed_existing_cache(
     normalized_scales: np.ndarray,
 ) -> None:
     """Reuse a one-frame cache only when its normalized scale grid matches."""
-    if force or time_step != SWEEPS[dataset_name].time_step:
+    if force or time_step != PREFERRED_FRAMES[dataset_name]:
         return
+    project_root = Path(__file__).resolve().parents[1]
     source = (
-        Path("results")
+        project_root / "results"
         / "dra_scale_model_order"
         / f"{dataset_name}_dra_scale_model_order.npz"
     )
@@ -101,81 +80,39 @@ def seed_existing_cache(
                 shutil.copy2(source, destination)
 
 
-def flatten_frame_result(
+def compute_frame_result(
     dataset_name: str,
     time_step: int,
-    result: tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, float, int],
-) -> FrameGrid:
-    normalized_scales, _, components, dra, mean_nnd, number_of_animals = result
-    normalized_orders = components / number_of_animals
-    scale_grid, order_grid = np.meshgrid(
-        normalized_scales, normalized_orders, indexing="ij"
+    positions: np.ndarray,
+    frame_dir: Path,
+    force: bool,
+    voxel_res_fraction: float,
+    batch_size: int,
+) -> ScaleAnalysisResult:
+    """Compute or resume one typed frame surface without experiment imports."""
+    expected = create_scale_analysis(
+        dataset_name,
+        time_step,
+        positions,
+        MULTIFRAME_NORMALIZED_SCALES,
+        voxel_res_fraction,
     )
-    return FrameGrid(
-        dataset=dataset_name,
-        time_step=time_step,
-        number_of_animals=number_of_animals,
-        mean_nnd=mean_nnd,
-        scale=scale_grid.ravel(),
-        order=order_grid.ravel(),
-        dra=dra.ravel(),
-    )
-
-
-def concatenate_frames(frames: list[FrameGrid]):
-    return (
-        np.concatenate([frame.scale for frame in frames]),
-        np.concatenate([frame.order for frame in frames]),
-        np.concatenate([frame.dra for frame in frames]),
-    )
-
-
-def grouped_cv_rmse(frames: list[FrameGrid], model_name: str) -> float:
-    """Test each full frame using a model trained on all other frames."""
-    errors = []
-    for held_index, held_frame in enumerate(frames):
-        training_frames = [frame for index, frame in enumerate(frames) if index != held_index]
-        if not training_frames:
-            return float("nan")
-        scale, order, dra = concatenate_frames(training_frames)
-        fitted = fit_one_surface_model(scale, order, dra, model_name)
-        prediction = 1.0 - np.exp(
-            fit_design_matrix(held_frame.scale, held_frame.order, model_name)
-            @ fitted["coefficients"]
+    cache_path = frame_dir / f"{dataset_name}_dra_scale_model_order.npz"
+    result = expected
+    if cache_path.exists() and not force:
+        cached = ScaleAnalysisResult.load_npz(
+            cache_path,
+            dataset_name=dataset_name,
+            number_of_animals=len(positions),
         )
-        errors.extend(prediction - held_frame.dra)
-    return float(np.sqrt(np.mean(np.square(errors))))
-
-
-def leave_one_dataset_out_rmse(frames: list[FrameGrid], model_name: str) -> float:
-    errors = []
-    for held_dataset in sorted({frame.dataset for frame in frames}):
-        training = [frame for frame in frames if frame.dataset != held_dataset]
-        held = [frame for frame in frames if frame.dataset == held_dataset]
-        scale, order, dra = concatenate_frames(training)
-        fitted = fit_one_surface_model(scale, order, dra, model_name)
-        for held_frame in held:
-            prediction = 1.0 - np.exp(
-                fit_design_matrix(held_frame.scale, held_frame.order, model_name)
-                @ fitted["coefficients"]
-            )
-            errors.extend(prediction - held_frame.dra)
-    return float(np.sqrt(np.mean(np.square(errors))))
-
-
-def fit_frames(frames: list[FrameGrid], include_dataset_cv: bool = False) -> dict:
-    scale, order, dra = concatenate_frames(frames)
-    candidates = {}
-    for model_name in FIT_MODELS:
-        fitted = fit_one_surface_model(scale, order, dra, model_name)
-        fitted["frame_cv_rmse"] = grouped_cv_rmse(frames, model_name)
-        if include_dataset_cv:
-            fitted["dataset_cv_rmse"] = leave_one_dataset_out_rmse(
-                frames, model_name
-            )
-        candidates[model_name] = fitted
-    best_name = min(candidates, key=lambda name: candidates[name]["frame_cv_rmse"])
-    return {"best_name": best_name, "candidates": candidates}
+        if cached.matches_grid(expected):
+            result = cached
+    return compute_scale_model_order_surface(
+        positions,
+        result,
+        batch_size=batch_size,
+        row_callback=lambda current, _index, _timing: current.save_npz(cache_path),
+    )
 
 
 def save_samples(dataset_name: str, frames: list[FrameGrid], output_dir: Path) -> None:
@@ -195,7 +132,10 @@ def save_samples(dataset_name: str, frames: list[FrameGrid], output_dir: Path) -
     )
 
 
-def save_fit(name: str, fit: dict, output_dir: Path) -> None:
+def save_fit(
+    name: str, fit: dict, output_dir: Path, summary_dir: Path | None = None
+) -> None:
+    summary_dir = output_dir if summary_dir is None else summary_dir
     best = fit["candidates"][fit["best_name"]]
     np.savez(
         output_dir / f"{name}_multiframe_fit.npz",
@@ -229,7 +169,7 @@ def save_fit(name: str, fit: dict, output_dir: Path) -> None:
             for model_name, candidate in fit["candidates"].items()
         },
     }
-    with open(output_dir / f"{name}_multiframe_fit.json", "w", encoding="utf-8") as f:
+    with open(summary_dir / f"{name}_multiframe_fit.json", "w", encoding="utf-8") as f:
         json.dump(payload, f, indent=2)
 
 
@@ -382,10 +322,12 @@ def parse_args() -> argparse.Namespace:
         "--datasets", nargs="+", choices=tuple(FRAME_RANGES), default=list(FRAME_RANGES)
     )
     parser.add_argument(
-        "--output-dir",
+        "--output-root",
         type=Path,
-        default=Path("results") / "dra_scale_model_order_multiframe_0p5_1p5",
+        default=Path("outputs"),
     )
+    parser.add_argument("--run-id", default="dra-scale-model-order-multiframe")
+    parser.add_argument("--overwrite-run", action="store_true")
     parser.add_argument("--batch-size", type=int, default=200_000)
     parser.add_argument("--voxel-res-fraction", type=float, default=5e-3)
     parser.add_argument("--force", action="store_true")
@@ -398,7 +340,34 @@ def main() -> None:
     if sys.stdout is not None and hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
     args = parse_args()
-    args.output_dir.mkdir(parents=True, exist_ok=True)
+    project_root = Path(__file__).resolve().parents[1]
+    artifacts = RunArtifacts.create(
+        OutputConfig(
+            workflow="analysis",
+            name="Multiframe DRA scale and model order",
+            root=args.output_root,
+            run_id=args.run_id,
+            project_root=project_root,
+            resume=not args.overwrite_run,
+            overwrite=args.overwrite_run,
+        ),
+        resolved_config={
+            "datasets": args.datasets,
+            "frame_ranges": {
+                name: list(FRAME_RANGES[name]) for name in args.datasets
+            },
+            "frames_per_dataset": args.frames_per_dataset,
+            "analysis": AnalysisConfig(
+                scales=tuple(float(value) for value in MULTIFRAME_NORMALIZED_SCALES),
+                device="cuda",
+            ),
+            "batch_size": args.batch_size,
+            "voxel_res_fraction": args.voxel_res_fraction,
+            "fit_models": FIT_MODELS,
+        },
+        device="cuda",
+        metadata={"entrypoint": "experiments.fit_dra_multiframe"},
+    )
     dataset_frames = {}
 
     for dataset_name in args.datasets:
@@ -409,12 +378,12 @@ def main() -> None:
             start,
             stop,
             args.frames_per_dataset,
-            SWEEPS[dataset_name].time_step,
+            PREFERRED_FRAMES[dataset_name],
         )
         print(f"[{dataset_name}] sampled frames: {time_steps.tolist()}")
         frames = []
         for time_step in time_steps:
-            frame_dir = args.output_dir / dataset_name / f"frame_{time_step:05d}"
+            frame_dir = artifacts.cache_dir / dataset_name / f"frame_{time_step:05d}"
             frame_dir.mkdir(parents=True, exist_ok=True)
             seed_existing_cache(
                 dataset_name,
@@ -424,24 +393,28 @@ def main() -> None:
                 MULTIFRAME_NORMALIZED_SCALES,
             )
             positions = dataset.positions_at_time_step(int(time_step))
-            result = compute_surface(
-                dataset_name=dataset_name,
-                sweep=SweepConfig(int(time_step)),
-                output_dir=frame_dir,
-                force=args.force,
-                voxel_res_fraction=args.voxel_res_fraction,
-                batch_size=args.batch_size,
-                positions=positions,
-                normalized_scale_values=MULTIFRAME_NORMALIZED_SCALES,
+            result = compute_frame_result(
+                dataset_name,
+                int(time_step),
+                positions,
+                frame_dir,
+                args.force,
+                args.voxel_res_fraction,
+                args.batch_size,
             )
-            frames.append(flatten_frame_result(dataset_name, int(time_step), result))
+            frames.append(FrameGrid.from_result(result))
         dataset_frames[dataset_name] = frames
-        save_samples(dataset_name, frames, args.output_dir)
+        save_samples(dataset_name, frames, artifacts.data_dir)
 
     fits = {}
     for dataset_name, frames in dataset_frames.items():
         fits[dataset_name] = fit_frames(frames)
-        save_fit(dataset_name, fits[dataset_name], args.output_dir)
+        save_fit(
+            dataset_name,
+            fits[dataset_name],
+            artifacts.data_dir,
+            summary_dir=artifacts.metrics_dir,
+        )
         best = fits[dataset_name]["candidates"][fits[dataset_name]["best_name"]]
         print(
             f"[{dataset_name}] {fits[dataset_name]['best_name']}: "
@@ -453,7 +426,12 @@ def main() -> None:
     universal_fit = fit_frames(
         all_frames, include_dataset_cv=len(dataset_frames) > 1
     )
-    save_fit("universal", universal_fit, args.output_dir)
+    save_fit(
+        "universal",
+        universal_fit,
+        artifacts.data_dir,
+        summary_dir=artifacts.metrics_dir,
+    )
     best = universal_fit["candidates"][universal_fit["best_name"]]
     print(
         f"[universal] {universal_fit['best_name']}: RMSE={best['rmse']:.4f}, "
@@ -463,13 +441,14 @@ def main() -> None:
     )
     report = format_results_report(dataset_frames, fits, universal_fit)
     print("\n" + report)
-    with open(args.output_dir / "multiframe_results.txt", "w", encoding="utf-8") as f:
+    with open(artifacts.metrics_dir / "multiframe_results.txt", "w", encoding="utf-8") as f:
         f.write(report + "\n")
     plot_dataset_fits(
         dataset_frames,
         fits,
-        args.output_dir / "multiframe_dra_fits.png",
+        artifacts.figures_dir / "multiframe_dra_fits.png",
     )
+    print(f"Managed run directory: {artifacts.run_dir}")
 
 
 if __name__ == "__main__":

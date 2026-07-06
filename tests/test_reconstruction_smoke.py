@@ -19,6 +19,7 @@ from dfr.camera_state import CameraState
 from dfr.camera_system import MultiCameraSystem
 from dfr.config import ReconstructionParams, TrainingParams
 from dfr.density_field_reconstructor import DensityReconstructor
+from dfr.analysis import compute_dra_sweep
 from experiments.reconstruct_one_frame import build_parser, run
 
 
@@ -169,3 +170,23 @@ def test_one_frame_cli_writes_managed_artifacts(tmp_path):
     assert (artifacts.data_dir / "reconstruction.npz").is_file()
     assert (artifacts.checkpoints_dir / "final_model.pth").is_file()
     assert (artifacts.metrics_dir / "summary.json").is_file()
+
+
+def test_extracted_dra_sweep_scores_identical_mixture_as_one():
+    positions = np.array(
+        [[-0.5, 0.0, 0.0], [0.5, 0.0, 0.0]], dtype=np.float32
+    )
+    means = torch.as_tensor(positions, device="cuda")
+    weights = torch.ones((2, 1), device="cuda")
+    sigmas = torch.full((2, 1), 0.5, device="cuda")
+
+    score = compute_dra_sweep(
+        positions=positions,
+        scale=0.5,
+        reduced_models=[(means, weights, sigmas)],
+        bounds=np.array([[-2, 2], [-2, 2], [-2, 2]], dtype=np.float64),
+        voxel_res=np.float64(0.5),
+        batch_size=128,
+    )
+
+    np.testing.assert_allclose(score, [1.0], atol=1e-6)

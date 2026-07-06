@@ -218,19 +218,20 @@ not usable until its `data_file` exists.
 ### Count density modes at one scale
 
 ```python
-import torch
+from dfr import load_dataset
+from dfr.analysis import analyze_dataset_modes, count_modes
 
-from dfr.mode_finding import mode_counting
+dataset = load_dataset("jackdaw2")
+positions = dataset.positions_at_time_step(2800)
+count = count_modes(positions, scale=1.0)
 
-points = torch.as_tensor(positions, dtype=torch.float32)
-count = mode_counting(
-    positions_torch=points,
-    modes=points.clone(),
-    scale=1.0,
-    max_iter=1000,
-    tol=1e-2,
+curve = analyze_dataset_modes(
+    dataset,
+    frame=2800,
+    scales=(0.5, 0.75, 1.0, 1.5, 2.0),
 )
-print(count)
+curve.save_npz("outputs/mode_curve.npz")  # explicit path; no implicit saving
+print(count, curve.mode_counts)
 ```
 
 Mode count depends on coordinate units and scale. Start with a small frame
@@ -245,13 +246,20 @@ python -m experiments.plot_dra_scale_model_order --help
 python -m experiments.plot_dra_scale_model_order --datasets jackdaw2 --output-root outputs --run-id jackdaw2-dra
 
 python -m experiments.fit_dra_multiframe --help
-python -m experiments.fit_dra_multiframe --datasets jackdaw2 --frames-per-dataset 3 --output-dir outputs/analysis/jackdaw2-multiframe
+python -m experiments.fit_dra_multiframe --datasets jackdaw2 --frames-per-dataset 3 --output-root outputs --run-id jackdaw2-multiframe
 ```
 
 These analyses are CUDA-intensive and cache intermediate `.npz` data so a run
 can resume. `parameter_manifold.py`, `parameter_manifold_2pl.py`, and
 `power_law.py` contain additional research analyses, but still use hard-coded
 settings and should be inspected before running.
+
+Reusable DRA computation and fitting now live under `dfr.analysis`, including
+`ScaleAnalysisResult`, `create_scale_analysis`,
+`compute_scale_model_order_surface`, `fit_dra_surface`, and multiframe fitting.
+`ModeCurveResult`, `ScaleAnalysisResult`, and `ManifoldAnalysisResult` contain
+data only and support explicit NPZ save/load. Plotting and managed-run decisions
+remain in the experiment entry points.
 
 ## Reconstruct and evaluate
 
