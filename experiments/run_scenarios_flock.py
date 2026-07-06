@@ -1,7 +1,9 @@
 import logging
-import sys
 import os
+import argparse
 import shutil
+from dataclasses import dataclass
+from pathlib import Path
 from tqdm import tqdm
 import glob
 
@@ -28,19 +30,12 @@ import scipy
 from dfr.mode_finding import mode_counting
 import pandas as pd
 from dfr.visualizer import SimulationVisualizer
+from experiments.common import setup_logger
 
 import matplotlib.pyplot as plt
 
 # Setup logger
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-file_handler = logging.FileHandler('run_experiments.log', mode='w')
-file_handler.setFormatter(formatter)
-console_handler = logging.StreamHandler(sys.stdout)
-console_handler.setFormatter(formatter)
-logger.addHandler(file_handler)
-logger.addHandler(console_handler)
+logger = setup_logger(__name__)
 
 IS_LOGGING = True
 CLEAN_LOGS = False
@@ -68,6 +63,37 @@ RUN_PARAMS = {
     'end_step': None,
     'step_length': 5
     }
+
+
+@dataclass(frozen=True, slots=True)
+class FlockInputConfig:
+    """External files required by the two-camera flock reconstruction."""
+
+    data_root: Path
+    extrinsics_json: Path
+    detections_camera_1: Path
+    detections_camera_2: Path
+    project_root: Path = Path.cwd()
+
+    def __post_init__(self):
+        for field_name in (
+            "data_root",
+            "extrinsics_json",
+            "detections_camera_1",
+            "detections_camera_2",
+            "project_root",
+        ):
+            value = Path(getattr(self, field_name)).expanduser().resolve()
+            object.__setattr__(self, field_name, value)
+        if not self.data_root.is_dir():
+            raise FileNotFoundError(f"Flock data directory does not exist: {self.data_root}")
+        for path in (
+            self.extrinsics_json,
+            self.detections_camera_1,
+            self.detections_camera_2,
+        ):
+            if not path.is_file():
+                raise FileNotFoundError(f"Flock input file does not exist: {path}")
 
 def find_target_scale(func, targetd_num_mode, s_low=0, s_high=30, atol=1e-5):
     for _ in range(100):
@@ -222,26 +248,13 @@ def convert_matlab_transforms_to_poses(transforms):
         
     return poses
 
-def run_flock_scenario():
+def run_flock_scenario(inputs: FlockInputConfig):
     # 1. Parameter extraction and Logging Setup
-    path = r"E:\科研相关\博士相关\博士课题\项目\观鸟\鸟群数据传承\2023-2024鸟群-长沙-数据\ChangshaObservation2023\synchronized\Xianjiahu_20231121b_data50"
-    image1_name = "XJH_1_50_N68_HW1_CollectiveTurn1_VID_20231121_163029_(2399_2818)"
-    image2_name = "XJH_2_50_N68_HW2_CollectiveTurn1_VID_20231121_163104_(927_1346)"
-    csv1_name = "N68_HW1_CollectiveTurn1_VID_20231121_163029_(2399_2818)_labels_2024-01-09-21-55.csv"
-    csv2_name = "N68_HW2_CollectiveTurn1_VID_20231121_163104_(927_1346)_labels_2024-01-09-21-55.csv"
     name = RUN_PARAMS['name']
-    extrinsics_json_path = r"E:\科研相关\博士相关\博士课题\项目\观鸟\鸟群数据传承\MATLAB_3D_reconstruction\params\20231121b_pair_Xianjiahu.json"
-    intrinsics1_path = r"E:\科研相关\博士相关\博士课题\项目\观鸟\鸟群数据传承\MATLAB_3D_reconstruction\intrinsics\HW1\cameraParams.mat"
-    intrinsics2_path = r"E:\科研相关\博士相关\博士课题\项目\观鸟\鸟群数据传承\MATLAB_3D_reconstruction\intrinsics\HW2\cameraParams.mat"
-    intrinsics3_path = r"E:\科研相关\博士相关\博士课题\项目\观鸟\鸟群数据传承\MATLAB_3D_reconstruction\intrinsics\HW3\cameraParams.mat"
 
-    img_array = np.fromfile(os.path.join(path, image1_name, '230.jpg'), dtype=np.uint8)
-    img_bgr = cv2.imdecode(img_array, cv2.IMREAD_COLOR) 
-    img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
-
-    csv1 = pd.read_csv(os.path.join(path, csv1_name))
+    csv1 = pd.read_csv(inputs.detections_camera_1)
     unique_images_csv1 = csv1['Img Name'].unique()
-    csv2 = pd.read_csv(os.path.join(path, csv2_name))
+    csv2 = pd.read_csv(inputs.detections_camera_2)
     unique_images_csv2 = csv2['Img Name'].unique()
 
     def get_detections(time_step, unique_images, csv):
@@ -283,7 +296,7 @@ def run_flock_scenario():
     end_step = RUN_PARAMS['end_step']
     step_length = RUN_PARAMS['step_length']
 
-    scenario_path = os.path.join(os.getcwd(), *["scenarios", name])
+    scenario_path = os.path.join(str(inputs.project_root), "scenarios", name)
     config_path = os.path.join(scenario_path, "config.yaml")
 
     if CLEAN_LOGS:
@@ -320,7 +333,7 @@ def run_flock_scenario():
     }
 
     # Load the .mat file
-    mat_data = scipy.io.loadmat(os.path.join(path, name + ".mat"))
+    mat_data = scipy.io.loadmat(inputs.data_root / f"{name}.mat")
     trajectories = mat_data['xyzTensorValid']
 
     cache_file_path = os.path.join(scenario_path, 'reconstruction_scale.npz')
@@ -374,7 +387,7 @@ def run_flock_scenario():
     step_range = range(start_step, effective_end_step, step_length)
 
     # Camera Configurations
-    transform1, transform2, transform3 = load_camera_extrinsics(extrinsics_json_path)
+    transform1, transform2, transform3 = load_camera_extrinsics(inputs.extrinsics_json)
     cam_poses = convert_matlab_transforms_to_poses([transform1, transform2])
 
     cameraParameters1 = np.array([
@@ -1014,14 +1027,59 @@ def compute_metrics_single_scenario(run_params):
         logging.error(f"Error processing scenario {run_params.get('name', 'Unknown')}: {str(e)}")
         return None
 
+def create_parser():
+    parser = argparse.ArgumentParser(
+        description=(
+            "Explicit entry points for the external-detection flock study. "
+            "The run command currently requires the source paths configured "
+            "inside run_flock_scenario()."
+        )
+    )
+    parser.add_argument(
+        "study", choices=("run", "visualize", "baseline", "metrics", "timing")
+    )
+    parser.add_argument("--project-root", type=Path, default=Path.cwd())
+    parser.add_argument("--data-root", type=Path)
+    parser.add_argument("--extrinsics-json", type=Path)
+    parser.add_argument("--detections-camera-1", type=Path)
+    parser.add_argument("--detections-camera-2", type=Path)
+    parser.add_argument("--no-display", action="store_true")
+    return parser
+
+
+def main(argv=None):
+    args = create_parser().parse_args(argv)
+    if args.study == "run":
+        required = {
+            "--data-root": args.data_root,
+            "--extrinsics-json": args.extrinsics_json,
+            "--detections-camera-1": args.detections_camera_1,
+            "--detections-camera-2": args.detections_camera_2,
+        }
+        missing = [name for name, value in required.items() if value is None]
+        if missing:
+            raise ValueError(f"The flock run requires: {', '.join(missing)}")
+        run_flock_scenario(
+            FlockInputConfig(
+                data_root=args.data_root,
+                extrinsics_json=args.extrinsics_json,
+                detections_camera_1=args.detections_camera_1,
+                detections_camera_2=args.detections_camera_2,
+                project_root=args.project_root,
+            )
+        )
+    elif args.study == "visualize":
+        visualize_trained_model_interactive()
+    elif args.study == "baseline":
+        run_single_scenario_baseline()
+    elif args.study == "metrics":
+        compute_metrics_multi_scenarios()
+    else:
+        plot_time_multi_scenarios()
+    if not args.no_display:
+        plt.show()
+    return 0
+
+
 if __name__ == "__main__":
-    # run_flock_scenario()
-
-    visualize_trained_model_interactive()
-
-    # run_single_scenario_baseline()
-
-    # compute_metrics_multi_scenarios()
-    # plot_time_multi_scenarios()
-
-    plt.show()
+    raise SystemExit(main())

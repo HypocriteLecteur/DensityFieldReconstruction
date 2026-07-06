@@ -8,8 +8,9 @@ on chat history.
 
 - **Current phase:** Phase 4 is complete. Phase 5 typed reconstruction,
   evaluation, shared scenario/camera services, and the representative primary
-  runner plus Table 2/3/4 consolidation are complete; flock/angle/UE4 runner
-  specializations remain.
+  runner plus Table 2/3/4 consolidation are complete. Specialized runners now
+  have explicit dispatch and an ownership inventory; their measured/external
+  observation loops still need a typed package workflow.
 - **Stable baseline:** annotated tag `v0.1.0`, commit `7cde21e`.
 - **Version storage:** local Git repository only; do not push unless the owner
   explicitly changes this policy.
@@ -330,13 +331,15 @@ reading implementation or experiment source.
 
 The next agent should continue Phase 5:
 
-1. Inventory the flock, angle-sweep, and UE4 runner specializations and move
-   compatible loops onto `ScenarioRunSpec` without flattening image-specific
-   or angle-generation behavior.
-2. Migrate `compute_metrics_from_pretrained.py` dataset/checkpoint discovery
+1. Define typed external observation/camera-frame inputs for measured flock
+   detections and time-varying UE4 cameras, then migrate one end-to-end loop to
+   prove the contract before touching the other.
+2. Characterize and remove the retained `_run_single_scenario_legacy` body
+   from the angle-sweep module; keep its true angle/convergence kernels.
+3. Migrate `compute_metrics_from_pretrained.py` dataset/checkpoint discovery
    and output paths to explicit CLI/config and managed evaluation artifacts.
-3. Add saved-evaluation loading if downstream plotting needs a stable reader.
-4. Keep the Phase 4 supported/legacy classification in
+4. Add saved-evaluation loading if downstream plotting needs a stable reader.
+5. Keep the Phase 4 supported/legacy classification in
    `experiments/README.md` current when promoting another research study.
 
 ## Decisions
@@ -434,11 +437,38 @@ The next agent should continue Phase 5:
   explicit CLI action and write reconstruction/evaluation to separate managed
   workflows. Reason: iteration, dataset, camera, and noise differences remain
   visible without keeping three 869-line executable copies.
+- **2026-07-06 - External observation boundary:** measured flock detections
+  and thresholded UE4 detections must not be routed through the canonical
+  simulated-projection runner. Reason: both require asymmetric or time-varying
+  camera state and externally observed 2D point sets; replacing them with
+  `simulate_vision` would silently change the experiment.
 
 ## Handoff Log
 
 Add one newest-first entry per working session. Include commit(s), verification,
 known failures, and the exact next step.
+
+### 2026-07-06 - Phase 5 specialized runner boundary and dispatch
+
+- Added `RUNNER_SPECIALIZATIONS.md` with observation sources, camera behavior,
+  executable commands, current output status, and the exact package boundary
+  for angle, flock, and UE4 workflows.
+- Moved the ordinary angle-sweep scenario path onto `ScenarioRunSpec`; retained
+  the baseline-angle, convergence, voxel, and profiling kernels as explicit
+  studies rather than pretending they are ordinary scenario runs.
+- Replaced hard-coded default execution in all three modules with required
+  subcommands/options, so imports no longer launch CUDA/interactive work.
+- Added validated `FlockInputConfig` and required primary flock data,
+  calibration, and detection paths; removed its corrupt machine-specific path
+  literals from the active run path.
+- Made UE4 project root and all three image roots explicit, validated them,
+  and removed import-time root log-file creation from flock and UE4.
+- Verification: three CLI `--help` commands; `compileall`; `git diff --check`;
+  `pytest -m "not cuda"` (92 passed); `pytest -m cuda` (6 passed, 1 skipped:
+  optional small rasterizer unavailable).
+- Next step: introduce the typed external-observation workflow needed to move
+  measured flock or time-varying UE4 reconstruction into `dfr`, then delete the
+  characterized legacy ordinary angle body.
 
 ### 2026-07-06 - Phase 5 publication table runner consolidation
 

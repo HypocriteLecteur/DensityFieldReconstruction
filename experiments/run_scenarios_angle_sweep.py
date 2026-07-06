@@ -4,6 +4,8 @@ import os
 import shutil
 from tqdm import tqdm
 import glob
+import argparse
+from pathlib import Path
 
 
 
@@ -23,6 +25,8 @@ from gaussian_rasterizer_simple_large import rasterize_gaussians
 from dfr.utils import move_figure
 from scipy.spatial import cKDTree
 from experiments.common import setup_logger, setup_camera_system, print_global_metrics
+from dfr import CameraConfig, OutputConfig, ScenarioRunSpec, run_scenario
+from dfr.config import ReconstructionParams, TrainingParams
 
 import matplotlib.pyplot as plt
 
@@ -93,7 +97,53 @@ def run_multi_scenarios():
     for run_params in DATASET_RUNS:
         run_single_scenario(run_params)
 
-def run_single_scenario(run_params):
+def run_single_scenario(run_params, *, project_root=None, output=None, seed=12345):
+    """Run the ordinary scenario path through the shared package runner."""
+    if CLEAN_LOGS:
+        raise ValueError(
+            "CLEAN_LOGS is unsupported for managed runs; use "
+            "OutputConfig(overwrite=True)."
+        )
+    root = Path(project_root or Path.cwd()).expanduser().resolve()
+    name = run_params['name']
+    if output is None and IS_LOGGING:
+        output = OutputConfig(
+            workflow="reconstruction",
+            name=f"angle-sweep {name}",
+            run_id=f"angle-sweep-{name}-{run_params['log_name']}",
+            project_root=root,
+        )
+    return run_scenario(
+        ScenarioRunSpec(
+            dataset=name,
+            start=int(run_params['start_step']),
+            stop=run_params['end_step'],
+            step=int(run_params['step_length']),
+            cameras=CameraConfig.encircling(count=CAM_NUM, device="cuda"),
+            training=TrainingParams(
+                xyz_lr_c=0.05,
+                xyz_lr_final_c=0.9,
+                radius_lr_c=0.05,
+                radius_lr_final_c=0.9,
+                weights_lr_c=0.10,
+                weights_lr_final_c=0.7,
+                xyz_reg=1.0,
+                radius_reg=0.3,
+                radius_cutoff_inv=0.5,
+                lr_max_steps=100,
+            ),
+            reconstruction=ReconstructionParams(10, 0.5, 0.3, 32, 20),
+            use_ground_truth_scales=USE_GT_SCALE,
+            projection_noise_std=float(run_params.get('noise_std', 0.0)),
+            use_decoupled=USE_DECOUPLED,
+            seed=seed,
+            output=output,
+        ),
+        project_root=root,
+    )
+
+
+def _run_single_scenario_legacy(run_params):
     # 1. Parameter extraction and Logging Setup
     name = run_params['name']
     log_name = run_params['log_name']
@@ -2014,26 +2064,62 @@ def calculate_projection_median_nn_distance_single_scenario(run_params):
         logger.warning(f"No valid projections found for scenario {name} to calculate NN distance.")
         return None, None
 
+def create_parser():
+    parser = argparse.ArgumentParser(
+        description="Explicit entry points for camera-angle reconstruction studies."
+    )
+    parser.add_argument(
+        "study",
+        choices=(
+            "reconstruct",
+            "profile",
+            "voxel-coarsening",
+            "training-convergence",
+            "diagnose-convergence",
+            "baseline-angle-sweep",
+            "projection-nn",
+            "metrics",
+        ),
+    )
+    parser.add_argument("--project-root", type=Path, default=Path.cwd())
+    parser.add_argument("--dataset", choices=tuple(item['name'] for item in DATASET_RUNS))
+    parser.add_argument("--seed", type=int, default=12345)
+    parser.add_argument("--no-display", action="store_true")
+    return parser
+
+
+def main(argv=None):
+    args = create_parser().parse_args(argv)
+    if args.study == "reconstruct":
+        selected = [
+            item for item in DATASET_RUNS
+            if args.dataset is None or item['name'] == args.dataset
+        ]
+        for params in selected:
+            run_single_scenario(
+                params, project_root=args.project_root, seed=args.seed
+            )
+    elif args.study == "profile":
+        profile_bottleneck()
+    elif args.study == "voxel-coarsening":
+        test_voxel_coarsening()
+    elif args.study == "training-convergence":
+        run_training_convergence()
+    elif args.study == "diagnose-convergence":
+        diagnose_slow_convergence()
+    elif args.study == "baseline-angle-sweep":
+        run_baseline_angle_sweep()
+    elif args.study == "projection-nn":
+        calculate_projection_median_nn_distance_multi_scenarios()
+    else:
+        compute_metrics_multi_scenarios()
+    if not args.no_display:
+        plt.show()
+    return 0
+
+
 if __name__ == "__main__":
-    # calculate_projection_median_nn_distance_multi_scenarios()
-    # run_multi_scenarios()
-    # run_multi_scenarios_baseline()
-    # compute_metrics_multi_scenarios()
-    # plot_time_multi_scenarios()
-
-    # --- Quick bottleneck profile (single frame) ---
-    # profile_bottleneck()
-
-    # --- Voxel resolution sensitivity test ---
-    # test_voxel_coarsening()
-
-    # --- Training convergence: track metrics during Adam optimisation ---
-    run_training_convergence()
-
-    # --- Full angle sweep (default vs GMR init, with GT caching) ---
-    # run_baseline_angle_sweep()
-
-    plt.show()
+    raise SystemExit(main())
 
 # for cam_num in [5]:
 # for cam_num in [2, 3, 5]:

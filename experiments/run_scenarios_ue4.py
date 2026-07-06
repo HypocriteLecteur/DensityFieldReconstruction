@@ -1,7 +1,7 @@
-import logging
 import shutil
-import sys
 import os
+import argparse
+from pathlib import Path
 import matplotlib
 import pandas as pd
 
@@ -25,17 +25,10 @@ from scipy.io import loadmat
 import matplotlib.pyplot as plt
 
 from dfr.utils import move_figure
+from experiments.common import setup_logger
 
 # Setup logger
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-file_handler = logging.FileHandler('run_experiments.log', mode='w')
-file_handler.setFormatter(formatter)
-console_handler = logging.StreamHandler(sys.stdout)
-console_handler.setFormatter(formatter)
-logger.addHandler(file_handler)
-logger.addHandler(console_handler)
+logger = setup_logger(__name__)
 
 def thresholding(rgb_image):
     """
@@ -128,7 +121,7 @@ def find_centroids(binary_mask, min_area_threshold=10):
 
     return centroids
 
-def main():
+def run_ue4(*, project_root, image_roots):
     LOG_NAME = 'base_better_peak'
     CLEAN_LOGS = False
     USE_DECOUPLED = False
@@ -148,7 +141,7 @@ def main():
     end_step = run_params['end_step']
     step_length = run_params['step_length']
 
-    scenario_path = os.path.join(os.getcwd(), *["scenarios", name])
+    scenario_path = os.path.join(str(Path(project_root).resolve()), "scenarios", name)
     config_path = os.path.join(scenario_path, "config.yaml")
 
     if CLEAN_LOGS and os.path.exists(os.path.join(scenario_path, "logs")):
@@ -302,9 +295,13 @@ def main():
 
         img_idx = time_step + 1
 
-        img = cv2.imread(f'D:\\WindowsNoEditor\\picture1\\{img_idx}.jpg')
-        img2 = cv2.imread(f'D:\\WindowsNoEditor\\picture2\\{img_idx}.jpg')
-        img3 = cv2.imread(f'D:\\WindowsNoEditor\\picture3\\{img_idx}.jpg')
+        img = cv2.imread(str(image_roots[0] / f"{img_idx}.jpg"))
+        img2 = cv2.imread(str(image_roots[1] / f"{img_idx}.jpg"))
+        img3 = cv2.imread(str(image_roots[2] / f"{img_idx}.jpg"))
+        if any(value is None for value in (img, img2, img3)):
+            raise FileNotFoundError(
+                f"Missing UE4 camera image for frame {img_idx} under {image_roots}."
+            )
 
         # Pre-processing
         BW, _ = thresholding(img)
@@ -461,5 +458,30 @@ def main():
     # else:
     #     print("No time steps processed.")
 
+def create_parser():
+    parser = argparse.ArgumentParser(
+        description="UE4 reconstruction from three image-detection streams."
+    )
+    parser.add_argument("--project-root", type=Path, default=Path.cwd())
+    parser.add_argument(
+        "--image-roots",
+        type=Path,
+        nargs=3,
+        required=True,
+        metavar=("CAMERA_1", "CAMERA_2", "CAMERA_3"),
+    )
+    return parser
+
+
+def main(argv=None):
+    args = create_parser().parse_args(argv)
+    roots = tuple(path.expanduser().resolve() for path in args.image_roots)
+    for path in roots:
+        if not path.is_dir():
+            raise FileNotFoundError(f"UE4 image directory does not exist: {path}")
+    run_ue4(project_root=args.project_root, image_roots=roots)
+    return 0
+
+
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

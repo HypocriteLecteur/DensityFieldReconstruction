@@ -591,13 +591,13 @@ execution.
 | `reconstruct_one_frame.py` | Thin one-frame wrapper over `dfr.reconstruct`, with managed config, checkpoint, arrays, and metrics. |
 | `run_post_processing.py` | Post-process saved reconstruction runs and metrics; configured in source. |
 | `run_scenarios.py` | Main multi-scenario runner; active reconstruction dispatches through `dfr.reconstruct`, while legacy baseline/metric helpers remain. |
-| `run_scenarios_angle_sweep.py` | Camera-angle, convergence, voxel, and initialization sensitivity experiments. |
-| `run_scenarios_flock.py` | Reconstruction workflow for flock/image-oriented datasets. |
+| `run_scenarios_angle_sweep.py` | Explicit-dispatch camera-angle/convergence studies; its ordinary reconstruction path uses `ScenarioRunSpec`. |
+| `run_scenarios_flock.py` | Explicit external-detection flock workflow with required data/calibration paths. |
 | `publication_scenarios.py` | Shared typed presets/CLI implementation for publication Tables 2–4. |
 | `run_scenarios_table_2.py` | Thin managed Table 2 (100-iteration camera-count) entry point. |
 | `run_scenarios_table_3.py` | Thin managed Table 3 (500-iteration camera-count) entry point. |
 | `run_scenarios_table_4.py` | Thin managed Table 4 projection-noise entry point. |
-| `run_scenarios_ue4.py` | UE4 image detection and reconstruction workflow with external image paths. |
+| `run_scenarios_ue4.py` | Explicit UE4 workflow requiring three image roots; import has no filesystem/run side effects. |
 | `search_learning_parameters.py` | Resumable grid search for learning-rate settings; writes a root CSV. |
 | `search_regularization_parameters.py` | Resumable grid search for regularization settings; writes a root CSV. |
 | `synthetic_benchmark.py` | Managed CUDA CLI for synthetic point-process manifold benchmarks. |

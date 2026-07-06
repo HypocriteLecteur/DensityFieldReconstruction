@@ -77,6 +77,12 @@ Both stages use `outputs/<workflow>/<run-id>/`; dataset, camera, noise, and
 iteration settings are encoded in each run ID. Commands require an action so
 importing or accidentally invoking a module never launches a long CUDA study.
 
+The remaining angle, flock, and UE4 differences are cataloged in
+`RUNNER_SPECIALIZATIONS.md`. All three now require explicit command dispatch.
+The ordinary angle reconstruction uses `ScenarioRunSpec`; measured flock
+detections and UE4 image detections remain legacy specializations until the
+package exposes a typed external-observation workflow.
+
 - Interactive diagnostics: `dataset_viewer_test.py`, `inspect_scenarios.py`,
   `inspect_3d_error.py`, and `investigate_initialization.py`.
 - Rendering/animation tools: `generate_scene_animations.py`,
