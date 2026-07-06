@@ -8,6 +8,8 @@ on chat history.
 
 - **Current phase:** Phase 0 complete; Phase 1 is next.
 - **Stable baseline:** annotated tag `v0.1.0`, commit `7cde21e`.
+- **Version storage:** local Git repository only; do not push unless the owner
+  explicitly changes this policy.
 - **Baseline verification:** `git diff --check` and Python syntax compilation
   passed on 2026-07-06. Full reconstruction tests were not run because the
   available runtime does not include the project's CUDA rasterizer stack.
@@ -163,7 +165,7 @@ Rules:
   functions, and output path usage.
 - [x] Define target workflows, architecture, output contract, and migration
   order in this file.
-- [ ] Push `main` and tag `v0.1.0` to `origin`.
+- [x] Keep `main` and tag `v0.1.0` locally; no remote push is required.
 
 ### Phase 1 - Safety Net and Project Contract
 
@@ -344,6 +346,10 @@ The next agent should work on Phase 1 only:
 - **2026-07-06 - API shape:** center the package on load, analyze, reconstruct,
   evaluate, and plot workflows with typed configs/results. Reason: these map to
   the actual research tasks and allow both concise defaults and lower-level use.
+- **2026-07-06 - Version storage:** keep commits and release tags on the local
+  machine. Do not push to GitHub unless the repository owner explicitly changes
+  this decision. Reason: local version maintenance is sufficient and avoids
+  exporting source code and result files.
 
 ## Handoff Log
 
@@ -356,6 +362,7 @@ known failures, and the exact next step.
 - Audited documentation, package/experiment size, duplicate function names, and
   generated-output paths.
 - Created this roadmap; no refactor implementation has started.
+- Confirmed that version maintenance is local-only; no GitHub push is pending.
 - Verification: `git diff --check`; bundled Python `compileall` for `dfr/` and
   `experiments/` (passed, with two pre-existing invalid-escape warnings in
   `experiments/power_law.py`).
