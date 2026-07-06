@@ -6,9 +6,10 @@ on chat history.
 
 ## Status
 
-- **Current phase:** Phase 4 in progress. Mode, DRA, parameter-manifold, typed
-  result, and first `dfr.analyze` APIs are complete; remaining work is thinning
-  the long-tail analysis scripts and migrating their legacy output policies.
+- **Current phase:** Phase 5 in progress. The first typed reconstruction
+  workflow slice is complete; evaluation extraction and consolidation of the
+  legacy multi-scenario runners remain. Phase 4 long-tail script cleanup can
+  proceed independently after active/historical scripts are classified.
 - **Stable baseline:** annotated tag `v0.1.0`, commit `7cde21e`.
 - **Version storage:** local Git repository only; do not push unless the owner
   explicitly changes this policy.
@@ -253,15 +254,15 @@ without copying code or invoking an experiment module.
 
 ### Phase 5 - Reconstruction and Evaluation Workflows
 
-- [ ] Define a user-facing `CameraConfig` supporting explicit poses and common
+- [x] Define a user-facing `CameraConfig` supporting explicit poses and common
   generated layouts (including encircling cameras).
 - [ ] Extract scenario loading/camera setup from `experiments/common.py` into
   package services; experiment-specific presentation stays in `experiments/`.
-- [ ] Add typed `ReconstructionRequest`, `FrameReconstruction`, and
+- [x] Add typed `ReconstructionRequest`, `FrameReconstruction`, and
   `ReconstructionRun` results.
-- [ ] Provide a high-level `dfr.reconstruct(...)` that accepts dataset, frames,
+- [x] Provide a high-level `dfr.reconstruct(...)` that accepts dataset, frames,
   cameras, scale, reconstruction config, device, seed, and output config.
-- [ ] Keep `DensityReconstructor.process_frame()` as a compatibility layer until
+- [x] Keep `DensityReconstructor.process_frame()` as a compatibility layer until
   all active scripts migrate.
 - [ ] Separate metric computation from plotting and provide
   `dfr.evaluate(...)` with typed results.
@@ -326,19 +327,18 @@ reading implementation or experiment source.
 
 ## Immediate Next Actions
 
-The next agent should finish Phase 4 or begin Phase 5:
+The next agent should continue Phase 5:
 
-1. Migrate the remaining active analysis scripts away from direct `figs/`,
-   `results/`, and scenario-cache writes, prioritizing
-   `parameter_manifold.py`, `parameter_manifold_2pl.py`, and
-   `validate_mode_counting.py`.
-2. Split parameter-manifold cache generation from the publication CLI so the
-   experiment becomes a thin configuration/presentation wrapper.
-3. Decide whether the long-tail exploratory scripts are active reproducibility
-   entry points or historical code before spending time converting each one.
-4. If proceeding to Phase 5, define typed reconstruction request/result objects
-   and build `dfr.reconstruct(...)` on the already migrated one-frame runner.
-5. Keep all CPU tests and the five available CUDA tests passing.
+1. Extract pure TP/FP/FN and derived evaluation metrics into `dfr.evaluation`
+   with typed frame/run results and explicit CPU/CUDA device behavior.
+2. Add `dfr.evaluate(...)` for a `ReconstructionRun` or saved managed run,
+   keeping plotting and table formatting separate.
+3. Adapt `experiments/common.py` camera setup to the package builder after
+   characterizing the older quaternion convention used by scenario runners.
+4. Consolidate one representative `run_scenarios*.py` loop onto
+   `dfr.reconstruct` before touching the duplicated publication variants.
+5. Separately classify the remaining Phase 4 exploratory scripts as active or
+   historical before migrating their outputs.
 
 ## Decisions
 
@@ -406,11 +406,40 @@ The next agent should finish Phase 4 or begin Phase 5:
   units, while DRA scales use mean-NND multiples and dispatch visibly to CUDA.
   Reason: the convenient facade must not conceal an expensive analysis or
   silently invent a scale grid.
+- **2026-07-06 - Reconstruction result boundary:** `dfr.reconstruct` always
+  returns detached CPU arrays in typed per-frame results; managed persistence
+  is optional and selected only with `OutputConfig`. Reason: researchers need
+  immediate composable data without coupling computation to filesystem output.
+- **2026-07-06 - Camera orientation:** generated encircling cameras auto-aim at
+  each reconstructed frame, while explicit poses preserve their supplied
+  quaternions. Reason: an explicit pose should not be silently reoriented.
 
 ## Handoff Log
 
 Add one newest-first entry per working session. Include commit(s), verification,
 known failures, and the exact next step.
+
+### 2026-07-06 - Phase 5 typed reconstruction workflow
+
+- Added validated `ReconstructionRequest`, `FrameReconstruction`, and
+  `ReconstructionRun` contracts; frame results expose detached positions, GMM
+  arrays, camera poses/projections, visibility, scale, timings, and summary.
+- Added explicit/encircling camera-system construction under
+  `dfr.reconstruction`, including the established adjacent two-camera layout.
+- Added public `dfr.reconstruct(...)` with one or many frames, fixed/adaptive
+  scale, typed training/reconstruction configs, device, seed, optional managed
+  output, and scenario-config discovery from loaded dataset metadata.
+- Preserved `DensityReconstructor.process_frame()` unchanged as the numerical
+  compatibility layer and preserved single-frame artifact filenames.
+- Reduced `reconstruct_one_frame.py` from 297 to 117 lines by making it a thin
+  public-workflow CLI.
+- Added CPU request/result/camera tests and passed the real one-iteration CUDA
+  CLI workflow with managed artifacts.
+- Verification: public import; reconstruction CLI help; `compileall`;
+  `git diff --check`; `pytest -m "not cuda"` (68 passed); `pytest -m cuda`
+  (5 passed, 1 skipped: optional small rasterizer unavailable).
+- Next step: typed evaluation metrics and `dfr.evaluate(...)`, followed by one
+  representative legacy scenario-runner migration.
 
 ### 2026-07-06 - Phase 4 parameter manifold and analysis facade
 

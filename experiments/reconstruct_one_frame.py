@@ -1,9 +1,7 @@
 """Reconstruct one configured dataset frame into a managed output run.
 
-This is a thin transitional CLI over the current reconstruction classes. It
-keeps all generated data under ``outputs/reconstruction/<run-id>/`` and is
-intended for quick experiments while the higher-level Phase 5 workflow API is
-developed.
+This thin CLI resolves arguments into the public :func:`dfr.reconstruct`
+workflow. Generated data stays under ``outputs/reconstruction/<run-id>/``.
 """
 
 from __future__ import annotations
@@ -11,25 +9,17 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-import numpy as np
-import torch
-
 from dfr import (
-    OutputConfig,
     CameraConfig,
-    RunConfig,
+    OutputConfig,
     RunArtifacts,
     load_dataset,
+    reconstruct,
     resolve_dataset,
     select_frame_indices,
 )
-from dfr.camera_state import CameraState
-from dfr.camera_system import MultiCameraSystem
-from dfr.config import ReconstructionParams, TrainingParams
-from dfr.density_field_reconstructor import DensityReconstructor
-from dfr.model_checkpoint import build_checkpoint
-from dfr.simulation_config import SimulationConfig
-from dfr.utils import calculate_gmm_dissimilarity, generate_encircling_cameras
+from dfr.config import ReconstructionParams
+from dfr.reconstruction.pipeline import default_training_params
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -76,51 +66,9 @@ def _validate_args(args: argparse.Namespace) -> None:
         raise ValueError("--resume requires an explicit --run-id.")
 
 
-def _camera_system(
-    dataset, frame: int, config, camera_config: CameraConfig
-) -> MultiCameraSystem:
-    # The established two-camera configuration uses adjacent positions from a
-    # four-camera ring, avoiding the degenerate opposite-camera pair.
-    if camera_config.layout != "encircling":
-        raise ValueError("The transitional CLI currently supports encircling cameras.")
-    count = camera_config.count
-    generated_count = 4 if count == 2 else count
-    camera_positions, _ = generate_encircling_cameras(
-        dataset,
-        [frame],
-        config.intrinsics_params,
-        config.H,
-        config.W,
-        cam_num=generated_count,
-        padding=camera_config.padding,
-        is_3d=camera_config.is_3d,
-    )
-    camera_positions = camera_positions[:count]
-    identity_quaternions = np.tile(
-        np.array([0.0, 0.0, 0.0, 1.0], dtype=np.float32), (count, 1)
-    )
-    camera_poses = np.hstack((camera_positions, identity_quaternions)).astype(
-        np.float32
-    )
-    return MultiCameraSystem.create_homogeneous_system(
-        state_class=CameraState,
-        intrinsics=config.intrinsics_params,
-        H=config.H,
-        W=config.W,
-        poses_or_RTs=camera_poses,
-        near_clip=config.near_clip,
-        far_clip=config.far_clip,
-        size=config.size,
-        device=camera_config.device,
-    )
-
-
 def run(args: argparse.Namespace) -> RunArtifacts:
     """Execute one frame and return its managed artifact paths."""
     _validate_args(args)
-    if not torch.cuda.is_available():
-        raise RuntimeError("One-frame reconstruction requires CUDA.")
-
     project_root = args.project_root or Path(__file__).resolve().parents[1]
     spec = resolve_dataset(args.dataset, project_root=project_root)
     if spec.config_path is None:
@@ -130,131 +78,34 @@ def run(args: argparse.Namespace) -> RunArtifacts:
         )
     dataset = load_dataset(spec)
     frame = select_frame_indices(dataset, args.frame)[0]
-    simulation_config = SimulationConfig(str(spec.config_path))
-    positions = dataset.positions_at_time_step(frame).astype(np.float32, copy=False)
-
-    np.random.seed(args.seed)
-    torch.manual_seed(args.seed)
-    camera_config = CameraConfig.encircling(
-        count=args.camera_count,
-        padding=1.0,
-        device="cuda",
-    )
-    cameras = _camera_system(dataset, frame, simulation_config, camera_config)
-    camera_poses, projections, _, visibility_masks = cameras.simulate_vision(
-        positions,
-        renderer="projection_only",
-        is_auto_aim=True,
-    )
-
-    train_params = TrainingParams(
-        xyz_lr_c=0.05,
-        xyz_lr_final_c=0.9,
-        radius_lr_c=0.05,
-        radius_lr_final_c=0.9,
-        weights_lr_c=0.10,
-        weights_lr_final_c=0.7,
-        xyz_reg=1.0,
-        radius_reg=0.3,
-        radius_cutoff_inv=0.5,
-        lr_max_steps=args.iterations,
-    )
-    reconstruction_params = ReconstructionParams(
-        targetd_num_mode=args.target_mode_count,
-        voxel_scale=args.voxel_scale,
-        voxel_peak_threshold=args.voxel_peak_threshold,
-        voxel_grid_max_size=args.voxel_grid_max_size,
-        voxel_peaks_number=args.voxel_peaks_number,
-    )
-    output_config = OutputConfig(
-        workflow="reconstruction",
-        name=f"{spec.name} frame {frame}",
-        root=args.output_root,
-        run_id=args.run_id,
-        project_root=project_root,
-        resume=args.resume,
-        overwrite=args.overwrite_run,
-    )
-    run_config = RunConfig(
-        dataset=spec,
-        output=output_config,
-        camera=camera_config,
-        training=train_params,
-        reconstruction=reconstruction_params,
-        seed=args.seed,
-    )
-    artifacts = RunArtifacts.create(
-        output_config,
-        resolved_config={
-            "run": run_config,
-            "frame": frame,
-            "fixed_scale": args.scale,
-        },
-        device=camera_config.device,
-        metadata={"entrypoint": "experiments.reconstruct_one_frame"},
-    )
-
-    reconstructor = DensityReconstructor(
-        max_iter=args.iterations,
-        W=simulation_config.W,
-        H=simulation_config.H,
-        far_clip=simulation_config.far_clip,
-    )
-    models, scale_spaces = reconstructor.process_frame(
-        cameras,
-        point_sets=projections,
-        is_adaptive_scale=args.scale is None,
+    result = reconstruct(
+        dataset,
+        frames=frame,
+        cameras=CameraConfig.encircling(count=args.camera_count, device="cuda"),
         scale=args.scale,
-        positions=positions,
-        train_params=train_params,
-        reconstruction_params=reconstruction_params,
+        training=default_training_params(args.iterations),
+        reconstruction=ReconstructionParams(
+            targetd_num_mode=args.target_mode_count,
+            voxel_scale=args.voxel_scale,
+            voxel_peak_threshold=args.voxel_peak_threshold,
+            voxel_grid_max_size=args.voxel_grid_max_size,
+            voxel_peaks_number=args.voxel_peaks_number,
+        ),
+        seed=args.seed,
+        output=OutputConfig(
+            workflow="reconstruction",
+            name=f"{spec.name} frame {frame}",
+            root=args.output_root,
+            run_id=args.run_id,
+            project_root=project_root,
+            resume=args.resume,
+            overwrite=args.overwrite_run,
+        ),
+        scenario_config=spec.config_path,
     )
-    model = models[0]
-    visible = np.logical_and.reduce(visibility_masks)
-    dissimilarity = calculate_gmm_dissimilarity(
-        positions[visible],
-        reconstructor.scale,
-        model._xyz,
-        model._weights,
-        model._radius,
-    )
-
-    projection_arrays = {
-        f"projection_{index}": projection
-        for index, projection in enumerate(projections)
-    }
-    artifacts.save_npz(
-        "reconstruction.npz",
-        overwrite=args.resume,
-        positions=positions,
-        means=model._xyz.detach().cpu().numpy(),
-        radii=model._radius.detach().cpu().numpy(),
-        weights=model._weights.detach().cpu().numpy(),
-        camera_poses=np.asarray(camera_poses),
-        scale=np.asarray(reconstructor.scale),
-        **projection_arrays,
-    )
-    artifacts.save_checkpoint(
-        "final_model.pth", build_checkpoint(model), overwrite=args.resume
-    )
-    artifacts.save_json(
-        "summary.json",
-        {
-            "dataset": spec.name,
-            "frame": frame,
-            "agent_count": len(positions),
-            "visible_agent_count": int(np.count_nonzero(visible)),
-            "gaussian_count": model.num_gaussians,
-            "scale": reconstructor.scale,
-            "mean_training_loss": model.mean_loss,
-            "density_dissimilarity": dissimilarity,
-            "time_ms": reconstructor.time_metrics,
-            "scale_space_shapes": [list(space.shape) for space in scale_spaces],
-        },
-        category="metrics",
-        overwrite=args.resume,
-    )
-    return artifacts
+    if result.artifacts is None:  # OutputConfig above makes this unreachable.
+        raise RuntimeError("Managed reconstruction did not create artifacts.")
+    return result.artifacts
 
 
 def main() -> None:

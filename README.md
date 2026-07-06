@@ -328,6 +328,37 @@ the reusable numerical operations live in `dfr.analysis`.
 
 ## Reconstruct and evaluate
 
+The public reconstruction workflow accepts a loaded dataset, explicit frames,
+camera configuration, optional fixed scale, and optional managed output:
+
+```python
+import dfr
+
+dataset = dfr.load_dataset("jackdaw2")
+run = dfr.reconstruct(
+    dataset,
+    frames=(2800,),
+    cameras=dfr.CameraConfig.encircling(count=4, padding=1.0),
+    scale=1.0,  # omit for adaptive scale selection
+    output=dfr.OutputConfig(
+        workflow="reconstruction",
+        name="jackdaw2 demo",
+        run_id="jackdaw2-frame-2800",
+    ),
+)
+frame = run.frames[0]
+print(frame.means, frame.radii, frame.weights, frame.scale)
+print(run.run_dir)
+```
+
+Pass `CameraConfig.explicit(...)` to use exact camera poses. Multiple frame
+indices produce one `FrameReconstruction` per frame in the requested order.
+Omit `output` to return arrays without writing files. The current backend
+requires CUDA and a scenario YAML providing image dimensions, intrinsics, and
+clip planes; a dataset loaded by scenario name retains that path automatically.
+Advanced callers can pass `TrainingParams` and `ReconstructionParams` through
+the `training=` and `reconstruction=` arguments.
+
 For a quick managed one-frame reconstruction, use the transitional CLI:
 
 ```powershell
@@ -340,8 +371,7 @@ the resolved config and manifest at the run root, reconstructed arrays under
 and timing metrics under `metrics/`. Use `--help` for voxel, seed, output-root,
 resume, and overwrite controls.
 
-The high-level Python reconstruction API described in `TODO.md` is not
-implemented yet. The current multi-frame path remains the scenario runner:
+The older publication-scale multi-scenario path remains the scenario runner:
 
 1. Edit `CAM_NUM`, `LOG_NAME`, `DATASET_RUNS`, and relevant flags near the top
    of `experiments/run_scenarios.py`.
@@ -480,7 +510,7 @@ execution.
 | `power_law.py` | Large exploratory collection for synthetic/empirical mode-count scaling laws; active analysis configured at the bottom. |
 | `rasterizer_optimize.py` | Benchmark/inspect custom rasterizer performance. |
 | `reconstruction_scale_determination.py` | Legacy reconstruction-scale experiments and visualizations; configured in source. |
-| `reconstruct_one_frame.py` | Transitional one-frame reconstruction CLI with managed config, manifest, checkpoint, arrays, and metrics. |
+| `reconstruct_one_frame.py` | Thin one-frame wrapper over `dfr.reconstruct`, with managed config, checkpoint, arrays, and metrics. |
 | `run_post_processing.py` | Post-process saved reconstruction runs and metrics; configured in source. |
 | `run_scenarios.py` | Main multi-scenario reconstruction runner; datasets/cameras configured in source. |
 | `run_scenarios_angle_sweep.py` | Camera-angle, convergence, voxel, and initialization sensitivity experiments. |

@@ -11,6 +11,12 @@ from dfr.data import (
 from dfr.artifacts import OutputConfig, RunArtifacts
 from dfr.config import AnalysisConfig, CameraConfig, EvaluationConfig, RunConfig
 from dfr.workflows import analyze
+from dfr.reconstruction.pipeline import reconstruct
+from dfr.reconstruction.results import (
+    FrameReconstruction,
+    ReconstructionRequest,
+    ReconstructionRun,
+)
 
 __version__ = "0.1.0"
 
@@ -21,11 +27,15 @@ __all__ = [
     "DatasetSpec",
     "EvaluationConfig",
     "OutputConfig",
+    "FrameReconstruction",
+    "ReconstructionRequest",
+    "ReconstructionRun",
     "RunArtifacts",
     "RunConfig",
     "ScenarioRegistry",
     "analyze",
     "load_dataset",
     "resolve_dataset",
+    "reconstruct",
     "select_frame_indices",
 ]
