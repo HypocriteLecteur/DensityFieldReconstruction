@@ -6,8 +6,7 @@ on chat history.
 
 ## Status
 
-- **Current phase:** Phase 1 is in progress. The project contract and CPU
-  safety net are complete; one end-to-end CUDA reconstruction smoke test remains.
+- **Current phase:** Phase 1 complete; Phase 2 is next.
 - **Stable baseline:** annotated tag `v0.1.0`, commit `7cde21e`.
 - **Version storage:** local Git repository only; do not push unless the owner
   explicitly changes this policy.
@@ -183,7 +182,7 @@ Rules:
 - [x] Add CPU characterization tests for dataset loading, frame selection,
   camera geometry, mode counting, scale selection, metrics, and checkpoint I/O.
 - [x] Add marked CUDA rasterizer smoke tests with tiny inputs.
-- [ ] Add a marked CUDA smoke test for one tiny end-to-end reconstruction.
+- [x] Add a marked CUDA smoke test for one tiny end-to-end reconstruction.
 - [x] Capture one small golden workflow fixture with tolerances; do not commit
   a large generated dataset.
 - [x] Add a test command that skips CUDA cleanly when unavailable.
@@ -321,17 +320,16 @@ reading implementation or experiment source.
 
 ## Immediate Next Actions
 
-The next agent should finish Phase 1, then begin Phase 2:
+The next agent should work on Phase 2:
 
-1. Rebuild/install `gaussian_rasterizer_simple_large` in the `dfr` environment;
-   the current import fails even though CUDA/PyTorch are available.
-2. Add a very small marked end-to-end CUDA reconstruction smoke test. Keep its
-   frame/image/grid/iteration sizes low enough for a normal development run.
-3. Run `python -m pytest -m "not cuda"` and `python -m pytest -m cuda`, recording
-   the exact CUDA outcome here.
-4. Mark Phase 1 complete only after that reconstruction test passes.
-5. Start Phase 2 with the dataset protocol/`DatasetSpec` and tests; preserve
-   `DatasetFactory` as a compatibility adapter.
+1. Define the dataset protocol and `DatasetSpec` with tests for named scenarios
+   and explicit config/data paths.
+2. Add a scenario registry/resolver without moving existing loaders yet.
+3. Introduce `dfr.load_dataset(...)` as a documented facade over
+   `DatasetFactory`; preserve direct factory use as a compatibility path.
+4. Make project/data roots explicit and add actionable path/frame errors.
+5. Keep the 12 CPU tests and 3 available CUDA tests passing while migrating one
+   current caller at a time.
 
 ## Decisions
 
@@ -378,15 +376,16 @@ known failures, and the exact next step.
   velocity strategies, camera projection/culling, projection-only rendering,
   mode count, scale search, density metrics, typed configs, and checkpoint I/O.
 - Replaced the oversized CUDA rasterizer tests with explicitly marked 64x64
-  smoke tests. They currently skip because the rasterizer modules cannot be
-  imported in the discovered `D:/miniconda3/envs/dfr` environment.
+  smoke tests and added a two-camera, one-iteration end-to-end reconstruction
+  smoke test. The large rasterizer is installed; only the optional small
+  rasterizer test skips because that variant is not installed.
 - Fixed `compute_metrics_batched_torch` to use its requested device and return
   its accumulated Python floats without invalid `.item()` calls.
 - Verification: metadata parse; `compileall` for `dfr`, `experiments`, and
-  `tests`; `git diff --check`; `pytest -m "not cuda"` (12 passed, 1 skipped);
-  `pytest -m cuda` (1 module skipped because extensions are unavailable).
-- Next step: restore the large rasterizer in the project environment and add a
-  tiny end-to-end CUDA reconstruction smoke test to finish Phase 1.
+  `tests`; `git diff --check`; `pytest -m "not cuda"` (12 passed);
+  `pytest -m cuda` (3 passed, 1 skipped: optional small rasterizer unavailable).
+- Next step: Phase 2 dataset protocol, registry/resolver, and public loading
+  facade.
 
 ### 2026-07-06 - Baseline and architecture plan
 

@@ -6,17 +6,22 @@ import torch
 
 pytestmark = pytest.mark.cuda
 
+if not torch.cuda.is_available():
+    pytest.skip("CUDA is unavailable", allow_module_level=True)
+
 try:
     from gaussian_rasterizer_simple_large import (
         GaussianRasterizerSimpleLarge,
         rasterize_gaussians,
     )
+except ImportError:
+    GaussianRasterizerSimpleLarge = None
+    rasterize_gaussians = None
+
+try:
     from gaussian_rasterizer_simple_small import GaussianRasterizerSimpleSmall
 except ImportError:
-    pytest.skip("Compiled rasterizer extensions are unavailable", allow_module_level=True)
-
-if not torch.cuda.is_available():
-    pytest.skip("CUDA is unavailable", allow_module_level=True)
+    GaussianRasterizerSimpleSmall = None
 
 
 @pytest.fixture
@@ -37,10 +42,7 @@ def gaussian_inputs():
     return height, width, means, radii, weights, rotation, translation, intrinsics, target
 
 
-@pytest.mark.parametrize(
-    "rasterizer_class", [GaussianRasterizerSimpleSmall, GaussianRasterizerSimpleLarge]
-)
-def test_forward_backward_smoke(rasterizer_class, gaussian_inputs):
+def run_forward_backward_smoke(rasterizer_class, gaussian_inputs):
     height, width, means, radii, weights, rotation, translation, intrinsics, target = (
         gaussian_inputs
     )
@@ -62,6 +64,26 @@ def test_forward_backward_smoke(rasterizer_class, gaussian_inputs):
     assert torch.isfinite(loss)
 
 
+@pytest.mark.skipif(
+    GaussianRasterizerSimpleSmall is None,
+    reason="The small rasterizer extension is unavailable",
+)
+def test_small_forward_backward_smoke(gaussian_inputs):
+    run_forward_backward_smoke(GaussianRasterizerSimpleSmall, gaussian_inputs)
+
+
+@pytest.mark.skipif(
+    GaussianRasterizerSimpleLarge is None,
+    reason="The large rasterizer extension is unavailable",
+)
+def test_large_forward_backward_smoke(gaussian_inputs):
+    run_forward_backward_smoke(GaussianRasterizerSimpleLarge, gaussian_inputs)
+
+
+@pytest.mark.skipif(
+    rasterize_gaussians is None,
+    reason="The large rasterizer extension is unavailable",
+)
 def test_forward_smoke(gaussian_inputs):
     height, width, means, radii, weights, rotation, translation, intrinsics, _ = (
         gaussian_inputs
@@ -76,7 +98,7 @@ def test_forward_smoke(gaussian_inputs):
         intrinsics,
         height,
         width,
-        profile=False,
+        False,
     )
 
     assert density.shape == (height, width)
