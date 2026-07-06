@@ -363,6 +363,31 @@ the `training=` and `reconstruction=` arguments. For experiment sweeps,
 `projection_noise_std=` applies reproducible bounded pixel noise, and
 `use_decoupled=` selects the existing decoupled model backend.
 
+For a repeatable named-dataset sweep, put the frame range and scientific
+controls in a `ScenarioRunSpec`:
+
+```python
+spec = dfr.ScenarioRunSpec(
+    dataset="jackdaw2",
+    start=2800,
+    stop=2841,
+    step=20,
+    cameras=dfr.CameraConfig.encircling(count=4),
+    use_ground_truth_scales=True,
+    output=dfr.OutputConfig(
+        workflow="reconstruction",
+        name="jackdaw2 camera study",
+        run_id="jackdaw2-cam-4",
+    ),
+)
+run = dfr.run_scenario(spec, project_root=".")
+```
+
+`run_scenarios(...)` accepts several specifications. The runner loads each
+dataset, resolves frames, reads its ordered `reconstruction_scale.npz` cache
+when requested, calls `dfr.reconstruct`, and saves aggregate timing/loss/scale
+statistics into the same managed run.
+
 Evaluate an in-memory reconstruction against its source positions (or pass an
 explicit ground-truth dataset):
 
@@ -400,7 +425,21 @@ the resolved config and manifest at the run root, reconstructed arrays under
 and timing metrics under `metrics/`. Use `--help` for voxel, seed, output-root,
 resume, and overwrite controls.
 
-The primary publication-scale multi-scenario path remains the scenario runner:
+The three publication table variants are now explicit, side-effect-free CLIs:
+
+```powershell
+python -m experiments.run_scenarios_table_2 reconstruct --help
+python -m experiments.run_scenarios_table_3 reconstruct --datasets starling --camera-counts 2 --run-id-prefix table3-smoke
+python -m experiments.run_scenarios_table_4 run --noise-levels 0 1 2 --camera-counts 2
+```
+
+Table 2 is the 100-iteration camera-count preset, Table 3 is its 500-iteration
+counterpart, and Table 4 is the projection-noise preset (historically active
+for `starling`). `reconstruct` creates managed reconstruction runs; `run` also
+evaluates each result into a matching managed evaluation run. No study starts
+merely by importing one of these modules.
+
+The transitional general multi-scenario path remains available:
 
 1. Edit `CAM_NUM`, `LOG_NAME`, `DATASET_RUNS`, and relevant flags near the top
    of `experiments/run_scenarios.py`.
@@ -412,10 +451,10 @@ The primary publication-scale multi-scenario path remains the scenario runner:
    ```
 
 Its active reconstruction path now resolves datasets/cameras through package
-services and calls `dfr.reconstruct`. When `IS_LOGGING` is enabled, final frame
+services and calls `dfr.run_scenario`. When `IS_LOGGING` is enabled, final frame
 artifacts and aggregate statistics use managed reconstruction output rather
-than scenario log directories. Baseline, metric, and publication-table helpers
-in that module remain transitional. This path requires CUDA and
+than scenario log directories. Baseline and metric helpers in that module
+remain transitional. This path requires CUDA and
 `gaussian_rasterizer_simple_large`.
 
 To evaluate already generated checkpoints with the current fixed dataset and
@@ -554,9 +593,10 @@ execution.
 | `run_scenarios.py` | Main multi-scenario runner; active reconstruction dispatches through `dfr.reconstruct`, while legacy baseline/metric helpers remain. |
 | `run_scenarios_angle_sweep.py` | Camera-angle, convergence, voxel, and initialization sensitivity experiments. |
 | `run_scenarios_flock.py` | Reconstruction workflow for flock/image-oriented datasets. |
-| `run_scenarios_table_2.py` | Legacy runner variant for Table 2 experiments. |
-| `run_scenarios_table_3.py` | Legacy runner variant for Table 3 experiments. |
-| `run_scenarios_table_4.py` | Legacy runner variant for Table 4 experiments. |
+| `publication_scenarios.py` | Shared typed presets/CLI implementation for publication Tables 2–4. |
+| `run_scenarios_table_2.py` | Thin managed Table 2 (100-iteration camera-count) entry point. |
+| `run_scenarios_table_3.py` | Thin managed Table 3 (500-iteration camera-count) entry point. |
+| `run_scenarios_table_4.py` | Thin managed Table 4 projection-noise entry point. |
 | `run_scenarios_ue4.py` | UE4 image detection and reconstruction workflow with external image paths. |
 | `search_learning_parameters.py` | Resumable grid search for learning-rate settings; writes a root CSV. |
 | `search_regularization_parameters.py` | Resumable grid search for regularization settings; writes a root CSV. |

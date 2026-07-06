@@ -8,7 +8,8 @@ on chat history.
 
 - **Current phase:** Phase 4 is complete. Phase 5 typed reconstruction,
   evaluation, shared scenario/camera services, and the representative primary
-  runner migration are complete; publication runner consolidation remains.
+  runner plus Table 2/3/4 consolidation are complete; flock/angle/UE4 runner
+  specializations remain.
 - **Stable baseline:** annotated tag `v0.1.0`, commit `7cde21e`.
 - **Version storage:** local Git repository only; do not push unless the owner
   explicitly changes this policy.
@@ -329,15 +330,13 @@ reading implementation or experiment source.
 
 The next agent should continue Phase 5:
 
-1. Extract a configurable shared scenario-run specification from the migrated
-   `run_scenarios.py` path.
-2. Move `run_scenarios_table_2.py`, `run_scenarios_table_3.py`, and
-   `run_scenarios_table_4.py` onto that shared runner, then handle flock and
-   angle-sweep specializations separately.
-3. Migrate `compute_metrics_from_pretrained.py` dataset/checkpoint discovery
+1. Inventory the flock, angle-sweep, and UE4 runner specializations and move
+   compatible loops onto `ScenarioRunSpec` without flattening image-specific
+   or angle-generation behavior.
+2. Migrate `compute_metrics_from_pretrained.py` dataset/checkpoint discovery
    and output paths to explicit CLI/config and managed evaluation artifacts.
-4. Add saved-evaluation loading if downstream plotting needs a stable reader.
-5. Keep the Phase 4 supported/legacy classification in
+3. Add saved-evaluation loading if downstream plotting needs a stable reader.
+4. Keep the Phase 4 supported/legacy classification in
    `experiments/README.md` current when promoting another research study.
 
 ## Decisions
@@ -430,11 +429,36 @@ The next agent should continue Phase 5:
   identity before auto-aim; a characterization test proves post-auto-aim poses
   and projections match. Reason: the initial orientation is overwritten and
   should not propagate a misleading convention into the public API.
+- **2026-07-06 - Publication table profiles:** retain Tables 2, 3, and 4 as
+  named experiment presets over one package scenario runner; require an
+  explicit CLI action and write reconstruction/evaluation to separate managed
+  workflows. Reason: iteration, dataset, camera, and noise differences remain
+  visible without keeping three 869-line executable copies.
 
 ## Handoff Log
 
 Add one newest-first entry per working session. Include commit(s), verification,
 known failures, and the exact next step.
+
+### 2026-07-06 - Phase 5 publication table runner consolidation
+
+- Added public `ScenarioRunSpec`, `run_scenario`, and `run_scenarios` services
+  for named-dataset loading, frame ranges, ordered ground-truth scale caches,
+  camera/training/reconstruction controls, seeded noise, and managed aggregate
+  statistics.
+- Moved the primary scenario adapter onto the shared service and removed its
+  remaining local loading/scale/statistics orchestration.
+- Replaced three 869-line Table 2/3/4 copies with side-effect-free seven-line
+  compatibility entry points over typed publication profiles. Table 2 keeps
+  100 iterations, Table 3 keeps 500, and Table 4 keeps the active starling
+  projection-noise preset.
+- Added explicit `reconstruct` and reconstruct-plus-evaluate (`run`) actions,
+  documented commands, profile override controls, and managed output paths.
+- Verification: all three CLI help commands; `compileall`; `git diff --check`;
+  `pytest -m "not cuda"` (88 passed); `pytest -m cuda` (6 passed, 1 skipped:
+  optional small rasterizer unavailable).
+- Next step: inventory and migrate the flock, angle-sweep, and UE4 runner
+  specializations, then finish the pretrained-evaluator CLI/output migration.
 
 ### 2026-07-06 - Phase 5 shared camera and primary runner migration
 

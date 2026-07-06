@@ -60,6 +60,23 @@ the retained functions. Their inventory and decomposition are Phase 6 work.
 
 ## Diagnostics and non-analysis workflows
 
+### Publication reconstruction tables
+
+Tables 2–4 share `publication_scenarios.py` and the package-level
+`ScenarioRunSpec` runner. Their historical filenames remain as thin commands:
+
+- `python -m experiments.run_scenarios_table_2 reconstruct --help` — camera
+  counts 2/3/5, 100 optimization iterations, four biological datasets.
+- `python -m experiments.run_scenarios_table_3 reconstruct --help` — the same
+  study with 500 iterations.
+- `python -m experiments.run_scenarios_table_4 reconstruct --help` —
+  projection-noise study; the historical active preset selects `starling`.
+
+Use action `run` instead of `reconstruct` to evaluate each in-memory result.
+Both stages use `outputs/<workflow>/<run-id>/`; dataset, camera, noise, and
+iteration settings are encoded in each run ID. Commands require an action so
+importing or accidentally invoking a module never launches a long CUDA study.
+
 - Interactive diagnostics: `dataset_viewer_test.py`, `inspect_scenarios.py`,
   `inspect_3d_error.py`, and `investigate_initialization.py`.
 - Rendering/animation tools: `generate_scene_animations.py`,

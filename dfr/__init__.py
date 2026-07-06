@@ -17,6 +17,7 @@ from dfr.reconstruction.results import (
     ReconstructionRequest,
     ReconstructionRun,
 )
+from dfr.reconstruction.scenarios import ScenarioRunSpec, run_scenario, run_scenarios
 from dfr.evaluation.pipeline import evaluate
 from dfr.evaluation.results import EvaluationRun, EvaluationSummary, FrameEvaluation
 
@@ -38,10 +39,13 @@ __all__ = [
     "RunArtifacts",
     "RunConfig",
     "ScenarioRegistry",
+    "ScenarioRunSpec",
     "analyze",
     "evaluate",
     "load_dataset",
     "resolve_dataset",
     "reconstruct",
+    "run_scenario",
+    "run_scenarios",
     "select_frame_indices",
 ]

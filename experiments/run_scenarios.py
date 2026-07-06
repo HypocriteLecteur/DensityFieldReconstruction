@@ -22,7 +22,7 @@ from gaussian_rasterizer_simple_large import rasterize_gaussians
 from dfr.utils import move_figure
 from scipy.spatial import cKDTree
 from experiments.common import setup_logger, setup_camera_system, print_global_metrics
-from dfr import CameraConfig, OutputConfig, load_dataset, reconstruct
+from dfr import CameraConfig, OutputConfig, ScenarioRunSpec, run_scenario
 from dfr.config import ReconstructionParams, TrainingParams
 
 import matplotlib.pyplot as plt
@@ -95,35 +95,13 @@ def run_multi_scenarios():
         run_single_scenario(run_params)
 
 def run_single_scenario(run_params, *, output=None, seed=12345):
-    """Run one scenario through the typed package reconstruction workflow."""
+    """Compatibility adapter over the package scenario runner."""
     if CLEAN_LOGS:
         raise ValueError(
             "CLEAN_LOGS is unsupported for managed runs; use OutputConfig(overwrite=True)."
         )
-    name = run_params['name']
-    start_step = int(run_params['start_step'])
-    step_length = int(run_params['step_length'])
     project_root = Path.cwd().resolve()
-    dataset = load_dataset(name, project_root=project_root)
-    stop = run_params['end_step']
-    stop = min(int(stop), len(dataset)) if stop is not None else len(dataset)
-    frames = tuple(range(start_step, stop, step_length))
-    if not frames:
-        logger.info(f"Skipping {name}: selected frame range is empty.")
-        return None
-
-    frame_scales = None
-    if USE_GT_SCALE:
-        scale_path = project_root / "scenarios" / name / "reconstruction_scale.npz"
-        with np.load(scale_path, allow_pickle=False) as scale_data:
-            available_scales = np.asarray(scale_data['scales_gt'], dtype=float)
-        if len(available_scales) < len(frames):
-            raise ValueError(
-                f"Ground-truth scale cache has {len(available_scales)} values "
-                f"for {len(frames)} selected frames."
-            )
-        frame_scales = tuple(available_scales[:len(frames)])
-
+    name = run_params['name']
     if output is None and IS_LOGGING:
         output = OutputConfig(
             workflow="reconstruction",
@@ -131,56 +109,42 @@ def run_single_scenario(run_params, *, output=None, seed=12345):
             run_id=f"{name}-{run_params['log_name']}",
             project_root=project_root,
         )
-    run = reconstruct(
-        dataset,
-        frames=frames,
-        cameras=CameraConfig.encircling(count=CAM_NUM, device="cuda"),
-        frame_scales=frame_scales,
-        training=TrainingParams(
-            xyz_lr_c=0.05,
-            xyz_lr_final_c=0.9,
-            radius_lr_c=0.05,
-            radius_lr_final_c=0.9,
-            weights_lr_c=0.10,
-            weights_lr_final_c=0.7,
-            xyz_reg=1.0,
-            radius_reg=0.3,
-            radius_cutoff_inv=0.5,
-            lr_max_steps=500,
+    run = run_scenario(
+        ScenarioRunSpec(
+            dataset=name,
+            start=int(run_params['start_step']),
+            stop=run_params['end_step'],
+            step=int(run_params['step_length']),
+            cameras=CameraConfig.encircling(count=CAM_NUM, device="cuda"),
+            training=TrainingParams(
+                xyz_lr_c=0.05,
+                xyz_lr_final_c=0.9,
+                radius_lr_c=0.05,
+                radius_lr_final_c=0.9,
+                weights_lr_c=0.10,
+                weights_lr_final_c=0.7,
+                xyz_reg=1.0,
+                radius_reg=0.3,
+                radius_cutoff_inv=0.5,
+                lr_max_steps=500,
+            ),
+            reconstruction=ReconstructionParams(
+                targetd_num_mode=10,
+                voxel_scale=0.5,
+                voxel_peak_threshold=0.3,
+                voxel_grid_max_size=32,
+                voxel_peaks_number=20,
+            ),
+            use_ground_truth_scales=USE_GT_SCALE,
+            seed=seed,
+            projection_noise_std=float(run_params.get('noise_std', 0.0)),
+            use_decoupled=USE_DECOUPLED,
+            output=output,
         ),
-        reconstruction=ReconstructionParams(
-            targetd_num_mode=10,
-            voxel_scale=0.5,
-            voxel_peak_threshold=0.3,
-            voxel_grid_max_size=32,
-            voxel_peaks_number=20,
-        ),
-        seed=seed,
-        projection_noise_std=float(run_params.get('noise_std', 0.0)),
-        use_decoupled=USE_DECOUPLED,
-        output=output,
+        project_root=project_root,
     )
     logger.info(f"Results for {name}: {len(run.frames)} frames reconstructed.")
     if run.artifacts is not None:
-        timing_names = sorted(
-            {key for frame in run.frames for key in frame.time_ms}
-        )
-        run.artifacts.save_npz(
-            "statistics.npz",
-            overwrite=run.artifacts.output.resume,
-            **{
-                key: np.asarray([frame.time_ms.get(key, np.nan) for frame in run.frames])
-                for key in timing_names
-            },
-            final_training_loss=np.asarray(
-                [frame.mean_training_loss for frame in run.frames], dtype=float
-            ),
-            final_density_field_loss=np.asarray(
-                [frame.density_dissimilarity for frame in run.frames], dtype=float
-            ),
-            final_gmm_num=np.asarray([frame.gaussian_count for frame in run.frames]),
-            scale=np.asarray([frame.scale for frame in run.frames]),
-        )
         logger.info(f"Managed outputs: {run.run_dir}")
     return run
 

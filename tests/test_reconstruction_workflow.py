@@ -15,6 +15,7 @@ from dfr.reconstruction.pipeline import (
     default_training_params,
 )
 import dfr.reconstruction.pipeline as reconstruction_pipeline
+import dfr.reconstruction.scenarios as scenario_runner
 from dfr.reconstruction.results import (
     FrameReconstruction,
     ReconstructionRequest,
@@ -280,6 +281,53 @@ def test_representative_scenario_runner_dispatches_to_public_workflow():
         "def _run_single_scenario_legacy", 1
     )[0]
 
-    assert "run = reconstruct(" in managed
-    assert "frame_scales=frame_scales" in managed
+    assert "run = run_scenario(" in managed
+    assert "ScenarioRunSpec(" in managed
     assert "projection_noise_std=" in managed
+
+
+def test_scenario_runner_resolves_frames_scales_and_public_dispatch(
+    monkeypatch, tmp_path
+):
+    dataset, config_path = make_scenario(tmp_path)
+    np.savez(config_path.parent / "reconstruction_scale.npz", scales_gt=[0.75])
+    captured = {}
+    expected = object()
+
+    monkeypatch.setattr(scenario_runner, "load_dataset", lambda *args, **kwargs: dataset)
+
+    def fake_reconstruct(loaded, **kwargs):
+        captured.update(kwargs)
+        assert loaded is dataset
+        return expected
+
+    monkeypatch.setattr(scenario_runner, "reconstruct", fake_reconstruct)
+    monkeypatch.setattr(scenario_runner, "_save_statistics", lambda run: None)
+    spec = scenario_runner.ScenarioRunSpec(
+        dataset="tiny",
+        cameras=CameraConfig.encircling(device="cuda"),
+        training=default_training_params(7),
+    )
+
+    actual = scenario_runner.run_scenario(spec, project_root=tmp_path)
+
+    assert actual is expected
+    assert captured["frames"] == (0,)
+    assert captured["frame_scales"] == (0.75,)
+    assert captured["training"].lr_max_steps == 7
+
+
+def test_scenario_spec_validation_and_serialization():
+    spec = scenario_runner.ScenarioRunSpec(
+        dataset="starling",
+        start=2,
+        stop=8,
+        step=2,
+        use_ground_truth_scales=False,
+        projection_noise_std=1.5,
+    )
+
+    assert spec.to_dict()["cameras"]["count"] == 2
+    assert spec.to_dict()["projection_noise_std"] == 1.5
+    with pytest.raises(ValueError, match="step"):
+        scenario_runner.ScenarioRunSpec(dataset="starling", step=0)
