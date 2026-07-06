@@ -1,0 +1,50 @@
+dataset
+density_field_rasterizer/*/build
+density_field_rasterizer/*/gaussian*
+density_field_rasterizer/*/third_party
+scenarios/*/logs
+**/__pycache__/
+*.py[cod]
+*.log
+camera-aero
+.vscode
+.pytest_cache
+*.npy
+*.npz
+/density_field_reconstruction_copy
+/experiments_legacy
+
+# Cache / pickle files
+*.pkl
+
+# Image & video
+*.png
+*.mp4
+*.pdf
+
+# Data / results
+*.csv
+data.txt
+
+# Generated outputs
+outputs/
+
+# Temporary checkpoints
+t_*/
+
+# Python packaging artifacts
+dfr.egg-info/
+*.egg-info/
+dist/
+build/
+
+# Rasterizer build artifacts
+density_field_rasterizer/**/dist/
+density_field_rasterizer/**/*.egg-info/
+density_field_rasterizer/**/__pycache__/
+
+# Temp / draft files
+draft.py
+
+# MATLAB
+*.m
