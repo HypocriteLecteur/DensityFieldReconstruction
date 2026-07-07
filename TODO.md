@@ -6,11 +6,9 @@ on chat history.
 
 ## Status
 
-- **Current phase:** Phase 5 is complete. Typed reconstruction, evaluation,
-  shared scenario/camera services, the representative primary runner, Table
-  2/3/4 consolidation, typed external-observation workflow, measured-flock
-  primary run migration, UE4 primary run migration, and ordinary angle-sweep
-  consolidation are complete. The next phase is Phase 6 plotting decomposition.
+- **Current phase:** Phase 6 plotting decomposition has begun. The
+  `experiments/dfr_plot.py` function catalog is frozen in
+  `experiments/DFR_PLOT_CATALOG.md`; no plotting functions have been moved yet.
 - **Stable baseline:** annotated tag `v0.1.0`, commit `7cde21e`.
 - **Version storage:** local Git repository only; do not push unless the owner
   explicitly changes this policy.
@@ -277,7 +275,7 @@ reconstruct -> evaluate, and scenario runners no longer duplicate the pipeline.
 
 ### Phase 6 - Plotting Decomposition
 
-- [ ] Freeze a catalog of all 36 functions in `experiments/dfr_plot.py`, their
+- [x] Freeze a catalog of all 36 functions in `experiments/dfr_plot.py`, their
   callers, input data, and output files before moving them.
 - [ ] Classify each function as reusable package plotting, experiment-only
   figure, computation that belongs in analysis/evaluation, or obsolete.
@@ -329,14 +327,16 @@ reading implementation or experiment source.
 
 ## Immediate Next Actions
 
-The next agent should start Phase 6:
+The next agent should continue Phase 6:
 
-1. Freeze a catalog of all functions in `experiments/dfr_plot.py`, including
-   callers, inputs, output files, and whether each function is reusable,
-   experiment-only, computation, or obsolete.
-2. Move shared plotting style/save/layout helpers into `dfr.plotting` only
-   after the catalog identifies reusable pieces.
-3. Add headless plotting smoke tests before migrating any high-value figure.
+1. Create the initial `dfr.plotting` package around low-risk reusable
+   primitives identified in `experiments/DFR_PLOT_CATALOG.md`:
+   camera-configuration plotting, trajectory/camera views, and 2D
+   projection/GMM views.
+2. Add headless plotting smoke tests before migrating any high-value figure.
+3. Refactor one small `dfr_plot.py` function to call the package primitive
+   while preserving its legacy save path, then migrate saving to managed
+   artifacts in a follow-up.
 4. Keep the Phase 4 supported/legacy classification in
    `experiments/README.md` current when promoting another research study.
 
@@ -458,6 +458,20 @@ The next agent should start Phase 6:
 
 Add one newest-first entry per working session. Include commit(s), verification,
 known failures, and the exact next step.
+
+### 2026-07-07 - Phase 6 dfr_plot catalog freeze
+
+- Added `experiments/DFR_PLOT_CATALOG.md`, cataloging all 36 top-level
+  functions in `experiments/dfr_plot.py` with line ranges, known callers,
+  inputs/loads, outputs/side effects, classification, and migration notes.
+- Added a regression test that parses `dfr_plot.py` and requires every
+  top-level function to appear in the catalog.
+- Updated README and `experiments/README.md` to point to the catalog.
+- Verification: `compileall`; catalog synchronization test; `git diff --check`;
+  `pytest -m "not cuda"` (100 passed, 7 deselected, 1 warning);
+  `pytest -m cuda` (6 passed, 1 skipped, 100 deselected).
+- Next step: create the initial `dfr.plotting` package and migrate one
+  low-risk reusable plotting primitive with headless tests.
 
 ### 2026-07-07 - Phase 5 runner consolidation completed
 

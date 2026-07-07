@@ -54,7 +54,9 @@ study, then migrate that study separately if it remains scientifically active.
 `dfr_plot.py` is a mixed 3,900-line publication/reconstruction plotting archive,
 not a supported analysis CLI. Direct execution no longer launches its former
 hard-coded animation. `python -m experiments.dfr_plot --list-functions` lists
-the retained functions. Their inventory and decomposition are Phase 6 work.
+the retained functions. The Phase 6 function inventory is frozen in
+[`DFR_PLOT_CATALOG.md`](DFR_PLOT_CATALOG.md); update that catalog before moving
+or deleting any `dfr_plot.py` function.
 
 `plotting_utils.py` is a helper module rather than an entry point.
 

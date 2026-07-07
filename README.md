@@ -582,7 +582,7 @@ execution.
 | `common.py` | Compatibility adapters over package scenario/camera/evaluation services plus runner logging/noise helpers. |
 | `compute_metrics_from_pretrained.py` | Recompute density metrics from saved iteration checkpoints; configured in source. |
 | `dataset_viewer_test.py` | Interactive dataset/camera/scale viewer; performs work at import and is excluded from pytest. |
-| `dfr_plot.py` | Legacy 3,900-line publication/reconstruction plot collection; implicit execution is disabled pending Phase 6. |
+| `dfr_plot.py` | Legacy 3,900-line publication/reconstruction plot collection; Phase 6 inventory is in `experiments/DFR_PLOT_CATALOG.md`. |
 | `fit_dra_multiframe.py` | CLI for multi-frame DRA/model-order fitting, caches, reports, and fit figures. |
 | `generate_scene_animations.py` | Generate trajectory and ground-truth density MP4 animations; datasets configured in source. |
 | `inspect_3d_error.py` | Inspect and plot 3D reconstruction error from existing run data. |
