@@ -60,13 +60,15 @@ or deleting any `dfr_plot.py` function. The migrated wrappers so far are
 `plot_camera_configurations`, `plot_single_scenario_new`,
 `plot_jackdaw2_2d_gmm`, `plot_jackdaw2_2d_observations`, and
 `plot_jackdaw2_mode_count_curve`, plus
+`plot_jackdaw2_multiscale_density` and
 `plot_jackdaw2_dra_scale_model_order_surface`, whose rendering now lives in
 `dfr.plotting` while the legacy wrappers still write to `figs/`.
 
 `plotting_utils.py` is a helper module rather than an entry point. Its
-style/layout compatibility helpers now delegate to `dfr.plotting`; heavier
-voxel and density-rendering helpers remain here until their owning figures get
-dedicated smoke tests.
+style/layout compatibility helpers now delegate to `dfr.plotting`; the first
+3D density renderer has moved, while voxel construction and remaining
+density/GMM helpers remain here until their owning figures get dedicated smoke
+tests.
 
 Supported analysis CLIs now route figure exports through
 `dfr.plotting.save_figure` or managed artifact helpers instead of direct

@@ -78,6 +78,20 @@ def test_mode_count_curve_legacy_wrapper_uses_package_plotting():
     assert 'os.path.join(os.getcwd(), "figs")' in wrapper
 
 
+def test_multiscale_density_legacy_wrapper_uses_package_plotting():
+    root = Path(__file__).resolve().parents[1]
+    source = (root / "experiments" / "dfr_plot.py").read_text(encoding="utf-8")
+    wrapper = source.split("def plot_jackdaw2_multiscale_density", 1)[1].split(
+        "def plot_jackdaw2_dra_scale_model_order_surface", 1
+    )[0]
+
+    assert "plot_multiscale_density_fields" in wrapper
+    assert "save_figure(" in wrapper
+    assert "render_density_field_3d(" not in wrapper
+    assert "plt.figure(" not in wrapper
+    assert 'os.path.join(os.getcwd(), "figs")' in wrapper
+
+
 def test_dra_surface_legacy_wrapper_uses_package_plotting():
     root = Path(__file__).resolve().parents[1]
     source = (root / "experiments" / "dfr_plot.py").read_text(encoding="utf-8")

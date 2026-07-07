@@ -1095,34 +1095,29 @@ def plot_jackdaw2_multiscale_density(
         print(f"[multiscale] cached density grids -> {cache_path}")
 
     # ── Render individual figures ─────────────────────────────────────────
-    view = dict(elev=33, azim=-117, roll=0)
+    from dfr.plotting import plot_multiscale_density_fields, save_figure
+
     out_dir = os.path.join(os.getcwd(), "figs")
     os.makedirs(out_dir, exist_ok=True)
 
-    for norm_scale, mode_count, data in zip(
-        normalized_scales, selected_mode_counts, density_data,
-    ):
-        density_3d = data["density"]
-        x_t_np = data["x_ticks"]
-        y_t_np = data["y_ticks"]
-        z_t_np = data["z_ticks"]
-
-        fig = plt.figure(figsize=(10, 10))
-        ax = fig.add_subplot(111, projection="3d")
-        ax.view_init(**view)
-        ax.set_axis_off()
-
-        render_density_field_3d(
-            ax, density_3d, x_t_np, y_t_np, z_t_np, positions,
-        )
-
-        ax.text2D(0.02, 0.98, f"{norm_scale:.3f} x NND ({mode_count} modes)",
-                  transform=ax.transAxes, fontsize=16, va="top")
-
-        fig.tight_layout(pad=0)
+    figures = plot_multiscale_density_fields(
+        density_data,
+        positions,
+        normalized_scales,
+        selected_mode_counts,
+        view=(33, -117, 0),
+    )
+    for (fig, _), norm_scale in zip(figures, normalized_scales):
         label = f"scale_{norm_scale:.3f}_nnd"
         out_path = os.path.join(out_dir, f"jackdaw2_density_{label}.png")
-        fig.savefig(out_path, transparent=True, bbox_inches="tight", pad_inches=0, dpi=300)
+        save_figure(
+            fig,
+            out_path,
+            transparent=True,
+            bbox_inches="tight",
+            pad_inches=0,
+            dpi=300,
+        )
         plt.close(fig)
         print(f"Saved → {out_path}")
 

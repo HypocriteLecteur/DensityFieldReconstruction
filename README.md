@@ -582,7 +582,7 @@ execution.
 | `common.py` | Compatibility adapters over package scenario/camera/evaluation services plus runner logging/noise helpers. |
 | `compute_metrics_from_pretrained.py` | Recompute density metrics from saved iteration checkpoints; configured in source. |
 | `dataset_viewer_test.py` | Interactive dataset/camera/scale viewer; performs work at import and is excluded from pytest. |
-| `dfr_plot.py` | Legacy 3,900-line publication/reconstruction plot collection; Phase 6 inventory is in `experiments/DFR_PLOT_CATALOG.md`, and camera/trajectory/2D projection/mode-count/DRA-surface rendering now delegates to `dfr.plotting`. |
+| `dfr_plot.py` | Legacy 3,900-line publication/reconstruction plot collection; Phase 6 inventory is in `experiments/DFR_PLOT_CATALOG.md`, and camera/trajectory/2D projection/mode-count/DRA-surface/multiscale-density rendering now delegates to `dfr.plotting`. |
 | `fit_dra_multiframe.py` | CLI for multi-frame DRA/model-order fitting, caches, reports, and fit figures using shared save defaults. |
 | `generate_scene_animations.py` | Generate trajectory and ground-truth density MP4 animations; datasets configured in source. |
 | `inspect_3d_error.py` | Inspect and plot 3D reconstruction error from existing run data. |
@@ -592,7 +592,7 @@ execution.
 | `parameter_manifold.py` | Managed 3PL fit/clustering/publication CLI using package manifold computation, style, and save defaults. |
 | `parameter_manifold_2pl.py` | Managed symmetric-2PL manifold and temporal/N-dependence CLI using package style and save defaults. |
 | `plot_dra_scale_model_order.py` | CUDA CLI for DRA over scale and model order with resumable caches, surface fits, package plotting primitives, and shared figure-save defaults. |
-| `plotting_utils.py` | Legacy plotting/math compatibility helpers used by DRA figures; style/layout helpers delegate to `dfr.plotting`; not an entry point. |
+| `plotting_utils.py` | Legacy plotting/math compatibility helpers used by DRA figures; style/layout and first density-rendering helpers delegate to `dfr.plotting`; not an entry point. |
 | `power_law.py` | Legacy exploratory mode-count scaling studies; requires an explicit experiment subcommand. |
 | `rasterizer_optimize.py` | Benchmark/inspect custom rasterizer performance. |
 | `reconstruction_scale_determination.py` | Legacy reconstruction-scale studies; requires an explicit experiment subcommand. |

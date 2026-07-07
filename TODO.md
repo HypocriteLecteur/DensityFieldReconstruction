@@ -9,8 +9,9 @@ on chat history.
 - **Current phase:** Phase 6 plotting decomposition is in progress. The
   `experiments/dfr_plot.py` function catalog is frozen in
   `experiments/DFR_PLOT_CATALOG.md`; reusable camera-configuration,
-  trajectory-snapshot, 2D projection/GMM, mode-count curve, and DRA
-  scale/model-order surface plotting primitives have moved to `dfr.plotting`.
+  trajectory-snapshot, 2D projection/GMM, mode-count curve, DRA
+  scale/model-order surface, and multiscale density plotting primitives have
+  moved to `dfr.plotting`.
 - **Stable baseline:** annotated tag `v0.1.0`, commit `7cde21e`.
 - **Version storage:** local Git repository only; do not push unless the owner
   explicitly changes this policy.
@@ -286,8 +287,9 @@ reconstruct -> evaluate, and scenario runners no longer duplicate the pipeline.
   - Started: `apply_academic_style`, 3D axis styling, and lightweight
     figure-saving defaults now live in `dfr.plotting`; `experiments`
     compatibility helpers delegate to the package. Supported analysis CLIs no
-    longer call Matplotlib `savefig` directly. Remaining work: migrate layout
-    patterns and heavier density-rendering helpers when touching their owning
+    longer call Matplotlib `savefig` directly. Multiscale 3D density rendering
+    has also moved to `dfr.plotting`. Remaining work: migrate layout patterns
+    and the remaining heavier density/GMM helpers when touching their owning
     figures.
 - [ ] Make plotting functions accept result objects/axes and return Figure/Axes;
   saving is optional and uses the output manager.
@@ -337,9 +339,10 @@ reading implementation or experiment source.
 
 The next agent should continue Phase 6:
 
-1. Create the initial `dfr.plotting` package around low-risk reusable
-   primitives identified in `experiments/DFR_PLOT_CATALOG.md`: next migrate a
-   multiscale-density panel or another high-value analysis/evaluation plot.
+1. Continue moving low-risk reusable plot primitives identified in
+   `experiments/DFR_PLOT_CATALOG.md`; next candidates are evaluation/noise plots
+   after their computation has typed result objects, or remaining density/GMM
+   helpers used by active figures.
 2. Continue Phase 6 step 3 by migrating repeated layout calls and heavier
    density-rendering helpers to `dfr.plotting` as their owning figures move.
 3. Migrate legacy `figs/` saving for `plot_camera_configurations` to an
@@ -467,6 +470,22 @@ The next agent should continue Phase 6:
 
 Add one newest-first entry per working session. Include commit(s), verification,
 known failures, and the exact next step.
+
+### 2026-07-07 - Phase 6 multiscale density renderer
+
+- Added `dfr.plotting.density` with reusable 3D density-shell rendering, agent
+  overlays, single density-field plotting, and multiscale density series
+  plotting.
+- Migrated `experiments.dfr_plot.plot_jackdaw2_multiscale_density` to delegate
+  rendering to `dfr.plotting.plot_multiscale_density_fields` while preserving
+  legacy mode-count/density caches and `figs/` filenames.
+- Added headless tests for single 3D density rendering, multiscale density
+  series rendering, validation errors, and the legacy wrapper delegation.
+- Verification: focused density/catalog/style tests (13 passed); `compileall`;
+  `git diff --check`; `pytest -m "not cuda"` (133 passed, 7 deselected,
+  1 warning); `pytest -m cuda` (6 passed, 1 skipped, 133 deselected).
+- Next step: continue Phase 6 step 3 with remaining density/GMM helpers or
+  start the next typed evaluation-plot extraction.
 
 ### 2026-07-07 - Phase 6 supported figure saving centralized
 
