@@ -51,9 +51,9 @@ updated and the migration target has tests.
 | `plot_single_scenario` | 673-723 | None | Named scenario positions | Commented legacy save; interactive plot | obsolete/manual | Superseded by `plot_single_scenario_new`/animation tooling unless owner says otherwise. |
 | `overview_scaling_law` | 724-781 | None | Synthetic 2D Gaussian field | `figs/2d_gss.png`, interactive plot | experiment-figure | Publication schematic; make small explicit figure script if retained. |
 | `plot_scale_space_curve` | 782-821 | None | Synthetic 1D curve | `figs/2d_gss_curve.png` | experiment-figure | Publication schematic; no package dependency needed. |
-| `_validate_nnd_bounds` | 822-832 | Internal helper | Nearest-neighbor scaling inputs | Raises validation errors | package-compute | Move beside adaptive scale utilities if still needed. |
-| `_select_adaptive_density_scales` | 833-911 | Internal helper | Positions, reference scale, target levels | Scale list | package-compute | Candidate for `dfr.analysis.scales`; add deterministic tests before moving. |
-| `plot_jackdaw2_mode_count_curve` | 912-1088 | Internal from multiscale density | Mode-count cache NPZ or recomputed CUDA mode counts | Cache NPZ, mode-count curve figure | package-compute | Split mode-count computation/cache to analysis; curve plot to `dfr.plotting.analysis`. |
+| `_validate_nnd_bounds` | 822-832 | Internal helper | Nearest-neighbor scaling inputs | Raises validation errors | package-compute | Migrated wrapper: validation now delegates to `dfr.analysis.validate_nnd_bounds`. |
+| `_select_adaptive_density_scales` | 833-911 | Internal helper | Positions, reference scale, target levels | Scale list | package-compute | Migrated wrapper: adaptive scale selection now delegates to `dfr.analysis.select_adaptive_density_scales`. |
+| `plot_jackdaw2_mode_count_curve` | 912-1088 | Internal from multiscale density | Mode-count cache NPZ or recomputed CUDA mode counts | Cache NPZ, mode-count curve figure | package-compute | Migrated wrapper: curve rendering now delegates to `dfr.plotting.plot_mode_count_curve`; computation/cache remains legacy. |
 | `plot_jackdaw2_multiscale_density` | 1089-1254 | None | Density cache NPZ and mode-count cache | Cache NPZ, multiscale density figure | experiment-figure | Extract density panels renderer; keep jackdaw2-specific assembly. |
 | `plot_jackdaw2_dra_scale_model_order_surface` | 1255-1395 | None | `jackdaw2`, generated scale/model grid | DRA surface PNG, interactive plot | package-compute | DRA computation is already partly in `dfr.analysis`; migrate plot to `dfr.plotting.analysis`. |
 | `visual_hull_diagram` | 1396-1431 | None | Named scenario/camera projection | No save currently | obsolete/manual | Review with visual-hull studies; likely publication schematic. |
@@ -78,9 +78,9 @@ updated and the migration target has tests.
 
 1. Continue with low-risk reusable plot primitives. The
    `plot_camera_configurations`, `plot_single_scenario_new`,
-   `plot_jackdaw2_2d_gmm`, and `plot_jackdaw2_2d_observations` rendering
-   primitives have moved; next candidates are analysis-backed mode-count,
-   DRA-surface, or multiscale-density plots.
+   `plot_jackdaw2_2d_gmm`, `plot_jackdaw2_2d_observations`, and
+   `plot_jackdaw2_mode_count_curve` rendering primitives have moved; next
+   candidates are DRA-surface or multiscale-density plots.
 2. Then move analysis-backed plots whose computation already has package
    analogs: mode-count curves, DRA surfaces, and multiscale density panels.
 3. Defer the one-frame dMOTA/noise/convergence studies until their computation

@@ -8,9 +8,9 @@ on chat history.
 
 - **Current phase:** Phase 6 plotting decomposition is in progress. The
   `experiments/dfr_plot.py` function catalog is frozen in
-  `experiments/DFR_PLOT_CATALOG.md`; the first reusable camera-configuration
-  trajectory-snapshot, and 2D projection/GMM plotting primitives have moved to
-  `dfr.plotting`.
+  `experiments/DFR_PLOT_CATALOG.md`; reusable camera-configuration,
+  trajectory-snapshot, 2D projection/GMM, and mode-count curve plotting
+  primitives have moved to `dfr.plotting`.
 - **Stable baseline:** annotated tag `v0.1.0`, commit `7cde21e`.
 - **Version storage:** local Git repository only; do not push unless the owner
   explicitly changes this policy.
@@ -279,7 +279,7 @@ reconstruct -> evaluate, and scenario runners no longer duplicate the pipeline.
 
 - [x] Freeze a catalog of all 36 functions in `experiments/dfr_plot.py`, their
   callers, input data, and output files before moving them.
-- [ ] Classify each function as reusable package plotting, experiment-only
+- [x] Classify each function as reusable package plotting, experiment-only
   figure, computation that belongs in analysis/evaluation, or obsolete.
 - [ ] Move shared style/save/layout logic from `experiments/plotting_utils.py`
   and duplicated scripts into `dfr.plotting`.
@@ -332,8 +332,8 @@ reading implementation or experiment source.
 The next agent should continue Phase 6:
 
 1. Create the initial `dfr.plotting` package around low-risk reusable
-   primitives identified in `experiments/DFR_PLOT_CATALOG.md`: next migrate an
-   analysis-backed mode-count curve, DRA surface, or multiscale-density plot.
+   primitives identified in `experiments/DFR_PLOT_CATALOG.md`: next migrate a
+   DRA surface or multiscale-density plot.
 2. Migrate legacy `figs/` saving for `plot_camera_configurations` to an
    explicit output/artifact option after deciding whether these migrated
    wrappers remain supported experiment CLIs or only compatibility wrappers.
@@ -459,6 +459,28 @@ The next agent should continue Phase 6:
 
 Add one newest-first entry per working session. Include commit(s), verification,
 known failures, and the exact next step.
+
+### 2026-07-07 - Phase 6 mode-count plotting primitive
+
+- Added `dfr.analysis.scales` with reusable NND-bound validation and adaptive
+  representative-scale selection previously embedded in `experiments.dfr_plot`.
+- Added `dfr.plotting.analysis.plot_mode_count_curve`, a headless
+  data-first renderer for empirical mode-count curves that returns
+  Matplotlib figure/axes objects and does not save by itself.
+- Migrated `experiments.dfr_plot` private scale helpers to compatibility
+  delegates and migrated `plot_jackdaw2_mode_count_curve` to use the package
+  renderer while preserving its legacy CUDA/cache computation and `figs/`
+  output behavior.
+- Marked the Phase 6 classification task complete because
+  `experiments/DFR_PLOT_CATALOG.md` classifies all 36 retained top-level
+  functions and now records migration status for the moved helpers/wrapper.
+- Added headless tests for NND-bound validation, adaptive scale selection,
+  mode-count curve rendering, input validation, and legacy wrapper delegation.
+- Verification: focused plotting/catalog tests (19 passed); `compileall`;
+  `git diff --check`; `pytest -m "not cuda"` (118 passed, 7 deselected,
+  1 warning); `pytest -m cuda` (6 passed, 1 skipped, 118 deselected).
+- Next step: migrate the DRA-surface or multiscale-density plotting primitive,
+  then revisit legacy `figs/` saves for migrated wrappers.
 
 ### 2026-07-07 - Phase 6 2D projection plotting primitives
 

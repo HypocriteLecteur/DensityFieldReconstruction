@@ -59,3 +59,20 @@ def test_2d_projection_legacy_wrappers_use_package_plotting():
     assert "plot_projection_points" in observation_wrapper
     assert "plot_density_image" in observation_wrapper
     assert "PowerNorm(" not in observation_wrapper
+
+
+def test_mode_count_curve_legacy_wrapper_uses_package_plotting():
+    root = Path(__file__).resolve().parents[1]
+    source = (root / "experiments" / "dfr_plot.py").read_text(encoding="utf-8")
+    helper_region = source.split("def _validate_nnd_bounds", 1)[1].split(
+        "def plot_jackdaw2_mode_count_curve", 1
+    )[0]
+    wrapper = source.split("def plot_jackdaw2_mode_count_curve", 1)[1].split(
+        "def plot_jackdaw2_multiscale_density", 1
+    )[0]
+
+    assert "validate_nnd_bounds" in helper_region
+    assert "select_adaptive_density_scales" in helper_region
+    assert "plot_mode_count_curve" in wrapper
+    assert "plt.subplots" not in wrapper
+    assert 'os.path.join(os.getcwd(), "figs")' in wrapper

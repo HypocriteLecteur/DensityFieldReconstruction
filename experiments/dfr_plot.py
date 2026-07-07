@@ -821,13 +821,9 @@ def plot_scale_space_curve():
 
 def _validate_nnd_bounds(nnd_bounds):
     """Return a validated ``(lower, upper)`` NND-normalised scale interval."""
-    bounds = np.asarray(nnd_bounds, dtype=float)
-    if bounds.shape != (2,) or not np.all(np.isfinite(bounds)):
-        raise ValueError("nnd_bounds must contain two finite numbers.")
-    lower, upper = map(float, bounds)
-    if lower <= 0 or upper <= lower:
-        raise ValueError("nnd_bounds must satisfy 0 < lower < upper.")
-    return lower, upper
+    from dfr.analysis import validate_nnd_bounds
+
+    return validate_nnd_bounds(nnd_bounds)
 
 
 def _select_adaptive_density_scales(
@@ -845,68 +841,14 @@ def _select_adaptive_density_scales(
     overrides adaptive placement with positions in the open interval (0, 1),
     measured along the logarithmic scale range.
     """
-    normalized_scales = np.asarray(normalized_scales, dtype=float)
-    mode_counts = np.asarray(mode_counts, dtype=float)
-    if normalized_scales.ndim != 1 or mode_counts.shape != normalized_scales.shape:
-        raise ValueError("normalized_scales and mode_counts must be equal-length 1D arrays.")
-    if n_selected < 1 or len(normalized_scales) < n_selected + 2:
-        raise ValueError(
-            "The scale sweep must contain n_selected plus two boundary samples."
-        )
-    if np.any(normalized_scales <= 0) or np.any(mode_counts < 1):
-        raise ValueError("Scales must be positive and mode counts must be at least one.")
+    from dfr.analysis import select_adaptive_density_scales
 
-    monotone_counts = np.minimum.accumulate(mode_counts)
-    selected = set()
-    available = set(range(1, len(normalized_scales) - 1))
-    log_scales = np.log(normalized_scales)
-
-    if relative_positions is not None:
-        relative_positions = np.asarray(relative_positions, dtype=float)
-        if relative_positions.shape != (n_selected,):
-            raise ValueError("slice_relative_positions must contain exactly n_slices values.")
-        if (not np.all(np.isfinite(relative_positions))
-                or np.any(relative_positions <= 0)
-                or np.any(relative_positions >= 1)
-                or np.any(np.diff(relative_positions) <= 0)):
-            raise ValueError(
-                "slice_relative_positions must be finite, strictly increasing, "
-                "and strictly between 0 and 1."
-            )
-        targets = log_scales[0] + relative_positions * (
-            log_scales[-1] - log_scales[0]
-        )
-        for target in targets:
-            idx = min(available, key=lambda i: abs(log_scales[i] - target))
-            selected.add(idx)
-            available.remove(idx)
-
-    elif monotone_counts[0] > monotone_counts[-1]:
-        targets = np.geomspace(
-            monotone_counts[0], monotone_counts[-1], n_selected + 2,
-        )[1:-1]
-        for target in targets:
-            if len(selected) == n_selected:
-                break
-            idx = min(
-                available,
-                key=lambda i: abs(np.log(monotone_counts[i]) - np.log(target)),
-            )
-            selected.add(idx)
-            available.remove(idx)
-
-    fallback_targets = np.linspace(
-        log_scales[0], log_scales[-1], n_selected + 2,
-    )[1:-1]
-    for target in fallback_targets:
-        if len(selected) == n_selected:
-            break
-        idx = min(available, key=lambda i: abs(log_scales[i] - target))
-        selected.add(idx)
-        available.remove(idx)
-
-    indices = np.asarray(sorted(selected), dtype=int)
-    return indices, normalized_scales[indices]
+    return select_adaptive_density_scales(
+        normalized_scales,
+        mode_counts,
+        n_selected=n_selected,
+        relative_positions=relative_positions,
+    )
 
 
 def plot_jackdaw2_mode_count_curve(
@@ -999,85 +941,18 @@ def plot_jackdaw2_mode_count_curve(
         print(f"[jackdaw2] cached mode counts → {cache_path}")
 
     # ── Plot ──────────────────────────────────────────────────────────────
-    plt.rcParams.update({
-        "font.family": "serif", "mathtext.fontset": "cm",
-        "font.size": 16,
-        "axes.labelsize": 18,
-        "xtick.labelsize": 15, "ytick.labelsize": 15,
-        "legend.fontsize": 13,
-        "xtick.direction": "in", "ytick.direction": "in",
-        "xtick.minor.visible": True, "ytick.minor.visible": True,
-        "axes.grid": True, "grid.alpha": 0.3, "grid.linestyle": "--",
-    })
+    from dfr.plotting import plot_mode_count_curve
 
-    fig, ax = plt.subplots(figsize=(10, 5), dpi=300)
-
-    ax.plot(normalized_scales, mode_counts, color="#2c3e50", lw=2,
-            label=f"jackdaw2 frame {time_step} (N={N})")
-
-    selected_indices, selected_scales = _select_adaptive_density_scales(
+    fig, _ = plot_mode_count_curve(
         normalized_scales,
         mode_counts,
-        n_selected=n_slices,
-        relative_positions=slice_relative_positions,
+        dataset_name="jackdaw2",
+        frame=time_step,
+        number_of_agents=N,
+        n_slices=n_slices,
+        slice_relative_positions=slice_relative_positions,
+        nnd_bounds=(lower, upper),
     )
-    slice_colours = plt.get_cmap(
-        "tab10" if n_slices <= 10 else "turbo", n_slices,
-    )(np.arange(n_slices))
-    for i, (index, selected_scale, colour) in enumerate(
-        zip(selected_indices, selected_scales, slice_colours), start=1,
-    ):
-        ax.plot(
-            selected_scale,
-            mode_counts[index],
-            marker="o",
-            linestyle="none",
-            markersize=9,
-            markerfacecolor=colour,
-            markeredgecolor="white",
-            markeredgewidth=0.8,
-            label=f"Slice {i} ({selected_scale:.3f} x NND)",
-            zorder=3,
-        )
-
-    ax.set_xscale("log")
-    ax.set_yscale("log")
-    ax.set_xlim(lower, upper)
-    ax.set_xlabel(r"Normalized scale ($\sigma / \mathrm{NND}$)")
-    ax.set_ylabel("Number of Modes")
-
-    if lower <= 1.0 <= upper:
-        x_axis_transform = ax.get_xaxis_transform()
-        ax.plot(
-            1.0, 0.055,
-            marker="v",
-            markersize=10,
-            color="black",
-            linestyle="none",
-            transform=x_axis_transform,
-            clip_on=False,
-            zorder=4,
-        )
-        ax.text(
-            1.0, 0.105, "NND",
-            color="black",
-            fontsize=15,
-            fontweight="semibold",
-            ha="center",
-            va="bottom",
-            transform=x_axis_transform,
-            zorder=4,
-        )
-
-    ax.legend(
-        loc="best",
-        ncol=2,
-        frameon=False,
-        handlelength=1.6,
-        columnspacing=1.0,
-    )
-
-    fig.tight_layout()
     out_dir = os.path.join(os.getcwd(), "figs")
     os.makedirs(out_dir, exist_ok=True)
     out_path = os.path.join(out_dir, "jackdaw2_mode_count_curve.png")

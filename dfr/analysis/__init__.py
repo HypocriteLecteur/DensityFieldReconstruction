@@ -23,6 +23,10 @@ from dfr.analysis.results import (
     ScaleAnalysisResult,
 )
 from dfr.analysis.modes import analyze_dataset_modes, compute_mode_curve, count_modes
+from dfr.analysis.scales import (
+    select_adaptive_density_scales,
+    validate_nnd_bounds,
+)
 from dfr.analysis.cli import add_managed_output_arguments, create_analysis_artifacts
 from dfr.analysis.manifold import (
     Centered3PLFitBatch,
@@ -77,4 +81,6 @@ __all__ = [
     "scale_for_mode_count",
     "symmetric_2pl_mode_count",
     "select_frames",
+    "select_adaptive_density_scales",
+    "validate_nnd_bounds",
 ]
