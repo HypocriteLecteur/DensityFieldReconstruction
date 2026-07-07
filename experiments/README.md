@@ -63,7 +63,10 @@ or deleting any `dfr_plot.py` function. The migrated wrappers so far are
 `plot_jackdaw2_dra_scale_model_order_surface`, whose rendering now lives in
 `dfr.plotting` while the legacy wrappers still write to `figs/`.
 
-`plotting_utils.py` is a helper module rather than an entry point.
+`plotting_utils.py` is a helper module rather than an entry point. Its
+style/layout compatibility helpers now delegate to `dfr.plotting`; heavier
+voxel and density-rendering helpers remain here until their owning figures get
+dedicated smoke tests.
 
 ## Diagnostics and non-analysis workflows
 

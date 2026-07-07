@@ -591,8 +591,8 @@ execution.
 | `mechanistic_derivation.py` | Managed CUDA CLI for analytical mode-count scaling comparisons. |
 | `parameter_manifold.py` | Managed 3PL fit/clustering/publication CLI using package manifold computation. |
 | `parameter_manifold_2pl.py` | Managed symmetric-2PL manifold and temporal/N-dependence CLI. |
-| `plot_dra_scale_model_order.py` | CUDA CLI for DRA over scale and model order with resumable caches, surface fits, and package-managed plotting primitives. |
-| `plotting_utils.py` | Shared plotting/math helpers used by DRA figures; not an entry point. |
+| `plot_dra_scale_model_order.py` | CUDA CLI for DRA over scale and model order with resumable caches, surface fits, package plotting primitives, and shared figure-save defaults. |
+| `plotting_utils.py` | Legacy plotting/math compatibility helpers used by DRA figures; style/layout helpers delegate to `dfr.plotting`; not an entry point. |
 | `power_law.py` | Legacy exploratory mode-count scaling studies; requires an explicit experiment subcommand. |
 | `rasterizer_optimize.py` | Benchmark/inspect custom rasterizer performance. |
 | `reconstruction_scale_determination.py` | Legacy reconstruction-scale studies; requires an explicit experiment subcommand. |

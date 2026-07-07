@@ -34,9 +34,24 @@ def test_dra_scale_model_order_cli_uses_package_plotting():
     )[0]
 
     assert "from dfr.plotting import plot_dra_surface_grid" in source
+    assert "save_figure(figure, output_path" in plotting_region
     assert "plot_dra_surface_grid(results, fits)" in plotting_region
     assert "plot_surface(" not in plotting_region
     assert "plot_wireframe(" not in plotting_region
+
+
+def test_legacy_plotting_utils_style_helpers_delegate_to_package():
+    experiments = Path(__file__).resolve().parents[1] / "experiments"
+    source = (experiments / "plotting_utils.py").read_text(encoding="utf-8")
+    style_region = source.split("def _set_academic_style", 1)[1].split(
+        "def build_voxel_grid", 1
+    )[0]
+
+    assert "from dfr.plotting import apply_academic_style, style_3d_axis" in source
+    assert "apply_academic_style(" in style_region
+    assert "style_3d_axis(ax)" in style_region
+    assert "plt.rcParams.update" not in style_region
+    assert "axis._axinfo" not in style_region
 
 
 def test_analysis_catalog_documents_every_supported_entrypoint():

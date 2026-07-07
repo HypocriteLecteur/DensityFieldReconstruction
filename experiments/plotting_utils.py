@@ -15,6 +15,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
+from dfr.plotting import apply_academic_style, style_3d_axis
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  Matplotlib style helpers
@@ -22,22 +24,22 @@ import torch
 
 def _set_academic_style() -> None:
     """Apply publication-quality academic styling to matplotlib."""
-    plt.rcParams.update({
-        "font.family": "serif", "mathtext.fontset": "cm",
-        "font.size": 12, "axes.labelsize": 14, "axes.titlesize": 14,
-        "xtick.labelsize": 10, "ytick.labelsize": 10, "legend.fontsize": 10,
-        "figure.dpi": 300, "savefig.bbox": "tight", "savefig.pad_inches": 0.1,
-    })
+    apply_academic_style(
+        {
+            "font.size": 12,
+            "axes.labelsize": 14,
+            "axes.titlesize": 14,
+            "xtick.labelsize": 10,
+            "ytick.labelsize": 10,
+            "legend.fontsize": 10,
+            "savefig.pad_inches": 0.1,
+        }
+    )
 
 
 def _style_3d_ax(ax: plt.Axes) -> None:
     """Transparent panes, subtle grid, no edge colour on a 3D axis."""
-    for axis in [ax.xaxis, ax.yaxis, ax.zaxis]:
-        axis.pane.fill = False
-        axis._axinfo["grid"].update({
-            "color": (0.8, 0.8, 0.8, 0.5), "linewidth": 0.5,
-        })
-        axis.pane.set_edgecolor("none")
+    style_3d_axis(ax)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

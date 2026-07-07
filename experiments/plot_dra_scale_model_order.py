@@ -28,7 +28,7 @@ from dfr.analysis import (
     create_scale_analysis,
     fit_dra_surface,
 )
-from dfr.plotting import plot_dra_surface_grid
+from dfr.plotting import plot_dra_surface_grid, save_figure
 
 
 @dataclass(frozen=True)
@@ -193,7 +193,7 @@ def plot_surfaces(
     show: bool,
 ) -> None:
     figure, _ = plot_dra_surface_grid(results, fits)
-    figure.savefig(output_path, dpi=300, bbox_inches="tight")
+    save_figure(figure, output_path, dpi=300, bbox_inches="tight")
     print(f"Saved figure: {output_path}")
     if show:
         plt.show()

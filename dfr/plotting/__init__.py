@@ -16,7 +16,7 @@ from dfr.plotting.projections import (
     plot_projection_points,
     transparent_colormap,
 )
-from dfr.plotting.style import apply_academic_style
+from dfr.plotting.style import apply_academic_style, save_figure, style_3d_axis
 from dfr.plotting.trajectories import plot_trajectory_snapshot
 
 __all__ = [
@@ -29,5 +29,7 @@ __all__ = [
     "plot_projected_gmm_density",
     "plot_projection_points",
     "plot_trajectory_snapshot",
+    "save_figure",
+    "style_3d_axis",
     "transparent_colormap",
 ]

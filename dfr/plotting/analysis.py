@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from dfr.analysis import select_adaptive_density_scales, validate_nnd_bounds
+from dfr.plotting.style import apply_academic_style
 
 
 def plot_mode_count_curve(
@@ -46,10 +47,8 @@ def plot_mode_count_curve(
     if lower < scales[0] or upper > scales[-1]:
         raise ValueError("nnd_bounds must lie inside the normalized scale range.")
 
-    plt.rcParams.update(
+    apply_academic_style(
         {
-            "font.family": "serif",
-            "mathtext.fontset": "cm",
             "font.size": 16,
             "axes.labelsize": 18,
             "xtick.labelsize": 15,
@@ -175,10 +174,8 @@ def plot_dra_scale_model_order_surface(
     order_percentages = 100.0 * components / int(number_of_animals)
     scale_grid, order_grid = np.meshgrid(scales, order_percentages, indexing="ij")
 
-    plt.rcParams.update(
+    apply_academic_style(
         {
-            "font.family": "serif",
-            "mathtext.fontset": "cm",
             "font.size": 14,
             "axes.labelsize": 16,
             "axes.titlesize": 16,

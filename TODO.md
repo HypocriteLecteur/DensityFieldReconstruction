@@ -283,6 +283,11 @@ reconstruct -> evaluate, and scenario runners no longer duplicate the pipeline.
   figure, computation that belongs in analysis/evaluation, or obsolete.
 - [ ] Move shared style/save/layout logic from `experiments/plotting_utils.py`
   and duplicated scripts into `dfr.plotting`.
+  - Started: `apply_academic_style`, 3D axis styling, and lightweight
+    figure-saving defaults now live in `dfr.plotting`; `experiments`
+    compatibility helpers delegate to the package. Remaining work: migrate
+    additional duplicated `savefig`/layout patterns when touching their owning
+    figures.
 - [ ] Make plotting functions accept result objects/axes and return Figure/Axes;
   saving is optional and uses the output manager.
 - [ ] Split publication/table-specific figures into small, named experiment
@@ -334,11 +339,14 @@ The next agent should continue Phase 6:
 1. Create the initial `dfr.plotting` package around low-risk reusable
    primitives identified in `experiments/DFR_PLOT_CATALOG.md`: next migrate a
    multiscale-density panel or another high-value analysis/evaluation plot.
-2. Migrate legacy `figs/` saving for `plot_camera_configurations` to an
+2. Continue Phase 6 step 3 by migrating repeated `savefig`/layout calls in
+   supported plotting entry points to `dfr.plotting.save_figure` or
+   `RunArtifacts.save_figure` as appropriate.
+3. Migrate legacy `figs/` saving for `plot_camera_configurations` to an
    explicit output/artifact option after deciding whether these migrated
    wrappers remain supported experiment CLIs or only compatibility wrappers.
-3. Add headless plotting smoke tests before migrating each high-value figure.
-4. Keep the Phase 4 supported/legacy classification in
+4. Add headless plotting smoke tests before migrating each high-value figure.
+5. Keep the Phase 4 supported/legacy classification in
    `experiments/README.md` current when promoting another research study.
 
 ## Decisions
@@ -459,6 +467,27 @@ The next agent should continue Phase 6:
 
 Add one newest-first entry per working session. Include commit(s), verification,
 known failures, and the exact next step.
+
+### 2026-07-07 - Phase 6 shared style/save helpers started
+
+- Added package-level `dfr.plotting.style_3d_axis` and `dfr.plotting.save_figure`
+  beside the existing `apply_academic_style` helper.
+- Migrated `experiments.plotting_utils._set_academic_style` and
+  `_style_3d_ax` into compatibility delegates over `dfr.plotting`, preserving
+  old import names for remaining legacy figure code.
+- Switched `dfr.plotting.analysis` to use the shared academic style helper
+  instead of local `plt.rcParams.update` dictionaries.
+- Switched the supported `experiments.plot_dra_scale_model_order` figure save
+  path to `dfr.plotting.save_figure`; managed artifact provenance remains the
+  responsibility of `RunArtifacts` where full run metadata is needed.
+- Added headless tests for academic-style overrides, 3D-axis styling,
+  figure-saving parent creation, and static delegation guards.
+- Verification: focused style/entrypoint/analysis-plot tests (16 passed);
+  `compileall`; `git diff --check`; `pytest -m "not cuda"` (127 passed,
+  7 deselected, 1 warning); `pytest -m cuda` (6 passed, 1 skipped,
+  127 deselected).
+- Next step: run full verification, then continue step 3 by replacing more
+  repeated figure-save/layout calls or migrate the multiscale-density panel.
 
 ### 2026-07-07 - Phase 6 DRA surface plotting primitive
 
