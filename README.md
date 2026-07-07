@@ -583,14 +583,14 @@ execution.
 | `compute_metrics_from_pretrained.py` | Recompute density metrics from saved iteration checkpoints; configured in source. |
 | `dataset_viewer_test.py` | Interactive dataset/camera/scale viewer; performs work at import and is excluded from pytest. |
 | `dfr_plot.py` | Legacy 3,900-line publication/reconstruction plot collection; Phase 6 inventory is in `experiments/DFR_PLOT_CATALOG.md`, and camera/trajectory/2D projection/mode-count/DRA-surface rendering now delegates to `dfr.plotting`. |
-| `fit_dra_multiframe.py` | CLI for multi-frame DRA/model-order fitting, caches, reports, and fit figures. |
+| `fit_dra_multiframe.py` | CLI for multi-frame DRA/model-order fitting, caches, reports, and fit figures using shared save defaults. |
 | `generate_scene_animations.py` | Generate trajectory and ground-truth density MP4 animations; datasets configured in source. |
 | `inspect_3d_error.py` | Inspect and plot 3D reconstruction error from existing run data. |
 | `inspect_scenarios.py` | Interactive scenario/camera inspection. |
 | `investigate_initialization.py` | Interactive investigation of GMM initialization behavior. |
-| `mechanistic_derivation.py` | Managed CUDA CLI for analytical mode-count scaling comparisons. |
-| `parameter_manifold.py` | Managed 3PL fit/clustering/publication CLI using package manifold computation. |
-| `parameter_manifold_2pl.py` | Managed symmetric-2PL manifold and temporal/N-dependence CLI. |
+| `mechanistic_derivation.py` | Managed CUDA CLI for analytical mode-count scaling comparisons using shared save defaults. |
+| `parameter_manifold.py` | Managed 3PL fit/clustering/publication CLI using package manifold computation, style, and save defaults. |
+| `parameter_manifold_2pl.py` | Managed symmetric-2PL manifold and temporal/N-dependence CLI using package style and save defaults. |
 | `plot_dra_scale_model_order.py` | CUDA CLI for DRA over scale and model order with resumable caches, surface fits, package plotting primitives, and shared figure-save defaults. |
 | `plotting_utils.py` | Legacy plotting/math compatibility helpers used by DRA figures; style/layout helpers delegate to `dfr.plotting`; not an entry point. |
 | `power_law.py` | Legacy exploratory mode-count scaling studies; requires an explicit experiment subcommand. |
@@ -609,7 +609,7 @@ execution.
 | `search_learning_parameters.py` | Resumable grid search for learning-rate settings; writes a root CSV. |
 | `search_regularization_parameters.py` | Resumable grid search for regularization settings; writes a root CSV. |
 | `synthetic_benchmark.py` | Managed CUDA CLI for synthetic point-process manifold benchmarks. |
-| `validate_mode_counting.py` | Managed CUDA validation CLI for separated synthetic Gaussian clusters. |
+| `validate_mode_counting.py` | Managed CUDA validation CLI for separated synthetic Gaussian clusters using shared figure-save defaults. |
 | `visualize.py` | Open the interactive GMM viewer for saved checkpoints; configured in source. |
 | `__init__.py` | Marks `experiments` as a package; not an entry point. |
 

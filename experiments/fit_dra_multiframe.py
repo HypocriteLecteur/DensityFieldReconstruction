@@ -31,6 +31,7 @@ from dfr.analysis import (
     fit_one_surface_model,
     select_frames,
 )
+from dfr.plotting import save_figure
 
 
 FRAME_RANGES = {
@@ -223,7 +224,7 @@ def plot_dataset_fits(
         axis.set_zlabel("DRA")
         axis.view_init(elev=27, azim=-130)
     figure.subplots_adjust(left=0.03, right=0.97, bottom=0.04, top=0.93, wspace=0.05)
-    figure.savefig(output_path, dpi=300, bbox_inches="tight")
+    save_figure(figure, output_path, dpi=300, bbox_inches="tight")
     plt.close(figure)
 
 

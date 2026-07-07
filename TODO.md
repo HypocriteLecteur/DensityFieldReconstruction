@@ -285,8 +285,9 @@ reconstruct -> evaluate, and scenario runners no longer duplicate the pipeline.
   and duplicated scripts into `dfr.plotting`.
   - Started: `apply_academic_style`, 3D axis styling, and lightweight
     figure-saving defaults now live in `dfr.plotting`; `experiments`
-    compatibility helpers delegate to the package. Remaining work: migrate
-    additional duplicated `savefig`/layout patterns when touching their owning
+    compatibility helpers delegate to the package. Supported analysis CLIs no
+    longer call Matplotlib `savefig` directly. Remaining work: migrate layout
+    patterns and heavier density-rendering helpers when touching their owning
     figures.
 - [ ] Make plotting functions accept result objects/axes and return Figure/Axes;
   saving is optional and uses the output manager.
@@ -339,9 +340,8 @@ The next agent should continue Phase 6:
 1. Create the initial `dfr.plotting` package around low-risk reusable
    primitives identified in `experiments/DFR_PLOT_CATALOG.md`: next migrate a
    multiscale-density panel or another high-value analysis/evaluation plot.
-2. Continue Phase 6 step 3 by migrating repeated `savefig`/layout calls in
-   supported plotting entry points to `dfr.plotting.save_figure` or
-   `RunArtifacts.save_figure` as appropriate.
+2. Continue Phase 6 step 3 by migrating repeated layout calls and heavier
+   density-rendering helpers to `dfr.plotting` as their owning figures move.
 3. Migrate legacy `figs/` saving for `plot_camera_configurations` to an
    explicit output/artifact option after deciding whether these migrated
    wrappers remain supported experiment CLIs or only compatibility wrappers.
@@ -467,6 +467,21 @@ The next agent should continue Phase 6:
 
 Add one newest-first entry per working session. Include commit(s), verification,
 known failures, and the exact next step.
+
+### 2026-07-07 - Phase 6 supported figure saving centralized
+
+- Migrated remaining raw Matplotlib `savefig` calls in supported analysis
+  entry points to `dfr.plotting.save_figure`: `fit_dra_multiframe`,
+  `parameter_manifold`, `parameter_manifold_2pl`, `mechanistic_derivation`,
+  and `validate_mode_counting`.
+- Migrated the remaining manifold style hooks to `dfr.plotting.apply_academic_style`.
+- Added static guards so supported analysis scripts do not reintroduce raw
+  `.savefig(` calls and the manifold entry points keep using package style.
+- Verification: focused entrypoint/style tests (11 passed); `compileall`;
+  `git diff --check`; `pytest -m "not cuda"` (129 passed, 7 deselected,
+  1 warning); `pytest -m cuda` (6 passed, 1 skipped, 129 deselected).
+- Next step: continue Phase 6 step 3 with shared layout helpers or move the
+  multiscale-density panel renderer.
 
 ### 2026-07-07 - Phase 6 shared style/save helpers started
 

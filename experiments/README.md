@@ -68,6 +68,10 @@ style/layout compatibility helpers now delegate to `dfr.plotting`; heavier
 voxel and density-rendering helpers remain here until their owning figures get
 dedicated smoke tests.
 
+Supported analysis CLIs now route figure exports through
+`dfr.plotting.save_figure` or managed artifact helpers instead of direct
+Matplotlib `savefig` calls.
+
 ## Diagnostics and non-analysis workflows
 
 ### Publication reconstruction tables

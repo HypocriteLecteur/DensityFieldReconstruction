@@ -42,6 +42,7 @@ from dfr.analysis import (
     median_nearest_neighbour_distance,
     project_to_shape_curve,
 )
+from dfr.plotting import apply_academic_style, save_figure
 
 
 # ======================================================================
@@ -56,9 +57,7 @@ _FIGURE_DIR = Path("figs")
 
 def _save_figure(filename: str, *, dpi: int = 300) -> Path:
     target = _FIGURE_DIR / filename
-    target.parent.mkdir(parents=True, exist_ok=True)
-    plt.savefig(target, bbox_inches="tight", dpi=dpi)
-    return target
+    return save_figure(plt.gcf(), target, bbox_inches="tight", dpi=dpi)
 
 
 # ======================================================================
@@ -79,12 +78,18 @@ DATASET_COLORS = {
 
 
 def set_style():
-    plt.rcParams.update({
-        "font.family": "serif", "font.size": 11,
-        "axes.labelsize": 11, "axes.titlesize": 12,
-        "legend.fontsize": 8, "xtick.direction": "in", "ytick.direction": "in",
-        "axes.grid": True, "grid.alpha": 0.3,
-    })
+    apply_academic_style(
+        {
+            "font.size": 11,
+            "axes.labelsize": 11,
+            "axes.titlesize": 12,
+            "legend.fontsize": 8,
+            "xtick.direction": "in",
+            "ytick.direction": "in",
+            "axes.grid": True,
+            "grid.alpha": 0.3,
+        }
+    )
 
 
 def load_cached_data(run_params, project_root=None):

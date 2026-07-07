@@ -40,6 +40,33 @@ def test_dra_scale_model_order_cli_uses_package_plotting():
     assert "plot_wireframe(" not in plotting_region
 
 
+def test_supported_analysis_figures_use_package_save_helper():
+    experiments = Path(__file__).resolve().parents[1] / "experiments"
+    for filename in SUPPORTED_ANALYSIS_SCRIPTS:
+        source = (experiments / filename).read_text(encoding="utf-8")
+        assert ".savefig(" not in source, filename
+        assert "plt.savefig(" not in source, filename
+
+    for filename in (
+        "plot_dra_scale_model_order.py",
+        "fit_dra_multiframe.py",
+        "parameter_manifold.py",
+        "parameter_manifold_2pl.py",
+        "mechanistic_derivation.py",
+        "validate_mode_counting.py",
+    ):
+        source = (experiments / filename).read_text(encoding="utf-8")
+        assert "save_figure" in source, filename
+
+
+def test_supported_analysis_styles_use_package_helper():
+    experiments = Path(__file__).resolve().parents[1] / "experiments"
+    for filename in ("parameter_manifold.py", "parameter_manifold_2pl.py"):
+        source = (experiments / filename).read_text(encoding="utf-8")
+        assert "apply_academic_style(" in source, filename
+        assert "plt.rcParams.update" not in source, filename
+
+
 def test_legacy_plotting_utils_style_helpers_delegate_to_package():
     experiments = Path(__file__).resolve().parents[1] / "experiments"
     source = (experiments / "plotting_utils.py").read_text(encoding="utf-8")

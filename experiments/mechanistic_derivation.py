@@ -29,6 +29,7 @@ from dfr.analysis import (
     create_analysis_artifacts,
     median_nearest_neighbour_distance,
 )
+from dfr.plotting import save_figure
 
 
 def mode_counting_np(positions, scale, max_iter=400):
@@ -188,7 +189,7 @@ def main():
 
     plt.tight_layout()
     figure_path = artifacts.figures_dir / "mechanistic_derivation.png"
-    plt.savefig(figure_path, bbox_inches="tight", dpi=300)
+    save_figure(fig, figure_path, bbox_inches="tight", dpi=300)
     plt.show()
     print(f"  -> Saved {figure_path}")
     artifacts.save_npz(
