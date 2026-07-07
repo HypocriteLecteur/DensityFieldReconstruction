@@ -419,9 +419,7 @@ def plot_jackdaw2_2d_gmm(density_cutoff=1e-2, num_levels=8):
       - 1σ ellipses for each Gaussian component (royalblue)
       - projected mean positions (royalblue scatter)
     """
-    from matplotlib.colors import LinearSegmentedColormap, PowerNorm
-    from matplotlib.patches import Ellipse
-    import matplotlib.colors as mcolors
+    from dfr.plotting import plot_projected_gmm_density, transparent_colormap
 
     # ── Shared setup (same as plot_jackdaw2_density_field) ──────────────────
     name = 'jackdaw2'
@@ -455,12 +453,7 @@ def plot_jackdaw2_2d_gmm(density_cutoff=1e-2, num_levels=8):
 
     # --- Colormap: transparent → royalblue ---------------------------------
     top = np.array([0.255, 0.412, 0.882, 1.0])   # opaque royalblue
-    bot = np.array([1.0,   1.0,   1.0,   0.0])    # transparent white
-    n = 256
-    alphas_c = np.linspace(0, 1, n)
-    rgb = bot[:3] + (top[:3] - bot[:3]) * alphas_c[:, None]
-    rgba = np.hstack([rgb, alphas_c[:, None]])
-    cmap_transp = LinearSegmentedColormap.from_list('transp_blue', rgba)
+    cmap_transp = transparent_colormap(top, name='transp_blue')
 
     for i, cam in enumerate(cam_system.cameras):
         H_i, W_i = cam.state.H, cam.state.W
@@ -542,8 +535,6 @@ def plot_jackdaw2_2d_gmm(density_cutoff=1e-2, num_levels=8):
             density_2d += contrib.sum(dim=0)
 
         density_np = density_2d.cpu().numpy()
-        u0_np = u0.cpu().numpy()
-        v0_np = v0.cpu().numpy()
         cov_xx_np = cov_xx.cpu().numpy()
         cov_xy_np = cov_xy.cpu().numpy()
         cov_yy_np = cov_yy.cpu().numpy()
@@ -555,46 +546,27 @@ def plot_jackdaw2_2d_gmm(density_cutoff=1e-2, num_levels=8):
               f"levels: [{levels[0]:.4g} .. {levels[-1]:.4g}]")
 
         # --- Figure: 2D GMM density contours + component ellipses -----------
-        fig = plt.figure(figsize=(8, 6))
-        ax = fig.add_subplot(111)
-
-        # Filled + line contours
-        norm = PowerNorm(gamma=0.40, vmin=0, vmax=vmax)
-        ax.contourf(np.arange(W_i), np.arange(H_i), density_np,
-                    levels=levels, cmap=cmap_transp, norm=norm,
-                    antialiased=True, zorder=1)
+        w_np = w_vis.cpu().numpy()
+        means_2d = np.column_stack([u0.cpu().numpy(), v0.cpu().numpy()])
+        covariances_2d = np.stack(
+            [
+                np.stack([cov_xx_np, cov_xy_np], axis=-1),
+                np.stack([cov_xy_np, cov_yy_np], axis=-1),
+            ],
+            axis=1,
+        )
+        fig, ax = plot_projected_gmm_density(
+            density_np,
+            means_2d,
+            covariances_2d,
+            w_np,
+            image_shape=(H_i, W_i),
+            density_cutoff=density_cutoff,
+            num_levels=num_levels,
+            cmap=cmap_transp,
+        )
 
         # 1σ ellipses — black dashed, alpha ∝ weight
-        w_np = w_vis.cpu().numpy()
-        w_rel = w_np / w_np.max() if w_np.max() > 0 else np.ones_like(w_np)
-        for j in range(K_vis):
-            cxx, cxy, cyy = cov_xx_np[j], cov_xy_np[j], cov_yy_np[j]
-            trace = cxx + cyy
-            det = cxx * cyy - cxy * cxy
-            if det <= 0:
-                continue
-            eig1 = 0.5 * (trace + np.sqrt(max(trace * trace - 4.0 * det, 0)))
-            eig2 = 0.5 * (trace - np.sqrt(max(trace * trace - 4.0 * det, 0)))
-            if eig1 <= 0 or eig2 <= 0:
-                continue
-            a = np.sqrt(eig1)
-            b = np.sqrt(eig2)
-            angle = np.degrees(np.arctan2(cxy, eig1 - cyy))
-            alpha_j = 0.15 + 0.70 * w_rel[j]
-            ell = Ellipse((u0_np[j], v0_np[j]), 2 * a, 2 * b, angle=angle,
-                          facecolor='none', edgecolor='black',
-                          linestyle='--', linewidth=1.0,
-                          alpha=float(alpha_j), zorder=3)
-            ax.add_patch(ell)
-
-        ax.set_xlim(0, W_i - 1)
-        ax.set_ylim(H_i - 1, 0)
-        ax.set_aspect('equal')
-        ax.set_xticks([])
-        ax.set_yticks([])
-        for spine in ax.spines.values():
-            spine.set_visible(False)
-        fig.tight_layout(pad=0)
         fig.savefig(f"figs/scene_traj_{name}_cam{i+1}_gmm2d.png",
                     dpi=300, bbox_inches='tight', pad_inches=0, transparent=True)
         plt.close(fig)
@@ -624,7 +596,7 @@ def plot_jackdaw2_2d_observations(density_cutoff=1e-2, num_levels=8):
     the Gaussian-blob widths match the target resolution.
     """
     from dfr.camera_system import convolution_cupy_wrapper
-    from matplotlib.colors import LinearSegmentedColormap, PowerNorm
+    from dfr.plotting import plot_density_image, plot_projection_points, transparent_colormap
 
     name = 'jackdaw2'
     start_step, end_step, step_length = 2700, 3460, 20
@@ -663,59 +635,36 @@ def plot_jackdaw2_2d_observations(density_cutoff=1e-2, num_levels=8):
     # Build a custom colormap whose lowest value is fully transparent so the
     # figure background shows through low-density regions.
     top = np.array([0.255, 0.412, 0.882, 1.0])   # opaque royalblue
-    bot = np.array([1.0,   1.0,   1.0,   0.0])    # transparent white
-    n = 256
-    alphas = np.linspace(0, 1, n)
-    rgb = bot[:3] + (top[:3] - bot[:3]) * alphas[:, None]
-    rgba = np.hstack([rgb, alphas[:, None]])
-    cmap_transp = LinearSegmentedColormap.from_list('transp_blue', rgba)
+    cmap_transp = transparent_colormap(top, name='transp_blue')
 
     # --- Produce four separate, clean figures -------------------------------
     for i in range(len(cam_system.cameras)):
         proj = point_sets[i]
         H_i, W_i = cam_system.cameras[i].state.H, cam_system.cameras[i].state.W
         img = coarse_images[i]
-        vmax = img.max()
 
         # log-spaced contour levels — dense near zero, sparse near max
-        min_level = vmax * density_cutoff
-        levels = np.geomspace(min_level, vmax, num_levels)
 
         # ---- Figure A: 2D projected positions (scatter) -------------------
-        fig_s = plt.figure(figsize=(8, 6))
-        ax_s = fig_s.add_subplot(111)
-        ax_s.scatter(proj[:, 0], proj[:, 1],
-                     c='royalblue', s=10, alpha=0.65, edgecolors='none')
-        ax_s.set_xlim(0, W_i)
-        ax_s.set_ylim(H_i, 0)
-        ax_s.set_aspect('equal')
-        ax_s.set_xticks([])
-        ax_s.set_yticks([])
-        for spine in ax_s.spines.values():
-            spine.set_visible(False)
-        fig_s.tight_layout(pad=0)
+        fig_s, ax_s = plot_projection_points(
+            proj,
+            image_shape=(H_i, W_i),
+            color='royalblue',
+            point_size=10,
+            alpha=0.65,
+        )
         fig_s.savefig(f"figs/scene_traj_{name}_cam{i+1}_projections.png",
                       dpi=300, bbox_inches='tight', pad_inches=0, transparent=True)
         plt.close(fig_s)
 
         # ---- Figure B: filled contour plot of the 2D density ---------------
-        fig_i = plt.figure(figsize=(8, 6))
-        ax_i = fig_i.add_subplot(111)
-        y_px = np.arange(H_i)
-        x_px = np.arange(W_i)
-        norm = PowerNorm(gamma=0.40, vmin=0, vmax=vmax)
-        ax_i.contourf(x_px, y_px, img, levels=levels,
-                      cmap=cmap_transp, norm=norm, antialiased=True)
-        ax_i.contour(x_px, y_px, img, levels=levels,
-                     colors='#4169e1', linewidths=0.3, alpha=0.5)
-        ax_i.set_xlim(0, W_i - 1)
-        ax_i.set_ylim(H_i - 1, 0)
-        ax_i.set_aspect('equal')
-        ax_i.set_xticks([])
-        ax_i.set_yticks([])
-        for spine in ax_i.spines.values():
-            spine.set_visible(False)
-        fig_i.tight_layout(pad=0)
+        fig_i, ax_i = plot_density_image(
+            img,
+            image_shape=(H_i, W_i),
+            density_cutoff=density_cutoff,
+            num_levels=num_levels,
+            cmap=cmap_transp,
+        )
         fig_i.savefig(f"figs/scene_traj_{name}_cam{i+1}_coarse.png",
                       dpi=300, bbox_inches='tight', pad_inches=0, transparent=True)
         plt.close(fig_i)

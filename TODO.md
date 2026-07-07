@@ -9,7 +9,8 @@ on chat history.
 - **Current phase:** Phase 6 plotting decomposition is in progress. The
   `experiments/dfr_plot.py` function catalog is frozen in
   `experiments/DFR_PLOT_CATALOG.md`; the first reusable camera-configuration
-  and trajectory-snapshot plotting primitives have moved to `dfr.plotting`.
+  trajectory-snapshot, and 2D projection/GMM plotting primitives have moved to
+  `dfr.plotting`.
 - **Stable baseline:** annotated tag `v0.1.0`, commit `7cde21e`.
 - **Version storage:** local Git repository only; do not push unless the owner
   explicitly changes this policy.
@@ -331,8 +332,8 @@ reading implementation or experiment source.
 The next agent should continue Phase 6:
 
 1. Create the initial `dfr.plotting` package around low-risk reusable
-   primitives identified in `experiments/DFR_PLOT_CATALOG.md`: next migrate
-   2D projection/GMM views.
+   primitives identified in `experiments/DFR_PLOT_CATALOG.md`: next migrate an
+   analysis-backed mode-count curve, DRA surface, or multiscale-density plot.
 2. Migrate legacy `figs/` saving for `plot_camera_configurations` to an
    explicit output/artifact option after deciding whether these migrated
    wrappers remain supported experiment CLIs or only compatibility wrappers.
@@ -458,6 +459,29 @@ The next agent should continue Phase 6:
 
 Add one newest-first entry per working session. Include commit(s), verification,
 known failures, and the exact next step.
+
+### 2026-07-07 - Phase 6 2D projection plotting primitives
+
+- Added `dfr.plotting.projections` with transparent colormap construction,
+  projection scatter plotting, image-plane density contours, and projected 2D
+  GMM density/ellipse rendering.
+- Migrated `experiments.dfr_plot.plot_jackdaw2_2d_gmm` to delegate the 2D GMM
+  rendering to `dfr.plotting` while preserving its legacy model-loading and
+  `figs/` save behavior.
+- Migrated `experiments.dfr_plot.plot_jackdaw2_2d_observations` to delegate
+  projection scatter and coarse-density rendering to `dfr.plotting` while
+  preserving its legacy CUDA image computation and `figs/` save behavior.
+- Added headless Matplotlib tests for projection scatter, density contours, and
+  projected-GMM ellipse rendering; added static guards for the legacy wrapper
+  delegation.
+- Updated `experiments/DFR_PLOT_CATALOG.md`, README, and
+  `experiments/README.md` to reflect the migrated 2D wrappers.
+- Verification: `compileall`; focused plotting/catalog tests; `git diff
+  --check`; `pytest -m "not cuda"` (113 passed, 7 deselected, 1 warning);
+  `pytest -m cuda` (6 passed, 1 skipped, 113 deselected).
+- Next step: migrate an analysis-backed plotting primitive, likely the
+  mode-count curve, DRA surface, or multiscale-density panel after separating
+  computation/cache reads from rendering.
 
 ### 2026-07-07 - Phase 6 trajectory plotting primitive
 
