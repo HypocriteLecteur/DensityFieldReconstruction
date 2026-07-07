@@ -28,6 +28,7 @@ from dfr.analysis import (
     create_scale_analysis,
     fit_dra_surface,
 )
+from dfr.plotting import plot_dra_surface_grid
 
 
 @dataclass(frozen=True)
@@ -191,55 +192,7 @@ def plot_surfaces(
     output_path: Path,
     show: bool,
 ) -> None:
-    figure = plt.figure(figsize=(15, 11))
-    surface = None
-    for plot_index, (dataset_name, result) in enumerate(results.items(), start=1):
-        normalized_scales, _, components, dra, _, number_of_animals = result
-        actual_percentages = 100.0 * components / number_of_animals
-        axis = figure.add_subplot(2, 2, plot_index, projection="3d")
-        scale_grid, component_grid = np.meshgrid(
-            normalized_scales, actual_percentages, indexing="ij"
-        )
-        surface = axis.plot_surface(
-            scale_grid,
-            component_grid,
-            dra,
-            cmap="viridis",
-            edgecolor="none",
-            antialiased=True,
-            alpha=0.88,
-        )
-        best = fits[dataset_name]["candidates"][fits[dataset_name]["best_name"]]
-        axis.plot_wireframe(
-            scale_grid,
-            component_grid,
-            best["prediction"],
-            color="black",
-            linewidth=0.65,
-            rstride=1,
-            cstride=1,
-        )
-        axis.set_title(
-            f"{dataset_name.capitalize()} ({fits[dataset_name]['best_name']}, "
-            f"$R^2$={best['r_squared']:.3f})"
-        )
-        axis.set_xlabel("Scale / mean NND")
-        axis.set_ylabel("Model order / N (%)")
-        axis.set_zlabel("DRA")
-        axis.set_yticks(actual_percentages)
-        axis.set_yticklabels(
-            [
-                f"{percentage:.1f}\n({component})"
-                for percentage, component in zip(actual_percentages, components)
-            ],
-            fontsize=7,
-        )
-        axis.view_init(elev=28, azim=-130)
-    if surface is not None:
-        figure.colorbar(surface, ax=figure.axes, shrink=0.62, pad=0.06, label="DRA")
-    figure.subplots_adjust(
-        left=0.02, right=0.88, bottom=0.04, top=0.94, wspace=0.03, hspace=0.12
-    )
+    figure, _ = plot_dra_surface_grid(results, fits)
     figure.savefig(output_path, dpi=300, bbox_inches="tight")
     print(f"Saved figure: {output_path}")
     if show:

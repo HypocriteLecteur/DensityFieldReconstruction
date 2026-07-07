@@ -76,3 +76,16 @@ def test_mode_count_curve_legacy_wrapper_uses_package_plotting():
     assert "plot_mode_count_curve" in wrapper
     assert "plt.subplots" not in wrapper
     assert 'os.path.join(os.getcwd(), "figs")' in wrapper
+
+
+def test_dra_surface_legacy_wrapper_uses_package_plotting():
+    root = Path(__file__).resolve().parents[1]
+    source = (root / "experiments" / "dfr_plot.py").read_text(encoding="utf-8")
+    wrapper = source.split("def plot_jackdaw2_dra_scale_model_order_surface", 1)[
+        1
+    ].split("def visual_hull_diagram", 1)[0]
+
+    assert "plot_dra_scale_model_order_surface" in wrapper
+    assert "plot_surface(" not in wrapper
+    assert "plot_wireframe(" not in wrapper
+    assert 'Path(os.getcwd()) / "figs"' in wrapper

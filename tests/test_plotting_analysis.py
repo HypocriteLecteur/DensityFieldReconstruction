@@ -7,7 +7,11 @@ import numpy as np
 import pytest
 
 from dfr.analysis import select_adaptive_density_scales, validate_nnd_bounds
-from dfr.plotting import plot_mode_count_curve
+from dfr.plotting import (
+    plot_dra_scale_model_order_surface,
+    plot_dra_surface_grid,
+    plot_mode_count_curve,
+)
 
 
 def test_validate_nnd_bounds_accepts_positive_interval():
@@ -59,3 +63,73 @@ def test_plot_mode_count_curve_validates_inputs():
         plot_mode_count_curve([1.0, 2.0, 3.0], [3, 0, 1], n_slices=1)
     with pytest.raises(ValueError, match="nnd_bounds"):
         plot_mode_count_curve([1.0, 2.0, 3.0], [3, 2, 1], nnd_bounds=(2, 1))
+
+
+def test_plot_dra_scale_model_order_surface_draws_surface_and_fit():
+    scales = np.array([0.5, 1.0, 1.5])
+    components = np.array([4, 8])
+    dra = np.array([[0.9, 0.8], [0.7, 0.5], [0.6, 0.4]])
+    prediction = dra * 0.95
+
+    fig, ax, surface = plot_dra_scale_model_order_surface(
+        scales,
+        components,
+        dra,
+        number_of_animals=16,
+        fitted_dra=prediction,
+        wireframe_label="Fitted surface",
+        max_model_order_ticks=2,
+    )
+
+    assert fig is ax.figure
+    assert surface in ax.collections
+    assert ax.get_xlabel() == r"Normalized scale ($\sigma / \mathrm{NND}$)"
+    assert ax.get_ylabel() == "Model order / N (%)"
+    assert ax.get_zlabel() == "DRA"
+    assert len(ax.collections) >= 2
+    plt.close(fig)
+
+
+def test_plot_dra_surface_grid_returns_one_axis_per_result():
+    result = (
+        np.array([0.5, 1.0, 1.5]),
+        np.array([0.5, 1.0, 1.5]),
+        np.array([4, 8]),
+        np.array([[0.9, 0.8], [0.7, 0.5], [0.6, 0.4]]),
+        0.25,
+        16,
+    )
+    fit = {
+        "best_name": "linear",
+        "candidates": {
+            "linear": {
+                "prediction": result[3] * 0.95,
+                "r_squared": 0.987,
+            }
+        },
+    }
+
+    fig, axes = plot_dra_surface_grid({"jackdaw2": result}, {"jackdaw2": fit})
+
+    assert len(axes) == 1
+    assert axes[0].get_title() == "Jackdaw2 (linear, $R^2$=0.987)"
+    assert len(fig.axes) == 2  # one 3D axis plus the colorbar axis
+    plt.close(fig)
+
+
+def test_plot_dra_surface_validates_inputs():
+    with pytest.raises(ValueError, match="dra must have shape"):
+        plot_dra_scale_model_order_surface(
+            [0.5, 1.0],
+            [4, 8],
+            np.ones((2, 3)),
+            number_of_animals=16,
+        )
+    with pytest.raises(ValueError, match="fitted_dra"):
+        plot_dra_scale_model_order_surface(
+            [0.5, 1.0],
+            [4, 8],
+            np.ones((2, 2)),
+            number_of_animals=16,
+            fitted_dra=np.ones((2, 1)),
+        )

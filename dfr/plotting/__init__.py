@@ -5,7 +5,11 @@ filesystem writes unless a caller explicitly saves the figure.
 """
 
 from dfr.plotting.cameras import plot_camera_configurations
-from dfr.plotting.analysis import plot_mode_count_curve
+from dfr.plotting.analysis import (
+    plot_dra_scale_model_order_surface,
+    plot_dra_surface_grid,
+    plot_mode_count_curve,
+)
 from dfr.plotting.projections import (
     plot_density_image,
     plot_projected_gmm_density,
@@ -19,6 +23,8 @@ __all__ = [
     "apply_academic_style",
     "plot_camera_configurations",
     "plot_density_image",
+    "plot_dra_scale_model_order_surface",
+    "plot_dra_surface_grid",
     "plot_mode_count_curve",
     "plot_projected_gmm_density",
     "plot_projection_points",

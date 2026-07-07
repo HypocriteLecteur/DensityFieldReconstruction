@@ -1191,65 +1191,21 @@ def plot_jackdaw2_dra_scale_model_order_surface(
 
     fit = fit_dra_surface(normalized_scales, components, number_of_animals, dra)
     best_fit = fit["candidates"][fit["best_name"]]
-    actual_order_percentages = 100.0 * components / number_of_animals
-    scale_grid, order_grid = np.meshgrid(
-        normalized_scales, actual_order_percentages, indexing="ij",
-    )
 
-    plt.rcParams.update({
-        "font.family": "serif", "mathtext.fontset": "cm",
-        "font.size": 14,
-        "axes.labelsize": 16,
-        "axes.titlesize": 16,
-        "xtick.labelsize": 12,
-        "ytick.labelsize": 11,
-    })
-    fig = plt.figure(figsize=(10, 8), dpi=300)
-    ax = fig.add_subplot(111, projection="3d")
-    surface = ax.plot_surface(
-        scale_grid,
-        order_grid,
+    from dfr.plotting import plot_dra_scale_model_order_surface
+
+    fig, ax, surface = plot_dra_scale_model_order_surface(
+        normalized_scales,
+        components,
         dra,
-        cmap="viridis",
-        edgecolor="none",
-        antialiased=True,
-        alpha=0.9,
+        number_of_animals=number_of_animals,
+        fitted_dra=best_fit["prediction"],
+        surface_alpha=0.9,
+        wireframe_label="Fitted surface",
+        z_label="DEA",
+        z_label_as_text=True,
+        max_model_order_ticks=5,
     )
-    ax.plot_wireframe(
-        scale_grid,
-        order_grid,
-        best_fit["prediction"],
-        color="black",
-        linewidth=0.75,
-        rstride=1,
-        cstride=1,
-        label="Fitted surface",
-    )
-    ax.set_xlabel(r"Normalized scale ($\sigma / \mathrm{NND}$)", labelpad=10)
-    ax.set_ylabel("Model order / N (%)", labelpad=12)
-    # Matplotlib's projected 3D z-label is easily clipped by the adjacent
-    # colourbar. An axes-aligned label is stable across backends and exports.
-    ax.set_zlabel("")
-    ax.text2D(
-        -0.08, 0.50, "DEA",
-        transform=ax.transAxes,
-        rotation=90,
-        fontsize=16,
-        ha="center",
-        va="center",
-        clip_on=False,
-    )
-    ax.set_xlim(lower, upper)
-    model_order_tick_indices = np.unique(np.rint(np.linspace(
-        0, len(actual_order_percentages) - 1, min(5, len(actual_order_percentages)),
-    )).astype(int))
-    model_order_ticks = actual_order_percentages[model_order_tick_indices]
-    ax.set_yticks(model_order_ticks)
-    ax.set_yticklabels([
-        f"{percentage:.1f}" for percentage in model_order_ticks
-    ])
-    ax.view_init(elev=28, azim=-130)
-    ax.legend(loc="upper left", frameon=False)
     fig.colorbar(surface, ax=ax, shrink=0.72, pad=0.08, label="DRA")
     fig.tight_layout(rect=(0.10, 0.02, 0.98, 0.98), pad=1.5)
 

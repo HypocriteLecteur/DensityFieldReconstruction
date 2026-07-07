@@ -9,8 +9,8 @@ on chat history.
 - **Current phase:** Phase 6 plotting decomposition is in progress. The
   `experiments/dfr_plot.py` function catalog is frozen in
   `experiments/DFR_PLOT_CATALOG.md`; reusable camera-configuration,
-  trajectory-snapshot, 2D projection/GMM, and mode-count curve plotting
-  primitives have moved to `dfr.plotting`.
+  trajectory-snapshot, 2D projection/GMM, mode-count curve, and DRA
+  scale/model-order surface plotting primitives have moved to `dfr.plotting`.
 - **Stable baseline:** annotated tag `v0.1.0`, commit `7cde21e`.
 - **Version storage:** local Git repository only; do not push unless the owner
   explicitly changes this policy.
@@ -333,7 +333,7 @@ The next agent should continue Phase 6:
 
 1. Create the initial `dfr.plotting` package around low-risk reusable
    primitives identified in `experiments/DFR_PLOT_CATALOG.md`: next migrate a
-   DRA surface or multiscale-density plot.
+   multiscale-density panel or another high-value analysis/evaluation plot.
 2. Migrate legacy `figs/` saving for `plot_camera_configurations` to an
    explicit output/artifact option after deciding whether these migrated
    wrappers remain supported experiment CLIs or only compatibility wrappers.
@@ -459,6 +459,27 @@ The next agent should continue Phase 6:
 
 Add one newest-first entry per working session. Include commit(s), verification,
 known failures, and the exact next step.
+
+### 2026-07-07 - Phase 6 DRA surface plotting primitive
+
+- Added reusable DRA scale/model-order surface renderers to
+  `dfr.plotting.analysis`: one single-surface primitive and one managed
+  multi-dataset grid helper. Both return Matplotlib figure/axes objects and
+  leave saving to callers.
+- Migrated `experiments.dfr_plot.plot_jackdaw2_dra_scale_model_order_surface`
+  to delegate its 3D DRA surface and fitted-wireframe rendering to
+  `dfr.plotting` while preserving its legacy CUDA/cache computation and
+  `figs/` save behavior.
+- Migrated the supported `experiments.plot_dra_scale_model_order.plot_surfaces`
+  managed-run figure to use the same package grid renderer.
+- Added headless tests for the single DRA surface, DRA grid, validation paths,
+  legacy wrapper delegation, and supported DRA CLI delegation.
+- Verification: focused plotting/catalog/entrypoint tests (18 passed);
+  `compileall`; `git diff --check`; `pytest -m "not cuda"` (123 passed,
+  7 deselected, 1 warning); `pytest -m cuda` (6 passed, 1 skipped,
+  123 deselected).
+- Next step: migrate the multiscale-density panel renderer or revisit legacy
+  `figs/` saves for wrappers that already delegate to `dfr.plotting`.
 
 ### 2026-07-07 - Phase 6 mode-count plotting primitive
 

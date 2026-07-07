@@ -24,6 +24,21 @@ def test_supported_analysis_scripts_avoid_legacy_output_roots():
         assert "os.getcwd()" not in source, filename
 
 
+def test_dra_scale_model_order_cli_uses_package_plotting():
+    experiments = Path(__file__).resolve().parents[1] / "experiments"
+    source = (experiments / "plot_dra_scale_model_order.py").read_text(
+        encoding="utf-8"
+    )
+    plotting_region = source.split("def plot_surfaces", 1)[1].split(
+        "def parse_args", 1
+    )[0]
+
+    assert "from dfr.plotting import plot_dra_surface_grid" in source
+    assert "plot_dra_surface_grid(results, fits)" in plotting_region
+    assert "plot_surface(" not in plotting_region
+    assert "plot_wireframe(" not in plotting_region
+
+
 def test_analysis_catalog_documents_every_supported_entrypoint():
     experiments = Path(__file__).resolve().parents[1] / "experiments"
     catalog = (experiments / "README.md").read_text(encoding="utf-8")
