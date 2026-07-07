@@ -56,9 +56,9 @@ not a supported analysis CLI. Direct execution no longer launches its former
 hard-coded animation. `python -m experiments.dfr_plot --list-functions` lists
 the retained functions. The Phase 6 function inventory is frozen in
 [`DFR_PLOT_CATALOG.md`](DFR_PLOT_CATALOG.md); update that catalog before moving
-or deleting any `dfr_plot.py` function. The first migrated wrapper is
-`plot_camera_configurations`, whose rendering now lives in `dfr.plotting` while
-the legacy wrapper still writes to `figs/`.
+or deleting any `dfr_plot.py` function. The first migrated wrappers are
+`plot_camera_configurations` and `plot_single_scenario_new`, whose rendering now
+lives in `dfr.plotting` while the legacy wrappers still write to `figs/`.
 
 `plotting_utils.py` is a helper module rather than an entry point.
 

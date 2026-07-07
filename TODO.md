@@ -9,7 +9,7 @@ on chat history.
 - **Current phase:** Phase 6 plotting decomposition is in progress. The
   `experiments/dfr_plot.py` function catalog is frozen in
   `experiments/DFR_PLOT_CATALOG.md`; the first reusable camera-configuration
-  plotting primitive has moved to `dfr.plotting`.
+  and trajectory-snapshot plotting primitives have moved to `dfr.plotting`.
 - **Stable baseline:** annotated tag `v0.1.0`, commit `7cde21e`.
 - **Version storage:** local Git repository only; do not push unless the owner
   explicitly changes this policy.
@@ -332,10 +332,10 @@ The next agent should continue Phase 6:
 
 1. Create the initial `dfr.plotting` package around low-risk reusable
    primitives identified in `experiments/DFR_PLOT_CATALOG.md`: next migrate
-   trajectory/camera views or 2D projection/GMM views.
+   2D projection/GMM views.
 2. Migrate legacy `figs/` saving for `plot_camera_configurations` to an
-   explicit output/artifact option after deciding whether this remains a
-   supported experiment CLI or only a compatibility wrapper.
+   explicit output/artifact option after deciding whether these migrated
+   wrappers remain supported experiment CLIs or only compatibility wrappers.
 3. Add headless plotting smoke tests before migrating each high-value figure.
 4. Keep the Phase 4 supported/legacy classification in
    `experiments/README.md` current when promoting another research study.
@@ -458,6 +458,25 @@ The next agent should continue Phase 6:
 
 Add one newest-first entry per working session. Include commit(s), verification,
 known failures, and the exact next step.
+
+### 2026-07-07 - Phase 6 trajectory plotting primitive
+
+- Added `dfr.plotting.plot_trajectory_snapshot(...)`, a data-first 3D
+  trajectory/final-position renderer with no save/display side effects.
+- Migrated `experiments.dfr_plot.plot_single_scenario_new` to delegate
+  rendering to `dfr.plotting` while preserving its legacy `figs/scene_traj_*`
+  save behavior for compatibility.
+- Removed the unused scenario-log directory creation from that legacy plotting
+  wrapper.
+- Added headless Matplotlib tests for the trajectory primitive and a static
+  guard that the legacy wrapper delegates to the package primitive.
+- Updated `experiments/DFR_PLOT_CATALOG.md`, README, and
+  `experiments/README.md` to reflect the second migrated wrapper.
+- Verification: `compileall`; focused plotting/catalog tests; `git diff
+  --check`; `pytest -m "not cuda"` (108 passed, 7 deselected, 1 warning);
+  `pytest -m cuda` (6 passed, 1 skipped, 108 deselected).
+- Next step: migrate the 2D projection/GMM view primitives
+  (`plot_jackdaw2_2d_gmm` and/or `plot_jackdaw2_2d_observations`).
 
 ### 2026-07-07 - Phase 6 first plotting primitive
 

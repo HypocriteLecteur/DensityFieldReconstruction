@@ -156,46 +156,26 @@ def plot_multiple_scenarios():
     plt.show()
 
 def plot_single_scenario_new(run_params):
+    from dfr.plotting import plot_trajectory_snapshot
+
     name, log_name, start_step, end_step, step_length = _unpack(run_params)
     config, dataset, scenario_path = _load_scenario(name)
     _, effective_end_step, _ = _step_range(dataset, start_step, end_step, step_length)
-
-    log_file_path = os.path.join(scenario_path, *["logs", log_name])
-    if not os.path.exists(log_file_path):
-        os.makedirs(log_file_path)
 
     # Get positions and active agents mask at the exact end step
     target_idx = effective_end_step - 1
     positions, masks = dataset.positions_at_time_step_mask(target_idx)
     trajectories = dataset.trajectories[:, masks, :]
 
-    # Setup Figure
-    fig = plt.figure(figsize=(8, 8))
-    ax = fig.add_subplot(111, projection='3d')
-    move_figure(fig, 100, 100)
-    ax.view_init(elev=33, azim=-117, roll=0)
-
-    # --- AESTHETICS: Clean, no axis, no grid ---
-    ax.set_axis_off()
-    fig.tight_layout(pad=0)
-
-    N = trajectories.shape[1]
-
-    # 1. Plot the full trajectories from start_step to end_step
-    for i in range(N):
-        ax.plot(
-            trajectories[start_step:effective_end_step, i, 0],
-            trajectories[start_step:effective_end_step, i, 1],
-            trajectories[start_step:effective_end_step, i, 2],
-            color='tab:gray', alpha=0.15, linewidth=1.2, zorder=1,
-        )
-
-    # 2. Plot the end positions of the swarm
-    ax.scatter(positions[:, 0], positions[:, 1], positions[:, 2],
-               c='#1f2937', s=25, alpha=0.65, edgecolors='none', depthshade=True, zorder=3)
+    fig, ax = plot_trajectory_snapshot(
+        trajectories[start_step:effective_end_step],
+        positions,
+    )
 
     # Optional: Save with zero padding to keep the image strictly focused on the data
+    os.makedirs("figs", exist_ok=True)
     fig.savefig(f"figs/scene_traj_{name}.png", transparent=True, bbox_inches='tight', pad_inches=0)
+    return fig, ax
 
 
 def plot_jackdaw2_density_field():

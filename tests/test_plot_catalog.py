@@ -28,3 +28,16 @@ def test_camera_configuration_legacy_wrapper_uses_package_plotting():
     assert "from dfr.plotting import plot_camera_configurations" in wrapper
     assert "_plot_camera_configurations(" in wrapper
     assert 'os.path.join(os.getcwd(), "figs")' in wrapper
+
+
+def test_trajectory_legacy_wrapper_uses_package_plotting():
+    root = Path(__file__).resolve().parents[1]
+    source = (root / "experiments" / "dfr_plot.py").read_text(encoding="utf-8")
+    wrapper = source.split("def plot_single_scenario_new", 1)[1].split(
+        "def plot_jackdaw2_density_field", 1
+    )[0]
+
+    assert "from dfr.plotting import plot_trajectory_snapshot" in wrapper
+    assert "plot_trajectory_snapshot(" in wrapper
+    assert 'fig.savefig(f"figs/scene_traj_{name}.png"' in wrapper
+    assert "logs" not in wrapper
