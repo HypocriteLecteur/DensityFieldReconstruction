@@ -6,9 +6,9 @@ boundaries explicit while their reusable pieces move into `dfr`.
 
 | Runner | Observation source | Camera behavior | Current entry point | Migration boundary |
 |---|---|---|---|---|
-| `run_scenarios_angle_sweep.py` | Projections simulated from a canonical named dataset | Encircling cameras for the ordinary path; constructed two-camera baseline angles for sensitivity studies | Required study subcommand; `reconstruct` uses `ScenarioRunSpec` | Move angle construction, convergence traces, cached density grids, and sweep result types into package analysis modules before deleting the retained legacy ordinary-loop body. |
+| `run_scenarios_angle_sweep.py` | Projections simulated from a canonical named dataset | Encircling cameras for the ordinary path; constructed two-camera baseline angles for sensitivity studies | Required study subcommand; `reconstruct` uses `ScenarioRunSpec` | Ordinary reconstruction is consolidated; remaining `DensityReconstructor` calls belong to true angle/convergence/profile studies. |
 | `run_scenarios_flock.py` | Two external detection CSVs plus a MATLAB `xyzTensorValid` trajectory | Two calibrated cameras with unequal intrinsics and MATLAB extrinsics | Required study subcommand; primary `run` requires explicit input paths | Primary reconstruction now builds `ExternalObservationFrame` objects and calls `dfr.reconstruct_observations`; legacy visualization/baseline/metrics helpers still read historical scenario logs. |
-| `run_scenarios_ue4.py` | Thresholded centroids from three external image sequences | Per-frame UE4 rotation/translation matrices and `CameraStateUE4` | Explicit `--image-roots` and `--project-root` | Add time-varying camera systems and an image/detection provider contract before moving the numerical loop. Do not coerce UE4 transforms into the static encircling-camera path. |
+| `run_scenarios_ue4.py` | Thresholded centroids from three external image sequences | Per-frame UE4 rotation/translation matrices and `CameraStateUE4` | Explicit `--image-roots` and `--project-root` | Primary reconstruction now builds one `ExternalObservationFrame` per image frame and calls `dfr.reconstruct_observations`; UE4 poses are saved as 7D provenance while the numerical backend receives `CameraStateUE4`. |
 
 ## Safety and output status
 
@@ -20,8 +20,10 @@ boundaries explicit while their reusable pieces move into `dfr`.
 - The primary flock reconstruction path now writes managed artifacts through
   `OutputConfig`; its visualization, baseline, and metrics subcommands remain
   legacy consumers of scenario-log directories.
-- UE4 numerical loops still contain legacy scenario-log behavior. They are
-  explicit legacy specializations, not yet supported managed workflows.
+- UE4 primary reconstruction now writes managed artifacts through
+  `OutputConfig`; any future UE4 visualization/export work should consume the
+  returned `ReconstructionRun` or managed run directory instead of adding
+  scenario-log writes.
 - The shared package abstraction is `ExternalObservationFrame`: ground-truth
   positions, one 2D point set per camera, camera-system provenance, optional
   per-frame poses, and visibility. Use it for measured detections instead of

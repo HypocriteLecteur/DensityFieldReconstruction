@@ -37,6 +37,22 @@ def test_angle_ordinary_path_uses_shared_scenario_runner(monkeypatch, tmp_path):
     assert captured["spec"].training.lr_max_steps == 100
 
 
+def test_angle_ordinary_legacy_body_was_removed():
+    source = (
+        Path(__file__).resolve().parents[1]
+        / "experiments"
+        / "run_scenarios_angle_sweep.py"
+    ).read_text(encoding="utf-8")
+    ordinary = source.split("def run_single_scenario", 1)[1].split(
+        "def run_multi_scenarios_baseline", 1
+    )[0]
+
+    assert "_run_single_scenario_legacy" not in source
+    assert "ScenarioRunSpec(" in ordinary
+    assert "DensityReconstructor(" not in ordinary
+    assert "output_dir=" not in ordinary
+
+
 def test_specialized_runners_require_explicit_dispatch():
     assert angle_runner.create_parser().parse_args(["profile"]).study == "profile"
     assert flock_runner.create_parser().parse_args(["visualize"]).study == "visualize"
@@ -99,6 +115,33 @@ def test_flock_scale_selection_supports_frame_and_ordered_caches():
     assert flock_runner._select_frame_scales([1.0, 2.0], [5, 10]) == [1.0, 2.0]
     with pytest.raises(ValueError, match="Scale cache"):
         flock_runner._select_frame_scales([1.0], [5, 10])
+
+
+def test_ue4_primary_run_uses_external_observation_workflow():
+    source = (
+        Path(__file__).resolve().parents[1]
+        / "experiments"
+        / "run_scenarios_ue4.py"
+    ).read_text(encoding="utf-8")
+    primary = source.split("def run_ue4", 1)[1].split("def create_parser", 1)[0]
+
+    assert "ExternalObservationFrame(" in primary
+    assert "reconstruct_observations(" in primary
+    assert "DensityReconstructor(" not in primary
+    assert "output_dir=" not in primary
+    args = ue4_runner.create_parser().parse_args(
+        [
+            "--image-roots",
+            "camera_1",
+            "camera_2",
+            "camera_3",
+            "--no-output",
+            "--seed",
+            "17",
+        ]
+    )
+    assert args.no_output is True
+    assert args.seed == 17
 
 
 def test_specialized_modules_do_not_install_root_file_loggers():

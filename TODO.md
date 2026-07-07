@@ -6,11 +6,11 @@ on chat history.
 
 ## Status
 
-- **Current phase:** Phase 4 is complete. Phase 5 typed reconstruction,
-  evaluation, shared scenario/camera services, the representative primary
-  runner, Table 2/3/4 consolidation, typed external-observation workflow, and
-  the measured-flock primary run migration are complete. UE4 still needs to
-  move from its legacy image loop onto the external-observation contract.
+- **Current phase:** Phase 5 is complete. Typed reconstruction, evaluation,
+  shared scenario/camera services, the representative primary runner, Table
+  2/3/4 consolidation, typed external-observation workflow, measured-flock
+  primary run migration, UE4 primary run migration, and ordinary angle-sweep
+  consolidation are complete. The next phase is Phase 6 plotting decomposition.
 - **Stable baseline:** annotated tag `v0.1.0`, commit `7cde21e`.
 - **Version storage:** local Git repository only; do not push unless the owner
   explicitly changes this policy.
@@ -268,7 +268,7 @@ without copying code or invoking an experiment module.
   all active scripts migrate.
 - [x] Separate metric computation from plotting and provide
   `dfr.evaluate(...)` with typed results.
-- [ ] Consolidate the remaining repeated angle-sweep/UE4 runner loops into
+- [x] Consolidate the remaining repeated angle-sweep/UE4 runner loops into
   typed package workflows.
 - [x] Verify representative old/new runs agree within declared tolerances.
 
@@ -329,17 +329,15 @@ reading implementation or experiment source.
 
 ## Immediate Next Actions
 
-The next agent should continue Phase 5:
+The next agent should start Phase 6:
 
-1. Migrate the UE4 thresholded-image loop onto `ExternalObservationFrame` and
-   `dfr.reconstruct_observations`, preserving its per-frame camera-system
-   behavior and explicit `--image-roots` input contract.
-2. Characterize and remove the retained `_run_single_scenario_legacy` body
-   from the angle-sweep module; keep its true angle/convergence kernels.
-3. Migrate `compute_metrics_from_pretrained.py` dataset/checkpoint discovery
-   and output paths to explicit CLI/config and managed evaluation artifacts.
-4. Add saved-evaluation loading if downstream plotting needs a stable reader.
-5. Keep the Phase 4 supported/legacy classification in
+1. Freeze a catalog of all functions in `experiments/dfr_plot.py`, including
+   callers, inputs, output files, and whether each function is reusable,
+   experiment-only, computation, or obsolete.
+2. Move shared plotting style/save/layout helpers into `dfr.plotting` only
+   after the catalog identifies reusable pieces.
+3. Add headless plotting smoke tests before migrating any high-value figure.
+4. Keep the Phase 4 supported/legacy classification in
    `experiments/README.md` current when promoting another research study.
 
 ## Decisions
@@ -448,11 +446,39 @@ The next agent should continue Phase 5:
   supplied 2D point set per camera, camera-system provenance, optional
   per-frame camera poses, and visibility masks, while still returning the
   standard `ReconstructionRun` and managed artifacts.
+- **2026-07-07 - Phase 5 runner consolidation complete:** ordinary scenario
+  reconstruction uses `ScenarioRunSpec`, and measured/time-varying external
+  detections use `ExternalObservationFrame`. Remaining direct
+  `DensityReconstructor` calls in angle-sweep are specialized studies rather
+  than repeated ordinary scenario loops. Reason: deleting those kernels would
+  remove distinct camera-angle, profiling, and convergence experiments rather
+  than consolidating duplicate orchestration.
 
 ## Handoff Log
 
 Add one newest-first entry per working session. Include commit(s), verification,
 known failures, and the exact next step.
+
+### 2026-07-07 - Phase 5 runner consolidation completed
+
+- Migrated `experiments/run_scenarios_ue4.py` primary reconstruction from a
+  hand-written per-frame `DensityReconstructor` loop to
+  `ExternalObservationFrame` plus `reconstruct_observations(...)`.
+- Preserved UE4 time-varying `CameraStateUE4` systems for numerical work while
+  saving per-frame 7D camera-pose provenance in typed reconstruction results.
+- Added explicit UE4 output controls (`--output-root`, `--run-id`, `--resume`,
+  `--overwrite`, `--no-output`, `--seed`) and removed scenario-log creation
+  from the active primary run.
+- Removed the retained `_run_single_scenario_legacy` ordinary body from
+  `run_scenarios_angle_sweep.py`; the ordinary path now only dispatches through
+  `ScenarioRunSpec`.
+- Updated README, specialized-runner inventory, and tests to reflect that
+  Phase 5 runner consolidation is complete.
+- Verification: `compileall`; `git diff --check`; `pytest -m "not cuda"` (99
+  passed, 7 deselected, 1 warning); `pytest -m cuda` (6 passed, 1 skipped, 99
+  deselected).
+- Next step: start Phase 6 with a catalog of `experiments/dfr_plot.py`
+  functions before moving plotting code.
 
 ### 2026-07-07 - Phase 5 external observations and flock primary migration
 

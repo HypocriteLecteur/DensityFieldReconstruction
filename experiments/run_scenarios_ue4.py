@@ -1,31 +1,26 @@
-import shutil
-import os
 import argparse
 from pathlib import Path
-import matplotlib
 import pandas as pd
 
 from tqdm import tqdm
 
 
-import torch
 import numpy as np
 from dfr.simulation_config import SimulationConfig
-from dfr.dataset_io import DatasetFactory, load_camera_extrinsics
-from dfr.density_field_reconstructor import DensityReconstructor
+from dfr.dataset_io import DatasetFactory
 from dfr.camera_state import CameraStateUE4
-from dfr.utils import calculate_gmm_dissimilarity
-from dfr.visualizer import SimulationVisualizer, MultiGMMPlotter
 from dfr.camera_system import MultiCameraSystem
-from dfr.gaussian_mixture_reduction import GMR
 
-import glob
 import cv2
-from scipy.io import loadmat
-import matplotlib.pyplot as plt
+from scipy.spatial.transform import Rotation as R
 
-from dfr.utils import move_figure
 from experiments.common import setup_logger
+from dfr.artifacts import OutputConfig
+from dfr.config import ReconstructionParams, TrainingParams
+from dfr.reconstruction.observations import (
+    ExternalObservationFrame,
+    reconstruct_observations,
+)
 
 # Setup logger
 logger = setup_logger(__name__)
@@ -121,9 +116,19 @@ def find_centroids(binary_mask, min_area_threshold=10):
 
     return centroids
 
-def run_ue4(*, project_root, image_roots):
+def _projection_array(points):
+    """Return a float32 ``(N, 2)`` centroid array, preserving empty detections."""
+    return np.asarray(points, dtype=np.float32).reshape(-1, 2)
+
+
+def _pose_from_ue4_rt(rotation, translation):
+    """Convert a UE4-style world pose into the saved 7D pose convention."""
+    quaternion = R.from_matrix(rotation).as_quat()
+    return np.concatenate([np.asarray(translation, dtype=np.float32), quaternion])
+
+
+def run_ue4(*, project_root, image_roots, output=None, seed=12345, save_output=True):
     LOG_NAME = 'base_better_peak'
-    CLEAN_LOGS = False
     USE_DECOUPLED = False
 
     run_params = {
@@ -141,32 +146,9 @@ def run_ue4(*, project_root, image_roots):
     end_step = run_params['end_step']
     step_length = run_params['step_length']
 
-    scenario_path = os.path.join(str(Path(project_root).resolve()), "scenarios", name)
-    config_path = os.path.join(scenario_path, "config.yaml")
-
-    if CLEAN_LOGS and os.path.exists(os.path.join(scenario_path, "logs")):
-        shutil.rmtree(os.path.join(scenario_path, "logs"))
-
-    log_file_path = os.path.join(scenario_path, *["logs", log_name])
-    if not os.path.exists(log_file_path):
-        os.makedirs(log_file_path)
-    
-    # 2. Initialize Metrics (must be re-initialized for each run)
-    time_metrics = {
-        'simulate_vision_time': [],
-        'estimate_swarm_center': [],
-        'adaptive_scale_selection': [],
-        'generate_scale_space': [],
-        'estimate_scale_space_peaks': [],
-        'setup_gaussian_scale_space': [],
-        'train_gaussian_scale_space': [],
-    }
-    loss_metrics = {
-        'final_training_loss': [],
-        'final_density_field_loss': [],
-        'final_gmm_num': [],
-        'scale': []
-    }
+    root = Path(project_root).expanduser().resolve()
+    scenario_path = root / "scenarios" / name
+    config_path = scenario_path / "config.yaml"
 
     # 3. Load Dataset
     config = SimulationConfig(config_path) 
@@ -183,19 +165,9 @@ def run_ue4(*, project_root, image_roots):
         logger.info(f"Skipping {name}: start_step ({start_step}) >= end_step ({effective_end_step}).")
         return
 
-    # 4. System Initialization
-    density_reconstructor = DensityReconstructor(max_iter=config.iter, use_decoupled=USE_DECOUPLED)
-
-    # visualizer = SimulationVisualizer(intrinsics_params=config.intrinsics_params,
-    #                                   H=config.H, W=config.W, 
-    #                                   cam_num=3,
-    #                                   mode='all',
-    #                                   save_video=False, fps=30, dpi=100,
-    #                                   positions_all=dataset.trajectories)
-    # mgmm_visualizer = MultiGMMVisualizer(H=config.H, W=config.W,
-    #                                      near_clip=config.near_clip, far_clip=config.far_clip)
-
-    # 5. Simulation Loop
+    # 4. External observation assembly. The primary UE4 path now feeds
+    # thresholded image detections through the shared package workflow rather
+    # than hand-running DensityReconstructor inside this experiment script.
     step_range = range(start_step, effective_end_step, step_length)
 
     def convert_coordinate(R1_input, T1_input):
@@ -216,7 +188,8 @@ def run_ue4(*, project_root, image_roots):
 
         return R_converted, T_converted
 
-    for time_step in (pbar := tqdm(step_range, desc=f"Processing {os.name}")):
+    observations = []
+    for time_step in tqdm(step_range, desc=f"Processing {name}"):
         positions = dataset.positions_at_time_step(time_step)
 
         # read poses from csv
@@ -243,6 +216,10 @@ def run_ue4(*, project_root, image_roots):
             [*convert_coordinate(R2_input, T2_input)],
             [*convert_coordinate(R3_input, T3_input)]
         ]
+        camera_poses = np.asarray(
+            [_pose_from_ue4_rt(rotation, translation) for rotation, translation in RTs],
+            dtype=np.float32,
+        )
 
         # P_wrd = RP_base + T
 
@@ -310,153 +287,66 @@ def run_ue4(*, project_root, image_roots):
         centroids2 = find_centroids(BW2, min_area_threshold=10)
         BW3, _ = thresholding(img3)
         centroids3 = find_centroids(BW3, min_area_threshold=10)
-    
-        # Visualization
-        # for (x, y) in centroids:
-        #     cv2.circle(img, (x, y), 2, (0, 0, 255), -1) 
-        # for (x, y) in centroids2:
-        #     cv2.circle(img2, (x, y), 2, (0, 0, 255), -1)
-
-        # cv2.imwrite(f"mask.jpg", BW)
-        # cv2.imwrite(f"aero_{1}_detection.jpg", img)
-        # cv2.imwrite(f"aero_{3}_detection.jpg", img2)
-        # cv2.imshow(f"aero_{1}_detection", img)
-        # cv2.imshow(f"aero_{3}_detection", img2)
-        # cv2.waitKey(0)
-        # cv2.destroyAllWindows()
-
-        centroids = np.array(centroids)
-        centroids2 = np.array(centroids2)
-        centroids3 = np.array(centroids3)
-        
-        density_reconstructor = DensityReconstructor(max_iter=100, W=config.W, H=config.H)
-
-        reconstruction_params = {
-            'targetd_num_mode': 10,
-            # voxel method
-            'voxel_scale': 2,
-            'voxel_peak_threshold': 0.3,
-            'voxel_grid_max_size': 32,
-            'voxel_peaks_number': 10
-        }
-        train_params = {
-            'xyz_lr_c': 0.05,
-            'xyz_lr_final_c': 0.9,
-            'radius_lr_c': 0.05,
-            'radius_lr_final_c': 0.9,
-            'weights_lr_c': 0.10,
-            'weights_lr_final_c': 0.7,
-            'xyz_reg': 1.0,
-            'radius_reg': 0.3,
-            'radius_cutoff_inv': 0.5,
-            'lr_max_steps': 500
-        }
-
-        # poses, projections, _, masks = cam_system.simulate_vision(positions, renderer='projection_only', is_auto_aim=False)
-        # plt.figure()
-        # plt.imshow(img)
-        # plt.scatter(projections[0][:, 0], projections[0][:, 1], label='projection')
-        # plt.scatter(centroids[:, 0], centroids[:, 1], label='detection')
-        # plt.legend()
-        # plt.show()
-
-        model, scale_spaces = \
-        density_reconstructor.process_frame(cam_system, point_sets=[centroids, centroids2, centroids3], positions=positions,
-                                            initGMM=None,
-                                            is_adaptive_scale=True, scale=None,
-                                            is_log=False,
-                                            train_params=train_params,
-                                            reconstruction_params=reconstruction_params)
-        
-        # for metric_name, value in density_reconstructor.time_metrics.items():
-        #     time_metrics[metric_name].append(value)
-
-        gmm_visualizer = MultiGMMPlotter()
-        gmm_visualizer.add_gmm(model[0]._xyz.detach().cpu().numpy(), model[0]._radius.detach().cpu().numpy(), model[0]._weights.detach().cpu().numpy())
-        # gmm_visualizer.add_gmm(r_means.detach().cpu().numpy(), r_radius.detach().cpu().numpy(), r_weights.detach().cpu().numpy())
-        gmm_visualizer.update()
-
-        gmm_visualizer.ax.scatter(
-            positions[:, 0], 
-            positions[:, 1], 
-            positions[:, 2], 
-            c='#1f2937',        # A sophisticated dark slate/navy instead of pure black
-            s=8,                # Drastically reduce size (down from 15 to 3 or 4)
-            alpha=0.65,         # Allow dense areas to visually compound
-            edgecolors='none',  
-            depthshade=True,    # Crucial for 3D: fades points that are further away
-            zorder=3            
+        _, _, _, masks = cam_system.simulate_vision(
+            positions,
+            renderer="projection_only",
+            is_auto_aim=False,
         )
-        gmm_visualizer.ax.set_xlabel('X')
-        gmm_visualizer.ax.set_ylabel('Y')
-        gmm_visualizer.ax.set_zlabel('Z')
+        observations.append(
+            ExternalObservationFrame(
+                dataset_name=name,
+                frame=time_step,
+                positions=positions,
+                projections=(
+                    _projection_array(centroids),
+                    _projection_array(centroids2),
+                    _projection_array(centroids3),
+                ),
+                camera_system=cam_system,
+                camera_poses=camera_poses,
+                visible_mask=np.logical_and.reduce(masks),
+                metadata={
+                    "source": "ue4_thresholded_images",
+                    "image_index": img_idx,
+                    "image_roots": [str(path) for path in image_roots],
+                },
+            )
+        )
 
-        plt.show()
-
-        # loss_metrics['final_training_loss'].append(model[0].sum_loss)
-        # loss_metrics['final_gmm_num'].append(model[0]._xyz.shape[0])
-
-        # _, projections, _, _ = stereo_vision.simulate_vision(positions_all[time_step], renderer='gaussian')
-        # swarm_projection, swarm_projection2 = projections
-        # is_visible = (swarm_projection[:, 0] > 0).squeeze() & (swarm_projection[:, 1] > 0).squeeze() & \
-        #     (swarm_projection[:, 0] < H).squeeze() & (swarm_projection[:, 1] < W).squeeze()
-        # is_visible2 = (swarm_projection2[:, 0] > 0).squeeze() & (swarm_projection2[:, 1] > 0).squeeze() & \
-        #     (swarm_projection2[:, 0] < H).squeeze() & (swarm_projection2[:, 1] < W).squeeze()
-        # is_visible = np.logical_and(is_visible, is_visible2)
-        # loss_metrics['final_density_field_loss'].append(
-        #     calculate_gmm_dissimilarity(
-        #         positions_all[time_step],
-        #         density_reconstructor.scale, 
-        #         model[0]._xyz, 
-        #         model[0]._weights, 
-        #         model[0]._radius))
-
-        # visualizer.update(time_step=time_step,
-        #                   positions=positions_all[time_step],
-        #                   R1=camera_states[0].P_np[:, :3], T1=camera_states[0].P_np[:, 3], 
-        #                   R2=camera_states[1].P_np[:, :3], T2=camera_states[1].P_np[:, 3], 
-        #                   img=scale_spaces[0][0], img2=scale_spaces[1][0])
-        
-        # CameraState and CameraStateUE4 has differnt frames
-        # visualizer.update(time_step=time_step,
-        #             positions=positions_all[time_step],
-        #             cam_poses=poses,
-        #             imgs=scale_spaces)
-
-        # if time_step == 1:
-        #     gmm1_id = mgmm_visualizer.add_gmm(model[0]._xyz.detach().cpu().numpy(), 
-        #                                       model[0]._radius.detach().cpu().numpy(), 
-        #                                       model[0]._weights.detach().cpu().numpy(), color='blue', label='baseline')
-        #     gmm2_id = mgmm_visualizer.add_gmm(r_means.detach().cpu().numpy(), 
-        #                                       r_covs.detach().cpu().numpy(), 
-        #                                       r_weights.detach().cpu().numpy(), color='orange', label='GMR')
-        # else:
-        #     mgmm_visualizer.update_gmm_data(gmm1_id, 
-        #                                     means=model[0]._xyz.detach().cpu().numpy(), 
-        #                                     covariances=model[0]._radius.detach().cpu().numpy(), 
-        #                                     weights=model[0]._weights.detach().cpu().numpy(), visible=True)
-        #     mgmm_visualizer.update_gmm_data(gmm2_id, 
-        #                                     means=r_means.detach().cpu().numpy(), 
-        #                                     covariances=r_covs.detach().cpu().numpy(), 
-        #                                     weights=r_weights.detach().cpu().numpy(), visible=True)
-        # mgmm_visualizer.update(
-        #     real_means=positions_all[time_step],
-        # )
-        # plt.pause(0.001)
-
-    # if time_metrics['train_gaussian_scale_space']:
-    #     mean_time = np.mean(np.array(time_metrics['train_gaussian_scale_space'][1:]))
-    #     std_time = np.std(np.array(time_metrics['train_gaussian_scale_space'][1:]))
-    #     print(f"Mean 'train_gaussian_scale_space' time: {mean_time:.2f} ms +- {std_time:.2f} ms")
-    # else:
-    #     print("No time steps procesed.")
-
-    # if time_metrics['adaptive_scale_selection']:
-    #     mean_time = np.mean(np.array(time_metrics['adaptive_scale_selection'][1:]))
-    #     std_time = np.std(np.array(time_metrics['adaptive_scale_selection'][1:]))
-    #     print(f"Mean 'adaptive_scale_selection' time: {mean_time:.2f} ms +- {std_time:.2f} ms")
-    # else:
-    #     print("No time steps processed.")
+    if output is None and save_output:
+        output = OutputConfig(
+            workflow="reconstruction",
+            name=f"ue4-{log_name}",
+            project_root=root,
+        )
+    run = reconstruct_observations(
+        observations,
+        training=TrainingParams(
+            xyz_lr_c=0.05,
+            xyz_lr_final_c=0.9,
+            radius_lr_c=0.05,
+            radius_lr_final_c=0.9,
+            weights_lr_c=0.10,
+            weights_lr_final_c=0.7,
+            xyz_reg=1.0,
+            radius_reg=0.3,
+            radius_cutoff_inv=0.5,
+            lr_max_steps=500,
+        ),
+        reconstruction=ReconstructionParams(
+            targetd_num_mode=10,
+            voxel_scale=2,
+            voxel_peak_threshold=0.3,
+            voxel_grid_max_size=32,
+            voxel_peaks_number=10,
+        ),
+        use_decoupled=USE_DECOUPLED,
+        seed=seed,
+        output=output,
+    )
+    if run.run_dir is not None:
+        logger.info("Managed UE4 reconstruction artifacts saved to: %s", run.run_dir)
+    return run
 
 def create_parser():
     parser = argparse.ArgumentParser(
@@ -470,6 +360,16 @@ def create_parser():
         required=True,
         metavar=("CAMERA_1", "CAMERA_2", "CAMERA_3"),
     )
+    parser.add_argument("--output-root", type=Path, default=Path("outputs"))
+    parser.add_argument("--run-id")
+    parser.add_argument("--seed", type=int, default=12345)
+    parser.add_argument("--resume", action="store_true")
+    parser.add_argument("--overwrite", action="store_true")
+    parser.add_argument(
+        "--no-output",
+        action="store_true",
+        help="Return reconstructed arrays without creating a managed run directory.",
+    )
     return parser
 
 
@@ -479,7 +379,24 @@ def main(argv=None):
     for path in roots:
         if not path.is_dir():
             raise FileNotFoundError(f"UE4 image directory does not exist: {path}")
-    run_ue4(project_root=args.project_root, image_roots=roots)
+    output = None
+    if not args.no_output:
+        output = OutputConfig(
+            workflow="reconstruction",
+            name="ue4-base_better_peak",
+            root=args.output_root,
+            run_id=args.run_id,
+            project_root=args.project_root,
+            resume=args.resume,
+            overwrite=args.overwrite,
+        )
+    run_ue4(
+        project_root=args.project_root,
+        image_roots=roots,
+        output=output,
+        seed=args.seed,
+        save_output=not args.no_output,
+    )
     return 0
 
 
