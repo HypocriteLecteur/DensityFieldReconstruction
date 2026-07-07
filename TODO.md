@@ -7,10 +7,10 @@ on chat history.
 ## Status
 
 - **Current phase:** Phase 4 is complete. Phase 5 typed reconstruction,
-  evaluation, shared scenario/camera services, and the representative primary
-  runner plus Table 2/3/4 consolidation are complete. Specialized runners now
-  have explicit dispatch and an ownership inventory; their measured/external
-  observation loops still need a typed package workflow.
+  evaluation, shared scenario/camera services, the representative primary
+  runner, Table 2/3/4 consolidation, typed external-observation workflow, and
+  the measured-flock primary run migration are complete. UE4 still needs to
+  move from its legacy image loop onto the external-observation contract.
 - **Stable baseline:** annotated tag `v0.1.0`, commit `7cde21e`.
 - **Version storage:** local Git repository only; do not push unless the owner
   explicitly changes this policy.
@@ -268,8 +268,8 @@ without copying code or invoking an experiment module.
   all active scripts migrate.
 - [x] Separate metric computation from plotting and provide
   `dfr.evaluate(...)` with typed results.
-- [ ] Consolidate the repeated scenario/table/flock/angle-sweep runner loops
-  into one configurable runner.
+- [ ] Consolidate the remaining repeated angle-sweep/UE4 runner loops into
+  typed package workflows.
 - [x] Verify representative old/new runs agree within declared tolerances.
 
 **Exit criteria:** one concise API/config drives load -> camera setup ->
@@ -331,9 +331,9 @@ reading implementation or experiment source.
 
 The next agent should continue Phase 5:
 
-1. Define typed external observation/camera-frame inputs for measured flock
-   detections and time-varying UE4 cameras, then migrate one end-to-end loop to
-   prove the contract before touching the other.
+1. Migrate the UE4 thresholded-image loop onto `ExternalObservationFrame` and
+   `dfr.reconstruct_observations`, preserving its per-frame camera-system
+   behavior and explicit `--image-roots` input contract.
 2. Characterize and remove the retained `_run_single_scenario_legacy` body
    from the angle-sweep module; keep its true angle/convergence kernels.
 3. Migrate `compute_metrics_from_pretrained.py` dataset/checkpoint discovery
@@ -442,11 +442,41 @@ The next agent should continue Phase 5:
   simulated-projection runner. Reason: both require asymmetric or time-varying
   camera state and externally observed 2D point sets; replacing them with
   `simulate_vision` would silently change the experiment.
+- **2026-07-07 - External observation API:** use
+  `ExternalObservationFrame` plus `reconstruct_observations(...)` for measured
+  or image-derived detections. Reason: these workflows need one externally
+  supplied 2D point set per camera, camera-system provenance, optional
+  per-frame camera poses, and visibility masks, while still returning the
+  standard `ReconstructionRun` and managed artifacts.
 
 ## Handoff Log
 
 Add one newest-first entry per working session. Include commit(s), verification,
 known failures, and the exact next step.
+
+### 2026-07-07 - Phase 5 external observations and flock primary migration
+
+- Added `dfr.reconstruction.observations` with `ExternalObservationFrame`,
+  `reconstruct_observations(...)`, an internal observation dataset adapter,
+  managed artifact creation, aggregate `statistics.npz`, and shared
+  `ReconstructionRun` results.
+- Exported the external-observation workflow from `dfr` and
+  `dfr.reconstruction`.
+- Migrated the primary measured-flock `run` path to assemble calibrated
+  detections into `ExternalObservationFrame` objects and call
+  `reconstruct_observations`; it no longer writes scenario-log outputs from the
+  active reconstruction loop.
+- Left flock visualization, baseline, and historical metrics helpers as legacy
+  consumers of scenario-log directories; UE4 remains the next external loop to
+  migrate.
+- Documented the new API in README and updated the specialized-runner
+  ownership inventory.
+- Verification: `compileall`; `git diff --check`; `pytest -m "not cuda"` (97
+  passed, 7 deselected, 1 warning); `pytest -m cuda` (6 passed, 1 skipped, 97
+  deselected).
+- Next step: move the UE4 thresholded-centroid loop onto
+  `ExternalObservationFrame`/`reconstruct_observations`, then remove the
+  retained ordinary angle-sweep legacy body.
 
 ### 2026-07-06 - Phase 5 specialized runner boundary and dispatch
 

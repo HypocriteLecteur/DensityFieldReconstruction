@@ -11,6 +11,10 @@ from dfr.reconstruction.results import (
     ReconstructionRequest,
     ReconstructionRun,
 )
+from dfr.reconstruction.observations import (
+    ExternalObservationFrame,
+    reconstruct_observations,
+)
 from dfr.reconstruction.scenarios import (
     ScenarioRunSpec,
     run_scenario,
@@ -19,6 +23,7 @@ from dfr.reconstruction.scenarios import (
 
 __all__ = [
     "FrameReconstruction",
+    "ExternalObservationFrame",
     "ReconstructionRequest",
     "ReconstructionRun",
     "ScenarioRunSpec",
@@ -27,6 +32,7 @@ __all__ = [
     "default_reconstruction_params",
     "default_training_params",
     "reconstruct",
+    "reconstruct_observations",
     "run_scenario",
     "run_scenarios",
 ]

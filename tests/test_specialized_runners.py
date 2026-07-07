@@ -75,6 +75,32 @@ def test_flock_inputs_are_explicit_and_validated(tmp_path):
         )
 
 
+def test_flock_primary_run_uses_external_observation_workflow():
+    source = (
+        Path(__file__).resolve().parents[1]
+        / "experiments"
+        / "run_scenarios_flock.py"
+    ).read_text(encoding="utf-8")
+    primary = source.split("def run_flock_scenario", 1)[1].split(
+        "from matplotlib.widgets import Slider", 1
+    )[0]
+
+    assert "ExternalObservationFrame(" in primary
+    assert "reconstruct_observations(" in primary
+    assert "DensityReconstructor(" not in primary
+    assert "output_dir=" not in primary
+
+
+def test_flock_scale_selection_supports_frame_and_ordered_caches():
+    assert flock_runner._select_frame_scales([0.1, 0.2, 0.3, 0.4], [0, 2]) == [
+        0.1,
+        0.3,
+    ]
+    assert flock_runner._select_frame_scales([1.0, 2.0], [5, 10]) == [1.0, 2.0]
+    with pytest.raises(ValueError, match="Scale cache"):
+        flock_runner._select_frame_scales([1.0], [5, 10])
+
+
 def test_specialized_modules_do_not_install_root_file_loggers():
     root = Path(__file__).resolve().parents[1] / "experiments"
     for filename in ("run_scenarios_flock.py", "run_scenarios_ue4.py"):

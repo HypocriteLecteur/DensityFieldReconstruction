@@ -17,6 +17,10 @@ from dfr.reconstruction.results import (
     ReconstructionRequest,
     ReconstructionRun,
 )
+from dfr.reconstruction.observations import (
+    ExternalObservationFrame,
+    reconstruct_observations,
+)
 from dfr.reconstruction.scenarios import ScenarioRunSpec, run_scenario, run_scenarios
 from dfr.evaluation.pipeline import evaluate
 from dfr.evaluation.results import EvaluationRun, EvaluationSummary, FrameEvaluation
@@ -31,6 +35,7 @@ __all__ = [
     "EvaluationConfig",
     "EvaluationRun",
     "EvaluationSummary",
+    "ExternalObservationFrame",
     "FrameEvaluation",
     "OutputConfig",
     "FrameReconstruction",
@@ -45,6 +50,7 @@ __all__ = [
     "load_dataset",
     "resolve_dataset",
     "reconstruct",
+    "reconstruct_observations",
     "run_scenario",
     "run_scenarios",
     "select_frame_indices",

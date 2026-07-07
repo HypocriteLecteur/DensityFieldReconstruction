@@ -31,6 +31,12 @@ from dfr.mode_finding import mode_counting
 import pandas as pd
 from dfr.visualizer import SimulationVisualizer
 from experiments.common import setup_logger
+from dfr.artifacts import OutputConfig
+from dfr.config import ReconstructionParams, TrainingParams
+from dfr.reconstruction.observations import (
+    ExternalObservationFrame,
+    reconstruct_observations,
+)
 
 import matplotlib.pyplot as plt
 
@@ -248,6 +254,22 @@ def convert_matlab_transforms_to_poses(transforms):
         
     return poses
 
+
+def _select_frame_scales(scales, frames):
+    """Select scales from either per-frame or selected-order historical caches."""
+    values = list(scales)
+    selected_frames = [int(frame) for frame in frames]
+    if not selected_frames:
+        return []
+    if len(values) > max(selected_frames):
+        return [float(values[frame]) for frame in selected_frames]
+    if len(values) >= len(selected_frames):
+        return [float(values[index]) for index, _ in enumerate(selected_frames)]
+    raise ValueError(
+        f"Scale cache has {len(values)} entries for {len(selected_frames)} frames."
+    )
+
+
 def run_flock_scenario(inputs: FlockInputConfig):
     # 1. Parameter extraction and Logging Setup
     name = RUN_PARAMS['name']
@@ -310,27 +332,6 @@ def run_flock_scenario(inputs: FlockInputConfig):
             except OSError as e:
                 print(f"Error deleting {file_path}: {e}")
         return
-
-    log_file_path = os.path.join(scenario_path, *["logs", log_name])
-    if not os.path.exists(log_file_path):
-        os.makedirs(log_file_path)
-
-    # 2. Initialize Metrics (must be re-initialized for each run)
-    time_metrics = {
-        'simulate_vision_time': [],
-        'estimate_swarm_center': [],
-        'adaptive_scale_selection': [],
-        'generate_scale_space': [],
-        'estimate_scale_space_peaks': [],
-        'setup_gaussian_scale_space': [],
-        'train_gaussian_scale_space': [],
-    }
-    loss_metrics = {
-        'final_training_loss': [],
-        'final_density_field_loss': [],
-        'final_gmm_num': [],
-        'scale': []
-    }
 
     # Load the .mat file
     mat_data = scipy.io.loadmat(inputs.data_root / f"{name}.mat")
@@ -439,15 +440,12 @@ def run_flock_scenario(inputs: FlockInputConfig):
         'radius_cutoff_inv': 0.5,
         'lr_max_steps': 100
     }
-    density_reconstructor = DensityReconstructor(
-        H=H, W=W,
-        max_iter=train_params['lr_max_steps'], use_decoupled=USE_DECOUPLED)
-
-    # 5. Simulation Loop
-    total_num = []
-    for idx, time_step in enumerate(tqdm(step_range, desc=f"Processing {name}")):
+    # 5. External observation assembly. Reconstruction is delegated to the
+    # core typed workflow so measured detections use the same result/artifact
+    # contract as simulated scenario runs.
+    observations = []
+    for time_step in tqdm(step_range, desc=f"Processing {name}"):
         positions = trajectories[time_step]
-        total_num.append(positions.shape[0])
 
         detections1 = get_detections(time_step, unique_images_csv1, csv1)
         detections2 = get_detections(time_step, unique_images_csv2, csv2)
@@ -456,6 +454,23 @@ def run_flock_scenario(inputs: FlockInputConfig):
 
         poses, projections, _, masks = cam_system.simulate_vision(positions, renderer='projection_only', is_auto_aim=False)
         projections = [detections1_undistorted, detections2_undistorted]
+        is_visible = np.logical_and.reduce(masks)
+        observations.append(
+            ExternalObservationFrame(
+                dataset_name=name,
+                frame=time_step,
+                positions=positions,
+                projections=projections,
+                camera_system=cam_system,
+                camera_poses=poses,
+                visible_mask=is_visible,
+                metadata={
+                    "source": "measured_flock",
+                    "camera_1_image": str(unique_images_csv1[time_step]),
+                    "camera_2_image": str(unique_images_csv2[time_step]),
+                },
+            )
+        )
 
         # gmm_visualizer = MultiGMMPlotter()
         # # gmm_visualizer.add_gmm(model[0]._xyz.detach().cpu().numpy(), model[0]._radius.detach().cpu().numpy(), model[0]._weights.detach().cpu().numpy())
@@ -464,61 +479,39 @@ def run_flock_scenario(inputs: FlockInputConfig):
         # gmm_visualizer.ax.view_init(elev=33, azim=-117, roll=0)
         # # gmm_visualizer.fig.savefig("gmm_diagram.png", transparent=True, bbox_inches='tight')
         # plt.show()
-        
-        
-        model, scale_spaces = \
-        density_reconstructor.process_frame(cam_system, point_sets=projections, positions=positions,
-                                            initGMM=None,
-                                            is_adaptive_scale=False, scale=scales_gt[idx],
-                                            is_store_intermediate=IS_LOGGING, is_log=IS_LOGGING,
-                                            output_dir=os.path.join(log_file_path, f"t_{time_step:03d}"),
-                                            debug=False,
-                                            train_params=train_params,
-                                            reconstruction_params=reconstruction_params)
+    frame_scales = _select_frame_scales(scales_gt, [frame.frame for frame in observations])
+    output = (
+        OutputConfig(
+            workflow="reconstruction",
+            name=f"flock-{name}-{log_name}",
+            project_root=inputs.project_root,
+        )
+        if IS_LOGGING
+        else None
+    )
+    run = reconstruct_observations(
+        observations,
+        frame_scales=frame_scales if USE_GT_SCALE else None,
+        training=TrainingParams(**train_params),
+        reconstruction=ReconstructionParams(**reconstruction_params),
+        use_decoupled=USE_DECOUPLED,
+        output=output,
+    )
 
-        # gmm_visualizer = MultiGMMPlotter()
-        # gmm_visualizer.add_gmm(model[0]._xyz.detach().cpu().numpy(), model[0]._radius.detach().cpu().numpy(), model[0]._weights.detach().cpu().numpy())
-        # gmm_visualizer.update(real_means=positions, cameras=cam_system.cameras)
-        # move_figure(gmm_visualizer.fig, 100, 100)
-        # gmm_visualizer.ax.view_init(elev=33, azim=-117, roll=0)
-        # # gmm_visualizer.fig.savefig("gmm_diagram.png", transparent=True, bbox_inches='tight')
-        # plt.show()
-
-        # 6. Collect Metrics
-        for metric_name, value in density_reconstructor.time_metrics.items():
-            time_metrics[metric_name].append(value)
-        
-        loss_metrics['final_training_loss'].append(model[0].mean_loss)
-        loss_metrics['final_gmm_num'].append(model[0]._xyz.shape[0])
-        loss_metrics['scale'].append(density_reconstructor.scale)
-
-        is_visible = np.ones((positions.shape[0],), dtype=np.bool)
-        for i in range(len(poses)):
-            is_visible = is_visible & masks[i]
-        loss_metrics['final_density_field_loss'].append(
-            calculate_gmm_dissimilarity(
-                positions[is_visible],
-                density_reconstructor.scale, 
-                model[0]._xyz, 
-                model[0]._weights, 
-                model[0]._radius, use_decoupled=USE_DECOUPLED))
-    
-    # 7. Logging and Data Saving
     logger.info(f"Results for {name}:")
-    if time_metrics['train_gaussian_scale_space']:
-        mean_time = np.mean(np.array(time_metrics['train_gaussian_scale_space']))
-        logger.info(f"Mean 'train_gaussian_scale_space' time: {mean_time:.2f} ms")
+    train_times = [frame.time_ms.get("train_gaussian_scale_space") for frame in run.frames]
+    train_times = [value for value in train_times if value is not None]
+    if train_times:
+        logger.info(
+            "Mean 'train_gaussian_scale_space' time: %.2f ms",
+            float(np.mean(train_times)),
+        )
     else:
-        logger.info("No time steps processed.")
-    
-    save_data = {**{k: np.array(v) for k, v in time_metrics.items()}, 
-             **{k: np.array(v) for k, v in loss_metrics.items()}}
-
-    save_path = os.path.join(log_file_path, "statistics.npz")
-    if IS_LOGGING:
-        np.savez(save_path, **save_data)
-        logger.info(f"Statistics saved to: {save_path}")
+        logger.info("No train_gaussian_scale_space timings were reported.")
+    if run.run_dir is not None:
+        logger.info("Managed artifacts saved to: %s", run.run_dir)
     logger.info(f"Finished scenario {name}")
+    return run
 
 from matplotlib.widgets import Slider
 def visualize_trained_model_interactive():

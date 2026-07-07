@@ -388,6 +388,14 @@ dataset, resolves frames, reads its ordered `reconstruction_scale.npz` cache
 when requested, calls `dfr.reconstruct`, and saves aggregate timing/loss/scale
 statistics into the same managed run.
 
+Measured or externally detected projections use a separate input contract:
+`ExternalObservationFrame` supplies ground-truth positions, one 2D point array
+per camera, the camera system that interprets those points, optional per-frame
+camera poses, and visibility. `dfr.reconstruct_observations(...)` feeds those
+observations into the same `ReconstructionRun`/managed-artifact result format.
+Use this path for calibrated flock detections or UE4/image-derived detections
+instead of replacing measured points with simulated projections.
+
 Evaluate an in-memory reconstruction against its source positions (or pass an
 explicit ground-truth dataset):
 
@@ -592,7 +600,7 @@ execution.
 | `run_post_processing.py` | Post-process saved reconstruction runs and metrics; configured in source. |
 | `run_scenarios.py` | Main multi-scenario runner; active reconstruction dispatches through `dfr.reconstruct`, while legacy baseline/metric helpers remain. |
 | `run_scenarios_angle_sweep.py` | Explicit-dispatch camera-angle/convergence studies; its ordinary reconstruction path uses `ScenarioRunSpec`. |
-| `run_scenarios_flock.py` | Explicit external-detection flock workflow with required data/calibration paths. |
+| `run_scenarios_flock.py` | Explicit external-detection flock workflow with required data/calibration paths; primary run uses `dfr.reconstruct_observations`. |
 | `publication_scenarios.py` | Shared typed presets/CLI implementation for publication Tables 2–4. |
 | `run_scenarios_table_2.py` | Thin managed Table 2 (100-iteration camera-count) entry point. |
 | `run_scenarios_table_3.py` | Thin managed Table 3 (500-iteration camera-count) entry point. |
