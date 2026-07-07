@@ -3204,6 +3204,8 @@ def plot_camera_configurations(dataset_name="swift"):
         Name of the scenario dataset used to determine realistic swarm
         extent and camera distance.
     """
+    from dfr.plotting import plot_camera_configurations as _plot_camera_configurations
+
     config, dataset, scenario_path = _load_scenario(dataset_name)
     max_steps = dataset.trajectories.shape[0]
     step_range = range(0, max_steps, max(1, max_steps // 5))
@@ -3214,24 +3216,6 @@ def plot_camera_configurations(dataset_name="swift"):
     positions = dataset.positions_at_time_step(step_range[0])
 
     # ── Academic styling ─────────────────────────────────────────
-    plt.rcParams.update({
-        "font.family": "serif",
-        "font.serif": ["Computer Modern Roman", "Times", "Times New Roman"],
-        "mathtext.fontset": "cm",
-        "font.size": 11, "axes.labelsize": 12, "axes.titlesize": 13,
-        "xtick.labelsize": 9, "ytick.labelsize": 9, "legend.fontsize": 10,
-        "figure.dpi": 300, "savefig.bbox": "tight", "savefig.pad_inches": 0.05,
-    })
-
-    CONFIG_STYLES = {
-        2: {"color": "#D55E00", "marker": "o", "label": r"$K = 2$"},
-        3: {"color": "#0072B2", "marker": "o", "label": r"$K = 3$"},
-        5: {"color": "#009E73", "marker": "o", "label": r"$K = 5$"},
-    }
-
-    C_SWARM = "#9CA3AF"; C_ORBIT = "#D1D5DB"; C_BOUNDING = "#CBD5E0"; C_DIR = "#CBD5E0"
-    C_ARC = "#D55E00"; C_ARC_TEXT = "#A04000"
-
     # ── Pre‑compute all camera positions ─────────────────────────
     cam_nums = [2, 3, 5]
     all_cameras = {}
@@ -3245,59 +3229,31 @@ def plot_camera_configurations(dataset_name="swift"):
             all_cameras[cam_num] = raw_positions
 
     # ── Build single‑panel figure ────────────────────────────────
-    fig, ax = plt.subplots(figsize=(7.2, 7.2))
+    fig, ax = _plot_camera_configurations(
+        positions,
+        all_cameras,
+        center=center,
+        swarm_radius=max_radius,
+        orbit_radius=D,
+    )
 
     # Light shared orbit circle
-    theta_full = np.linspace(0, 2 * np.pi, 600)
-    ax.plot(center[0] + D * np.cos(theta_full), center[1] + D * np.sin(theta_full),
-            color="#E5E7EB", linewidth=1.0, zorder=0)
+
 
     # Swarm points (top‑down projection)
-    ax.scatter(positions[:, 0], positions[:, 1], c=C_SWARM, s=1.0, alpha=0.35, edgecolors="none", zorder=1)
+
 
     # Swarm bounding circle
-    ax.add_patch(plt.Circle((center[0], center[1]), max_radius, fill=False, color="#CBD5E0",
-                            linewidth=0.8, linestyle=(0, (4, 5)), alpha=0.65, zorder=2))
+
 
     # Per‑configuration: leader lines + markers
-    for cam_num in cam_nums:
-        style = CONFIG_STYLES[cam_num]
-        cp = all_cameras[cam_num]
-        for cam in cp:
-            v = cam[:2] - center[:2]
-            dist = np.linalg.norm(v)
-            if dist < 1e-9:
-                continue
-            u = v / dist
-            p_start = center[:2] + u * (max_radius * 1.05)
-            ax.plot([p_start[0], cam[0]], [p_start[1], cam[1]],
-                    color=style["color"], linewidth=1.0, linestyle=(0, (4, 5)), alpha=0.55, zorder=4)
-            if cam_num == 2 and v[1] == 0:
-                ax.plot([p_start[0], cam[0]], [p_start[1]+20, cam[1]+20],
-                        color=style["color"], linewidth=1.0, linestyle=(0, (4, 5)), alpha=0.55, zorder=4)
-            if cam_num == 3 and v[1] == 0:
-                ax.plot([p_start[0], cam[0]], [p_start[1]-20, cam[1]-20],
-                        color=style["color"], linewidth=1.0, linestyle=(0, (4, 5)), alpha=0.55, zorder=4)
 
-        ax.scatter(cp[:, 0], cp[:, 1], marker=style["marker"], s=160,
-                   c=style["color"], edgecolors="white", linewidths=1.8,
-                   zorder=12, label=style["label"])
 
     # ── Legend ──────────────────────────────────────────────────
-    legend = ax.legend(loc="lower right", frameon=True, fancybox=False,
-                       edgecolor="#CCCCCC", facecolor="white",
-                       framealpha=0.92, borderpad=0.6,
-                       handletextpad=0.5, labelspacing=0.4)
-    legend.set_zorder(20)
+
 
     # ── Axis limits & clean‑up ──────────────────────────────────
-    pad = D * 0.25
-    ax.set_xlim(center[0] - D - pad, center[0] + D + pad)
-    ax.set_ylim(center[1] - D - pad, center[1] + D + pad)
-    ax.set_aspect("equal")
-    for spine in ax.spines.values():
-        spine.set_visible(False)
-    ax.set_xticks([]); ax.set_yticks([])
+
 
     # ── Save & return ────────────────────────────────────────────
     out_dir = os.path.join(os.getcwd(), "figs")

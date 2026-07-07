@@ -6,9 +6,10 @@ on chat history.
 
 ## Status
 
-- **Current phase:** Phase 6 plotting decomposition has begun. The
+- **Current phase:** Phase 6 plotting decomposition is in progress. The
   `experiments/dfr_plot.py` function catalog is frozen in
-  `experiments/DFR_PLOT_CATALOG.md`; no plotting functions have been moved yet.
+  `experiments/DFR_PLOT_CATALOG.md`; the first reusable camera-configuration
+  plotting primitive has moved to `dfr.plotting`.
 - **Stable baseline:** annotated tag `v0.1.0`, commit `7cde21e`.
 - **Version storage:** local Git repository only; do not push unless the owner
   explicitly changes this policy.
@@ -330,13 +331,12 @@ reading implementation or experiment source.
 The next agent should continue Phase 6:
 
 1. Create the initial `dfr.plotting` package around low-risk reusable
-   primitives identified in `experiments/DFR_PLOT_CATALOG.md`:
-   camera-configuration plotting, trajectory/camera views, and 2D
-   projection/GMM views.
-2. Add headless plotting smoke tests before migrating any high-value figure.
-3. Refactor one small `dfr_plot.py` function to call the package primitive
-   while preserving its legacy save path, then migrate saving to managed
-   artifacts in a follow-up.
+   primitives identified in `experiments/DFR_PLOT_CATALOG.md`: next migrate
+   trajectory/camera views or 2D projection/GMM views.
+2. Migrate legacy `figs/` saving for `plot_camera_configurations` to an
+   explicit output/artifact option after deciding whether this remains a
+   supported experiment CLI or only a compatibility wrapper.
+3. Add headless plotting smoke tests before migrating each high-value figure.
 4. Keep the Phase 4 supported/legacy classification in
    `experiments/README.md` current when promoting another research study.
 
@@ -458,6 +458,24 @@ The next agent should continue Phase 6:
 
 Add one newest-first entry per working session. Include commit(s), verification,
 known failures, and the exact next step.
+
+### 2026-07-07 - Phase 6 first plotting primitive
+
+- Added the initial `dfr.plotting` package with shared academic Matplotlib
+  styling and a data-first `plot_camera_configurations(...)` primitive.
+- Migrated `experiments.dfr_plot.plot_camera_configurations` to delegate
+  rendering to `dfr.plotting` while preserving its legacy `figs/` PNG/PDF save
+  behavior for compatibility.
+- Added headless Matplotlib tests for the camera-configuration primitive and a
+  static guard that the legacy wrapper delegates to the package primitive.
+- Updated `experiments/DFR_PLOT_CATALOG.md`, README, and `experiments/README.md`
+  to reflect the first migrated wrapper.
+- Verification: `compileall`; focused plotting/catalog tests; `git diff
+  --check`; `pytest -m "not cuda"` (104 passed, 7 deselected, 1 warning);
+  `pytest -m cuda` (6 passed, 1 skipped, 104 deselected).
+- Next step: migrate the next low-risk reusable primitive, likely
+  `plot_single_scenario_new` for trajectory/camera layout or the 2D
+  projection/GMM view functions.
 
 ### 2026-07-07 - Phase 6 dfr_plot catalog freeze
 

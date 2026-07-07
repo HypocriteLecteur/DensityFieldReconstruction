@@ -69,16 +69,17 @@ updated and the migration target has tests.
 | `one_frame_dMOTA_noise` | 2557-2704 | None | Scenario scale cache, pickle cache | Root `dra_noise_variance_comparison.png`, pickle cache, interactive plot | package-compute | Noise robustness sweep should reuse evaluation API and managed artifacts. |
 | `one_frame_dMOTA_3d_noise` | 2705-2826 | None | Scenario scale cache, pickle cache | Root `dra_mapped_3d_noise_comparison.png`, pickle cache, interactive plot | package-compute | Same as noise sweep; separate metric computation from plot. |
 | `plot_dra_and_loss` | 2827-3190 | None | `reconstruction_scale.npz`, reconstructed models/losses | DRA/loss and GT/reconstruction figures | experiment-figure | Use saved reconstruction/evaluation readers; extract reusable dual-axis plot. |
-| `plot_camera_configurations` | 3191-3310 | None | Named scenario/camera generated poses | `figs/camera_configurations.[png|pdf]` | package-plot | Strong `dfr.plotting.cameras` candidate. |
-| `plot_table_2_results` | 3311-3553 | None | Hard-coded publication metrics | Table 2 PNG/PDF, interactive plot | experiment-figure | Keep as publication-table script reading managed metrics. |
-| `plot_table_time_efficiency` | 3554-3698 | None | Hard-coded time-efficiency metrics | Table-time PNG/PDF, interactive plot | experiment-figure | Keep as publication-table script reading managed metrics. |
-| `plot_table_noise_robustness` | 3699-3887 | None | Hard-coded noise metrics | Table-noise PNG/PDF, interactive plot | experiment-figure | Keep as publication-table script reading managed metrics. |
+| `plot_camera_configurations` | 3191-3266 | None | Named scenario/camera generated poses | `figs/camera_configurations.[png|pdf]` | package-plot | Migrated wrapper: rendering now delegates to `dfr.plotting.plot_camera_configurations`; legacy wrapper still saves to `figs/`. |
+| `plot_table_2_results` | 3267-3509 | None | Hard-coded publication metrics | Table 2 PNG/PDF, interactive plot | experiment-figure | Keep as publication-table script reading managed metrics. |
+| `plot_table_time_efficiency` | 3510-3654 | None | Hard-coded time-efficiency metrics | Table-time PNG/PDF, interactive plot | experiment-figure | Keep as publication-table script reading managed metrics. |
+| `plot_table_noise_robustness` | 3655-3843 | None | Hard-coded noise metrics | Table-noise PNG/PDF, interactive plot | experiment-figure | Keep as publication-table script reading managed metrics. |
 
 ## Migration order recommendation
 
-1. Start with low-risk reusable plot primitives:
-   `plot_camera_configurations`, `plot_single_scenario_new`,
-   `plot_jackdaw2_2d_gmm`, and `plot_jackdaw2_2d_observations`.
+1. Continue with low-risk reusable plot primitives. The
+   `plot_camera_configurations` rendering primitive has moved; next candidates
+   are `plot_single_scenario_new`, `plot_jackdaw2_2d_gmm`, and
+   `plot_jackdaw2_2d_observations`.
 2. Then move analysis-backed plots whose computation already has package
    analogs: mode-count curves, DRA surfaces, and multiscale density panels.
 3. Defer the one-frame dMOTA/noise/convergence studies until their computation
