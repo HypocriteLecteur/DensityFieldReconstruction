@@ -9,6 +9,8 @@ import numpy as np
 from matplotlib.colors import LinearSegmentedColormap, PowerNorm
 from matplotlib.patches import Ellipse
 
+from dfr.plotting.style import apply_figure_layout
+
 
 def transparent_colormap(
     color=(0.255, 0.412, 0.882, 1.0),
@@ -57,7 +59,7 @@ def plot_projection_points(
             edgecolors="none",
         )
     _format_image_axes(ax, width, height)
-    fig.tight_layout(pad=0)
+    apply_figure_layout(fig, pad=0)
     return fig, ax
 
 
@@ -107,7 +109,7 @@ def plot_density_image(
             alpha=line_alpha,
         )
     _format_image_axes(ax, width, height, max_is_inclusive=True)
-    fig.tight_layout(pad=0)
+    apply_figure_layout(fig, pad=0)
     return fig, ax
 
 

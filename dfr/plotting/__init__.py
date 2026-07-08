@@ -28,11 +28,19 @@ from dfr.plotting.projections import (
     plot_projection_points,
     transparent_colormap,
 )
-from dfr.plotting.style import apply_academic_style, save_figure, style_3d_axis
+from dfr.plotting.style import (
+    apply_academic_style,
+    apply_figure_layout,
+    prepare_3d_axis,
+    save_figure,
+    set_3d_view,
+    style_3d_axis,
+)
 from dfr.plotting.trajectories import plot_trajectory_snapshot
 
 __all__ = [
     "apply_academic_style",
+    "apply_figure_layout",
     "DEFAULT_DENSITY_LAYERS",
     "FIELD_DENSITY_LAYERS",
     "plot_camera_configurations",
@@ -45,6 +53,7 @@ __all__ = [
     "plot_projected_gmm_density",
     "plot_projection_points",
     "plot_trajectory_snapshot",
+    "prepare_3d_axis",
     "render_agent_positions",
     "render_density_shells",
     "render_density_field_3d",
@@ -52,6 +61,7 @@ __all__ = [
     "render_gmm_wireframes",
     "render_reconstructed_gmm_3d",
     "save_figure",
+    "set_3d_view",
     "style_3d_axis",
     "transparent_colormap",
 ]

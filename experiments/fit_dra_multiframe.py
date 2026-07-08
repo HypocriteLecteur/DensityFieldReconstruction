@@ -31,7 +31,7 @@ from dfr.analysis import (
     fit_one_surface_model,
     select_frames,
 )
-from dfr.plotting import save_figure
+from dfr.plotting import apply_figure_layout, save_figure, set_3d_view
 
 
 FRAME_RANGES = {
@@ -222,8 +222,11 @@ def plot_dataset_fits(
         axis.set_xlabel("Scale / mean NND")
         axis.set_ylabel("Model order / N (%)")
         axis.set_zlabel("DRA")
-        axis.view_init(elev=27, azim=-130)
-    figure.subplots_adjust(left=0.03, right=0.97, bottom=0.04, top=0.93, wspace=0.05)
+        set_3d_view(axis, (27, -130))
+    apply_figure_layout(
+        figure,
+        adjust={"left": 0.03, "right": 0.97, "bottom": 0.04, "top": 0.93, "wspace": 0.05},
+    )
     save_figure(figure, output_path, dpi=300, bbox_inches="tight")
     plt.close(figure)
 

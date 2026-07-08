@@ -17,7 +17,7 @@ from dfr.analysis import (
     count_modes,
     create_analysis_artifacts,
 )
-from dfr.plotting import save_figure
+from dfr.plotting import apply_figure_layout, save_figure
 
 
 def generate_clusters(n_clusters, points_per_cluster, cluster_std, separation,
@@ -161,7 +161,7 @@ def plot_validation(results, output_path: Path):
     ax.set_ylabel("N (total points)")
     ax.set_title("Minimum mode-count error\n(fraction of true clusters)")
 
-    plt.tight_layout()
+    apply_figure_layout(fig)
     save_figure(fig, output_path, bbox_inches="tight", dpi=300)
     plt.show()
     print(f"  -> Saved {output_path}")

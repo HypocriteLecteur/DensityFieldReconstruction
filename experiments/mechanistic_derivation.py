@@ -29,7 +29,7 @@ from dfr.analysis import (
     create_analysis_artifacts,
     median_nearest_neighbour_distance,
 )
-from dfr.plotting import save_figure
+from dfr.plotting import apply_figure_layout, save_figure
 
 
 def mode_counting_np(positions, scale, max_iter=400):
@@ -187,7 +187,7 @@ def main():
     ax.set_title('Normalized mode-count curves (collapse check)')
     ax.legend(fontsize=6, frameon=False, ncol=2)
 
-    plt.tight_layout()
+    apply_figure_layout(fig)
     figure_path = artifacts.figures_dir / "mechanistic_derivation.png"
     save_figure(fig, figure_path, bbox_inches="tight", dpi=300)
     plt.show()

@@ -10,8 +10,8 @@ on chat history.
   `experiments/dfr_plot.py` function catalog is frozen in
   `experiments/DFR_PLOT_CATALOG.md`; reusable camera-configuration,
   trajectory-snapshot, 2D projection/GMM, mode-count curve, DRA
-  scale/model-order surface, multiscale density, and 3D density/GMM rendering
-  primitives have moved to `dfr.plotting`.
+  scale/model-order surface, multiscale density, 3D density/GMM rendering,
+  and shared style/save/layout primitives have moved to `dfr.plotting`.
 - **Stable baseline:** annotated tag `v0.1.0`, commit `7cde21e`.
 - **Version storage:** local Git repository only; do not push unless the owner
   explicitly changes this policy.
@@ -282,15 +282,16 @@ reconstruct -> evaluate, and scenario runners no longer duplicate the pipeline.
   callers, input data, and output files before moving them.
 - [x] Classify each function as reusable package plotting, experiment-only
   figure, computation that belongs in analysis/evaluation, or obsolete.
-- [ ] Move shared style/save/layout logic from `experiments/plotting_utils.py`
+- [x] Move shared style/save/layout logic from `experiments/plotting_utils.py`
   and duplicated scripts into `dfr.plotting`.
-  - Started: `apply_academic_style`, 3D axis styling, and lightweight
-    figure-saving defaults now live in `dfr.plotting`; `experiments`
-    compatibility helpers delegate to the package. Supported analysis CLIs no
-    longer call Matplotlib `savefig` directly. Multiscale 3D density rendering
-    and the remaining 3D density/GMM renderers have also moved to
-    `dfr.plotting`. Remaining work: migrate repeated layout patterns when
-    touching their owning figures.
+  - Complete for active supported plotting surfaces: `apply_academic_style`,
+    3D axis styling, 3D view/layout helpers, and lightweight figure-saving
+    defaults now live in `dfr.plotting`; `experiments` compatibility helpers
+    delegate to the package. Supported analysis CLIs no longer call Matplotlib
+    `savefig`, `tight_layout`, or `subplots_adjust` directly. Multiscale 3D
+    density rendering and the remaining 3D density/GMM renderers have also
+    moved to `dfr.plotting`. Legacy exploratory scripts still contain local
+    layout calls and should migrate them when their owning figures are promoted.
 - [ ] Make plotting functions accept result objects/axes and return Figure/Axes;
   saving is optional and uses the output manager.
 - [ ] Split publication/table-specific figures into small, named experiment
@@ -343,8 +344,9 @@ The next agent should continue Phase 6:
    `experiments/DFR_PLOT_CATALOG.md`; next candidates are evaluation/noise plots
    after their computation has typed result objects, or publication/table
    figure split-outs.
-2. Continue Phase 6 step 3 by migrating repeated layout calls to `dfr.plotting`
-   as their owning figures move.
+2. Start Phase 6 step 4 by tightening result-object/axes contracts for the
+   migrated reusable plots, especially evaluation/noise figures whose
+   computation already belongs outside plotting.
 3. Migrate legacy `figs/` saving for `plot_camera_configurations` to an
    explicit output/artifact option after deciding whether these migrated
    wrappers remain supported experiment CLIs or only compatibility wrappers.
@@ -465,11 +467,37 @@ The next agent should continue Phase 6:
   than repeated ordinary scenario loops. Reason: deleting those kernels would
   remove distinct camera-angle, profiling, and convergence experiments rather
   than consolidating duplicate orchestration.
+- **2026-07-08 - Plot layout migration boundary:** Phase 6 step 3 covers
+  shared layout/style/save behavior for `dfr.plotting`, supported analysis
+  CLIs, and experiment compatibility wrappers. Legacy exploratory scripts may
+  keep local Matplotlib layout calls until their figures are promoted or split.
+  Reason: replacing every historic `tight_layout` call in place would churn
+  figure-specific legacy scripts without improving the public plotting API.
 
 ## Handoff Log
 
 Add one newest-first entry per working session. Include commit(s), verification,
 known failures, and the exact next step.
+
+### 2026-07-08 - Phase 6 shared layout helpers completed
+
+- Added `set_3d_view`, `prepare_3d_axis`, and `apply_figure_layout` to
+  `dfr.plotting.style` and exported them from `dfr.plotting`.
+- Migrated reusable plotting modules and supported analysis CLIs to use package
+  layout/view helpers instead of local `tight_layout`, `subplots_adjust`, or
+  `view_init` calls.
+- Added static entrypoint coverage so supported analysis figure commands keep
+  using package layout helpers, plus direct helper tests for 2-value/3-value
+  3D views and tight/adjust layout modes.
+- Remaining legacy calls are intentionally left in exploratory or deferred
+  scripts such as `experiments/dfr_plot.py`, `power_law.py`, and old
+  interactive viewers until their owning figures are promoted.
+- Verification: focused plotting/entrypoint suite (35 passed); `compileall`;
+  `git diff --check`; `pytest -m "not cuda"` (140 passed, 7 deselected,
+  1 warning); `pytest -m cuda` (6 passed, 1 skipped, 140 deselected).
+- Next step: begin Phase 6 step 4 by tightening result-object/axes contracts
+  for migrated plots and extracting the next evaluation/noise plotting
+  primitive with headless tests.
 
 ### 2026-07-08 - Phase 6 density/GMM plotting utilities completed
 

@@ -9,6 +9,8 @@ import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import numpy as np
 
+from dfr.plotting.style import apply_figure_layout, prepare_3d_axis
+
 
 DEFAULT_DENSITY_LAYERS = [
     {"thresh_frac": 0.10, "alpha_min": 0.45, "alpha_max": 0.95, "size": 8},
@@ -263,10 +265,7 @@ def plot_density_field_3d(
     else:
         fig = ax.figure
 
-    if view is not None:
-        _set_view(ax, view)
-    if axis_off:
-        ax.set_axis_off()
+    prepare_3d_axis(ax, view=view, axis_off=axis_off)
 
     render_density_field_3d(
         ax,
@@ -286,7 +285,7 @@ def plot_density_field_3d(
             fontsize=16,
             va="top",
         )
-    fig.tight_layout(pad=0)
+    apply_figure_layout(fig, pad=0)
     return fig, ax
 
 
@@ -380,15 +379,6 @@ def _density_layers(max_density: float, layers: Optional[Sequence[dict]]) -> lis
             }
         )
     return resolved
-
-
-def _set_view(ax, view: tuple[float, float, float]) -> None:
-    elev, azim, roll = view
-    try:
-        ax.view_init(elev=elev, azim=azim, roll=roll)
-    except TypeError:
-        ax.view_init(elev=elev, azim=azim)
-
 
 def _force_depth_order(artist, z_sort_pos: float) -> None:
     original_projection = artist.do_3d_projection

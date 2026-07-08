@@ -21,7 +21,7 @@ from dfr.analysis import (
     fit_symmetric_2pl_curves,
     symmetric_2pl_mode_count,
 )
-from dfr.plotting import apply_academic_style, save_figure
+from dfr.plotting import apply_academic_style, apply_figure_layout, save_figure
 
 
 # ======================================================================
@@ -52,6 +52,10 @@ _FIGURE_DIR = Path("figs")
 def _save_figure(filename: str) -> Path:
     target = _FIGURE_DIR / filename
     return save_figure(plt.gcf(), target, bbox_inches="tight", dpi=300)
+
+
+def _finish_layout() -> None:
+    apply_figure_layout(plt.gcf())
 
 
 def set_style():
@@ -150,7 +154,7 @@ def plot_manifold_2pl(all_params, all_N, all_names):
               f"sh={np.mean(sh[m]):.3f}+-{np.std(sh[m]):.3f}  "
               f"k_CV={np.std(k[m])/np.mean(k[m]):.3f}")
 
-    plt.tight_layout()
+    _finish_layout()
     _save_figure("manifold_2pl.png")
     plt.show()
     print(f"  -> Saved {_FIGURE_DIR / 'manifold_2pl.png'}")
@@ -200,7 +204,7 @@ def plot_synthetic_overlay(all_params, all_names, cache_dir=None):
     ax.set_title("2PL: empirical flocks + synthetic processes")
     ax.legend(fontsize=6, frameon=False, ncol=2)
 
-    plt.tight_layout()
+    _finish_layout()
     _save_figure("manifold_2pl_synthetic.png")
     plt.show()
     print(f"  -> Saved {_FIGURE_DIR / 'manifold_2pl_synthetic.png'}")
@@ -260,7 +264,7 @@ def plot_temporal_2pl(raw_data):
         print(f"  {name}: k={np.mean(k):.2f}+-{np.std(k):.2f} (CV={k_cv:.3f}, dk_med={dk_med:.2f}), "
               f"sh={np.mean(sh):.3f} (CV={sh_cv:.4f}), {tau_str}")
 
-    plt.tight_layout()
+    _finish_layout()
     _save_figure("manifold_2pl_temporal.png")
     plt.show()
     print(f"  -> Saved {_FIGURE_DIR / 'manifold_2pl_temporal.png'}")
@@ -279,7 +283,7 @@ def plot_N_dependence_2pl(all_params, all_N, all_names):
         ax.set_xlabel("N"); ax.set_ylabel(yl); ax.set_title(f"{yl} vs N (2PL)")
         ax.legend(fontsize=7)
 
-    plt.tight_layout()
+    _finish_layout()
     _save_figure("manifold_2pl_N_dependence.png")
     plt.show()
     print(f"  -> Saved {_FIGURE_DIR / 'manifold_2pl_N_dependence.png'}")

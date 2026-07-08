@@ -45,6 +45,56 @@ def style_3d_axis(ax: plt.Axes) -> None:
         axis.pane.set_edgecolor("none")
 
 
+def set_3d_view(ax: plt.Axes, view: tuple[float, float] | tuple[float, float, float]) -> None:
+    """Set a 3D Matplotlib view, tolerating older Matplotlib without ``roll``."""
+    if len(view) == 2:
+        elev, azim = view
+        roll = None
+    elif len(view) == 3:
+        elev, azim, roll = view
+    else:
+        raise ValueError("view must be (elev, azim) or (elev, azim, roll).")
+    if roll is None:
+        ax.view_init(elev=elev, azim=azim)
+        return
+    try:
+        ax.view_init(elev=elev, azim=azim, roll=roll)
+    except TypeError:
+        ax.view_init(elev=elev, azim=azim)
+
+
+def prepare_3d_axis(
+    ax: plt.Axes,
+    *,
+    view: tuple[float, float] | tuple[float, float, float] | None = None,
+    axis_off: bool = False,
+) -> None:
+    """Apply common 3D axis view and visibility settings."""
+    if view is not None:
+        set_3d_view(ax, view)
+    if axis_off:
+        ax.set_axis_off()
+
+
+def apply_figure_layout(
+    figure,
+    *,
+    pad: float | None = None,
+    rect: tuple[float, float, float, float] | None = None,
+    adjust: Mapping[str, Any] | None = None,
+) -> None:
+    """Apply a consistent tight-layout or subplot-adjust operation."""
+    if adjust is not None:
+        figure.subplots_adjust(**dict(adjust))
+        return
+    kwargs: dict[str, Any] = {}
+    if pad is not None:
+        kwargs["pad"] = pad
+    if rect is not None:
+        kwargs["rect"] = rect
+    figure.tight_layout(**kwargs)
+
+
 def save_figure(
     figure,
     path: str | Path,

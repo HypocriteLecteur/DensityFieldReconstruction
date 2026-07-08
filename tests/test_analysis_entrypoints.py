@@ -59,6 +59,21 @@ def test_supported_analysis_figures_use_package_save_helper():
         assert "save_figure" in source, filename
 
 
+def test_supported_analysis_figures_use_package_layout_helpers():
+    experiments = Path(__file__).resolve().parents[1] / "experiments"
+    for filename in (
+        "fit_dra_multiframe.py",
+        "parameter_manifold.py",
+        "parameter_manifold_2pl.py",
+        "mechanistic_derivation.py",
+        "validate_mode_counting.py",
+    ):
+        source = (experiments / filename).read_text(encoding="utf-8")
+        assert ".tight_layout(" not in source, filename
+        assert ".subplots_adjust(" not in source, filename
+        assert "apply_figure_layout" in source, filename
+
+
 def test_supported_analysis_styles_use_package_helper():
     experiments = Path(__file__).resolve().parents[1] / "experiments"
     for filename in ("parameter_manifold.py", "parameter_manifold_2pl.py"):

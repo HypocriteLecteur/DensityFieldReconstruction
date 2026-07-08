@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from dfr.analysis import select_adaptive_density_scales, validate_nnd_bounds
-from dfr.plotting.style import apply_academic_style
+from dfr.plotting.style import apply_academic_style, apply_figure_layout, set_3d_view
 
 
 def plot_mode_count_curve(
@@ -138,7 +138,7 @@ def plot_mode_count_curve(
         handlelength=1.6,
         columnspacing=1.0,
     )
-    fig.tight_layout()
+    apply_figure_layout(fig)
     return fig, ax
 
 
@@ -224,7 +224,7 @@ def plot_dra_scale_model_order_surface(
         max_ticks=max_model_order_ticks,
         include_component_counts=include_component_counts_in_ticks,
     )
-    ax.view_init(elev=28, azim=-130)
+    set_3d_view(ax, (28, -130))
     if wireframe_label:
         ax.legend(loc="upper left", frameon=False)
     return fig, ax, surface
@@ -273,13 +273,16 @@ def plot_dra_surface_grid(
 
     if surface is not None:
         figure.colorbar(surface, ax=figure.axes, shrink=0.62, pad=0.06, label="DRA")
-    figure.subplots_adjust(
-        left=0.02,
-        right=0.88,
-        bottom=0.04,
-        top=0.94,
-        wspace=0.03,
-        hspace=0.12,
+    apply_figure_layout(
+        figure,
+        adjust={
+            "left": 0.02,
+            "right": 0.88,
+            "bottom": 0.04,
+            "top": 0.94,
+            "wspace": 0.03,
+            "hspace": 0.12,
+        },
     )
     return figure, axes
 

@@ -5,6 +5,8 @@ from __future__ import annotations
 import matplotlib.pyplot as plt
 import numpy as np
 
+from dfr.plotting.style import apply_figure_layout, prepare_3d_axis
+
 
 def plot_trajectory_snapshot(
     trajectories,
@@ -51,11 +53,8 @@ def plot_trajectory_snapshot(
     else:
         fig = ax.figure
 
-    if view is not None:
-        _set_view(ax, view)
-    if axis_off:
-        ax.set_axis_off()
-    fig.tight_layout(pad=0)
+    prepare_3d_axis(ax, view=view, axis_off=axis_off)
+    apply_figure_layout(fig, pad=0)
 
     for index in range(paths.shape[1]):
         ax.plot(
@@ -79,15 +78,6 @@ def plot_trajectory_snapshot(
         zorder=3,
     )
     return fig, ax
-
-
-def _set_view(ax, view: tuple[float, float, float]) -> None:
-    elev, azim, roll = view
-    try:
-        ax.view_init(elev=elev, azim=azim, roll=roll)
-    except TypeError:
-        ax.view_init(elev=elev, azim=azim)
-
 
 def _trajectories(values) -> np.ndarray:
     array = np.asarray(values, dtype=np.float32)
