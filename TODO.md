@@ -322,13 +322,15 @@ reconstruct -> evaluate, and scenario runners no longer duplicate the pipeline.
   - Started with `experiments.plot_publication_time_efficiency`, which owns the
     hard-coded training-time scaling figure and provides an explicit CLI.
     `plot_table_time_efficiency` remains as a compatibility wrapper that
-    delegates to the named script and preserves the historical `figs/` default.
+    delegates to the named script and saves only when an explicit `save_dir` is
+    supplied.
     Continued with `experiments.plot_publication_table2`, which owns the
     hard-coded Table 2 capacity-scaling and recall/hallucination tradeoff
     figures while `plot_table_2_results` delegates. Completed with
     `experiments.plot_publication_noise_robustness`, which owns the hard-coded
     noise robustness publication figure while `plot_table_noise_robustness`
-    delegates.
+    delegates. The three publication compatibility wrappers now all save only
+    when an explicit `save_dir` is supplied.
 - [x] Add headless smoke tests for representative 2D, 3D, camera, scale, and
   evaluation plots.
   - Complete: camera layout, 2D projection/density/GMM, 3D trajectory,
@@ -529,11 +531,44 @@ The next agent should continue Phase 6:
   but require an explicit `output_dir` for file writes. Reason: the reusable
   package primitive already has the correct no-save default, and preserving an
   implicit `figs/` write would conflict with the refactor output contract.
+- **2026-07-08 - Publication wrapper saving:** Keep
+  `plot_table_2_results`, `plot_table_time_efficiency`, and
+  `plot_table_noise_robustness` as compatibility wrappers, but require an
+  explicit `save_dir` for file writes and `show=True` for interactive display.
+  Reason: the named `experiments.plot_publication_*` CLIs now own publication
+  exports, so the compatibility wrappers should not silently create `figs/`.
 
 ## Handoff Log
 
 Add one newest-first entry per working session. Include commit(s), verification,
 known failures, and the exact next step.
+
+### 2026-07-08 - Phase 6 publication wrapper saves tightened
+
+- Changed `experiments.dfr_plot.plot_table_2_results`,
+  `plot_table_time_efficiency`, and `plot_table_noise_robustness` from
+  implicit `figs/` writers/displayers to explicit compatibility wrappers:
+  they return figures by default, save only when `save_dir` is supplied, and
+  display only when `show=True`.
+- Kept rendering delegated to the named publication scripts:
+  `experiments.plot_publication_table2`,
+  `experiments.plot_publication_time_efficiency`, and
+  `experiments.plot_publication_noise_robustness`.
+- Updated `experiments/DFR_PLOT_CATALOG.md`, `experiments/README.md`, and this
+  TODO with the new output behavior.
+- Updated publication wrapper characterization tests to assert explicit
+  `save_dir`/`show` behavior and no active `figs/` default.
+- Verification: focused publication/catalog tests passed with 18 tests;
+  `compileall dfr experiments tests` passed; `git diff --check` passed with
+  Windows line-ending warnings only; `pytest -m "not cuda"` passed with 164
+  tests and 7 deselected; `pytest -m cuda` passed with 6 tests, 1 skipped
+  rasterizer-extension test, and 164 deselected.
+- Known limitation: heavier supported wrappers such as trajectory, 2D
+  projection/GMM, mode-count, multiscale density, and DRA surface may still
+  preserve historical `figs/` writes until tightened in later slices.
+- Next step: continue tightening supported compatibility wrappers with
+  remaining implicit `figs/` writes, likely `plot_single_scenario_new` or the
+  Jackdaw2 projection wrappers.
 
 ### 2026-07-08 - Phase 6 camera-configuration wrapper save tightened
 

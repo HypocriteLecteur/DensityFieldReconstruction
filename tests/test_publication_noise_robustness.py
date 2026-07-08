@@ -34,7 +34,11 @@ def test_noise_robustness_legacy_wrapper_delegates_to_named_script():
     wrapper = source.split("def plot_table_noise_robustness", 1)[1].split(
         'if __name__ == "__main__"', 1
     )[0]
+    active_wrapper = wrapper.split("return fig, ax", 1)[0]
 
-    assert "plot_publication_noise_robustness" in wrapper
-    assert "plot_noise_robustness()" in wrapper
-    assert "save_figure(" in wrapper
+    assert "plot_publication_noise_robustness" in active_wrapper
+    assert "plot_noise_robustness()" in active_wrapper
+    assert "save_dir is not None" in active_wrapper
+    assert "save_figure(" in active_wrapper
+    assert "if show:" in active_wrapper
+    assert 'os.path.join(os.getcwd(), "figs")' not in active_wrapper

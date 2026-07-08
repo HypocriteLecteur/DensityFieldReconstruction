@@ -3031,7 +3031,7 @@ def plot_camera_configurations(dataset_name="swift", output_dir=None, formats=("
     return fig, ax
 
 
-def plot_table_2_results(save_dir=None):
+def plot_table_2_results(save_dir=None, formats=("png", "pdf"), show=False):
     """Plot two publication-quality figures from the metrics data
     across four datasets (Swift, Starling, Jackdaw, Jackdaw 2) and four
     methods (GMR-2, Ours-2, Ours-3, Ours-5).
@@ -3052,7 +3052,12 @@ def plot_table_2_results(save_dir=None):
     Parameters
     ----------
     save_dir : str or None
-        Directory for saving outputs.  Defaults to ``"figs"`` under cwd.
+        Directory for saving outputs.  When omitted, the figures are returned
+        without writing files.
+    formats : iterable of str
+        Figure formats to save when ``save_dir`` is supplied.
+    show : bool
+        Display the figures interactively after rendering.
     """
     from experiments.plot_publication_table2 import (
         plot_capacity_scaling,
@@ -3060,25 +3065,28 @@ def plot_table_2_results(save_dir=None):
     )
     from dfr.plotting import save_figure
 
-    out_dir = save_dir or os.path.join(os.getcwd(), "figs")
     fig1, _ = plot_capacity_scaling()
     fig2, _ = plot_recall_hallucination_tradeoff()
-    for fmt in ("png", "pdf"):
-        save_figure(
-            fig1,
-            os.path.join(out_dir, f"table2_dea_capacity_scaling.{fmt}"),
-            dpi=300,
-            bbox_inches="tight",
-        )
-        save_figure(
-            fig2,
-            os.path.join(out_dir, f"table2_recall_hallu_tradeoff.{fmt}"),
-            dpi=300,
-            bbox_inches="tight",
-        )
-    print(f"Figure 1 saved -> {out_dir}/table2_dea_capacity_scaling.[png|pdf]")
-    print(f"Figure 2 saved -> {out_dir}/table2_recall_hallu_tradeoff.[png|pdf]")
-    plt.show()
+    if save_dir is not None:
+        selected_formats = tuple(formats)
+        for fmt in selected_formats:
+            save_figure(
+                fig1,
+                os.path.join(os.fspath(save_dir), f"table2_dea_capacity_scaling.{fmt}"),
+                dpi=300,
+                bbox_inches="tight",
+            )
+            save_figure(
+                fig2,
+                os.path.join(os.fspath(save_dir), f"table2_recall_hallu_tradeoff.{fmt}"),
+                dpi=300,
+                bbox_inches="tight",
+            )
+        format_label = "|".join(selected_formats)
+        print(f"Figure 1 saved -> {save_dir}/table2_dea_capacity_scaling.[{format_label}]")
+        print(f"Figure 2 saved -> {save_dir}/table2_recall_hallu_tradeoff.[{format_label}]")
+    if show:
+        plt.show()
     return fig1, fig2
 
     from matplotlib.lines import Line2D
@@ -3301,7 +3309,7 @@ def plot_table_2_results(save_dir=None):
     return fig1, fig2
 
 
-def plot_table_time_efficiency(save_dir=None):
+def plot_table_time_efficiency(save_dir=None, formats=("png", "pdf"), show=False):
     """Training-time scaling with iteration budget.
 
     Single-panel scatter plot: x-axis = iterations (100, 200, 500),
@@ -3314,22 +3322,30 @@ def plot_table_time_efficiency(save_dir=None):
     Parameters
     ----------
     save_dir : str or None
-        Directory for saving outputs.  Defaults to ``"figs"`` under cwd.
+        Directory for saving outputs.  When omitted, the figure is returned
+        without writing files.
+    formats : iterable of str
+        Figure formats to save when ``save_dir`` is supplied.
+    show : bool
+        Display the figure interactively after rendering.
     """
     from experiments.plot_publication_time_efficiency import plot_time_efficiency
     from dfr.plotting import save_figure
 
-    out_dir = save_dir or os.path.join(os.getcwd(), "figs")
     fig, ax = plot_time_efficiency()
-    for fmt in ("png", "pdf"):
-        save_figure(
-            fig,
-            os.path.join(out_dir, f"table_dra_vs_iters.{fmt}"),
-            dpi=300,
-            bbox_inches="tight",
-        )
-    print(f"Figure saved -> {out_dir}/table_dra_vs_iters.[png|pdf]")
-    plt.show()
+    if save_dir is not None:
+        selected_formats = tuple(formats)
+        for fmt in selected_formats:
+            save_figure(
+                fig,
+                os.path.join(os.fspath(save_dir), f"table_dra_vs_iters.{fmt}"),
+                dpi=300,
+                bbox_inches="tight",
+            )
+        format_label = "|".join(selected_formats)
+        print(f"Figure saved -> {save_dir}/table_dra_vs_iters.[{format_label}]")
+    if show:
+        plt.show()
     return fig, ax
 
     from matplotlib.lines import Line2D
@@ -3462,7 +3478,7 @@ def plot_table_time_efficiency(save_dir=None):
     return fig, ax
 
 
-def plot_table_noise_robustness(save_dir=None):
+def plot_table_noise_robustness(save_dir=None, formats=("png", "pdf"), show=False):
     """Noise robustness under varying multi-view redundancy.
 
     Single-panel figure:  x-axis = noise level σ_n (px),
@@ -3477,22 +3493,30 @@ def plot_table_noise_robustness(save_dir=None):
     Parameters
     ----------
     save_dir : str or None
-        Directory for saving outputs.  Defaults to ``"figs"`` under cwd.
+        Directory for saving outputs.  When omitted, the figure is returned
+        without writing files.
+    formats : iterable of str
+        Figure formats to save when ``save_dir`` is supplied.
+    show : bool
+        Display the figure interactively after rendering.
     """
     from experiments.plot_publication_noise_robustness import plot_noise_robustness
     from dfr.plotting import save_figure
 
-    out_dir = save_dir or os.path.join(os.getcwd(), "figs")
     fig, ax = plot_noise_robustness()
-    for fmt in ("png", "pdf"):
-        save_figure(
-            fig,
-            os.path.join(out_dir, f"table_noise_robustness.{fmt}"),
-            dpi=300,
-            bbox_inches="tight",
-        )
-    print(f"Figure saved -> {out_dir}/table_noise_robustness.[png|pdf]")
-    plt.show()
+    if save_dir is not None:
+        selected_formats = tuple(formats)
+        for fmt in selected_formats:
+            save_figure(
+                fig,
+                os.path.join(os.fspath(save_dir), f"table_noise_robustness.{fmt}"),
+                dpi=300,
+                bbox_inches="tight",
+            )
+        format_label = "|".join(selected_formats)
+        print(f"Figure saved -> {save_dir}/table_noise_robustness.[{format_label}]")
+    if show:
+        plt.show()
     return fig, ax
 
     # ── Table data ───────────────────────────────────────────────────────

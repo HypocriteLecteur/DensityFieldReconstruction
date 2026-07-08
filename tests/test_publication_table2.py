@@ -48,8 +48,12 @@ def test_table2_legacy_wrapper_delegates_to_named_script():
     wrapper = source.split("def plot_table_2_results", 1)[1].split(
         "def plot_table_time_efficiency", 1
     )[0]
+    active_wrapper = wrapper.split("return fig1, fig2", 1)[0]
 
-    assert "plot_publication_table2" in wrapper
-    assert "plot_capacity_scaling()" in wrapper
-    assert "plot_recall_hallucination_tradeoff()" in wrapper
-    assert "save_figure(" in wrapper
+    assert "plot_publication_table2" in active_wrapper
+    assert "plot_capacity_scaling()" in active_wrapper
+    assert "plot_recall_hallucination_tradeoff()" in active_wrapper
+    assert "save_dir is not None" in active_wrapper
+    assert "save_figure(" in active_wrapper
+    assert "if show:" in active_wrapper
+    assert 'os.path.join(os.getcwd(), "figs")' not in active_wrapper

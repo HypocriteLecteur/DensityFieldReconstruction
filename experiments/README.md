@@ -70,8 +70,8 @@ noise-robustness publication table have also been split into
 `plot_publication_table2.py`, `plot_publication_time_efficiency.py`, and
 `plot_publication_noise_robustness.py`; the legacy `plot_table_2_results`,
 `plot_table_time_efficiency`, and `plot_table_noise_robustness` wrappers
-delegate to those named scripts while preserving their historical `figs/`
-defaults.
+delegate to those named scripts and save only when an explicit `save_dir` is
+supplied.
 
 The Phase 6 support review classifies only the delegated wrappers listed above
 as supported compatibility entry points. The other public functions retained in
