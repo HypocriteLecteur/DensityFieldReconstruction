@@ -14,8 +14,9 @@ on chat history.
   shared style/save/layout primitives, typed analysis-result plotting paths,
   typed frame-reconstruction GMM plotting, and typed evaluation-summary
   and metric-series plotting have moved to `dfr.plotting`. The first
-  publication/table split-outs, `experiments.plot_publication_table2` and
-  `experiments.plot_publication_time_efficiency`, now own hard-coded
+  publication/table split-outs, `experiments.plot_publication_table2`,
+  `experiments.plot_publication_time_efficiency`, and
+  `experiments.plot_publication_noise_robustness`, now own hard-coded
   publication figures formerly embedded in `experiments/dfr_plot.py`.
 - **Stable baseline:** annotated tag `v0.1.0`, commit `7cde21e`.
 - **Version storage:** local Git repository only; do not push unless the owner
@@ -310,7 +311,7 @@ reconstruct -> evaluate, and scenario runners no longer duplicate the pipeline.
     direct summary-metric bar plot path, and `EvaluationRun`/frame sequences
     have a per-frame metric-series plot path. Grid/multiscale helpers return
     figure/axes collections rather than a single axes object.
-- [ ] Split publication/table-specific figures into small, named experiment
+- [x] Split publication/table-specific figures into small, named experiment
   scripts rather than one replacement monolith.
   - Started with `experiments.plot_publication_time_efficiency`, which owns the
     hard-coded training-time scaling figure and provides an explicit CLI.
@@ -318,9 +319,10 @@ reconstruct -> evaluate, and scenario runners no longer duplicate the pipeline.
     delegates to the named script and preserves the historical `figs/` default.
     Continued with `experiments.plot_publication_table2`, which owns the
     hard-coded Table 2 capacity-scaling and recall/hallucination tradeoff
-    figures while `plot_table_2_results` delegates. Continue this task by
-    splitting the remaining noise robustness publication figure out of
-    `experiments/dfr_plot.py`.
+    figures while `plot_table_2_results` delegates. Completed with
+    `experiments.plot_publication_noise_robustness`, which owns the hard-coded
+    noise robustness publication figure while `plot_table_noise_robustness`
+    delegates.
 - [x] Add headless smoke tests for representative 2D, 3D, camera, scale, and
   evaluation plots.
   - Complete: camera layout, 2D projection/density/GMM, 3D trajectory,
@@ -369,17 +371,15 @@ reading implementation or experiment source.
 
 The next agent should continue Phase 6:
 
-1. Continue the unchecked publication/table split-out task. The
-   Table 2 and time-efficiency figures are now in
-   `experiments.plot_publication_table2` and
-   `experiments.plot_publication_time_efficiency`; the next candidate is
-   `plot_table_noise_robustness` in `experiments/dfr_plot.py`.
-2. Keep moving low-risk reusable plot primitives identified in
+1. Keep moving low-risk reusable plot primitives identified in
    `experiments/DFR_PLOT_CATALOG.md` only when the figure has a clear typed
    result object or a documented experiment-only CLI owner.
-3. Migrate legacy `figs/` saving for `plot_camera_configurations` to an
+2. Migrate legacy `figs/` saving for `plot_camera_configurations` to an
    explicit output/artifact option after deciding whether these migrated
    wrappers remain supported experiment CLIs or only compatibility wrappers.
+3. Review the remaining `experiments/dfr_plot.py` wrappers and decide which
+   ones are still supported compatibility entry points versus archive-only
+   historical figures.
 4. Add headless plotting smoke tests before migrating each high-value figure.
 5. Keep the Phase 4 supported/legacy classification in
    `experiments/README.md` current when promoting another research study.
@@ -515,6 +515,34 @@ The next agent should continue Phase 6:
 
 Add one newest-first entry per working session. Include commit(s), verification,
 known failures, and the exact next step.
+
+### 2026-07-08 - Phase 6 publication noise robustness split-out completed
+
+- Added `experiments/plot_publication_noise_robustness.py`, an explicit
+  experiment CLI for the hard-coded noise-robustness publication figure
+  formerly embedded in `experiments/dfr_plot.py`.
+- Kept `plot_table_noise_robustness` as a compatibility wrapper that delegates
+  to the named script and preserves the historical `figs/` output default.
+- Marked the Phase 6 publication/table-specific split-out task complete:
+  Table 2, time-efficiency, and noise-robustness publication figures now have
+  small named experiment commands.
+- Updated `README.md`, `experiments/README.md`, and
+  `experiments/DFR_PLOT_CATALOG.md` so the command and migration boundary are
+  discoverable.
+- Added `tests/test_publication_noise_robustness.py` for headless plotting,
+  save-helper behavior, and legacy wrapper delegation.
+- Verification: focused noise/publication/catalog tests passed with 17 tests;
+  the `experiments.plot_publication_noise_robustness --help` CLI passed;
+  `compileall dfr experiments tests` passed; `git diff --check` passed with
+  Windows line-ending warnings only; `pytest -m "not cuda"` passed with 163
+  tests and 7 deselected; `pytest -m cuda` passed with 6 tests, 1 skipped
+  rasterizer-extension test, and 163 deselected.
+- Known limitation: `experiments/dfr_plot.py` remains as a compatibility
+  archive with delegated wrappers and unreachable legacy bodies; removal is
+  still blocked on the later Phase 6/8 migration policy.
+- Next step: review the remaining `experiments/dfr_plot.py` wrappers and
+  decide which compatibility entry points are still supported versus
+  archive-only historical figures.
 
 ### 2026-07-08 - Phase 6 publication Table 2 split-out started
 

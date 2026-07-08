@@ -72,7 +72,7 @@ updated and the migration target has tests.
 | `plot_camera_configurations` | 3120-3195 | None | Named scenario/camera generated poses | `figs/camera_configurations.[png|pdf]` | package-plot | Migrated wrapper: rendering now delegates to `dfr.plotting.plot_camera_configurations`; legacy wrapper still saves to `figs/`. |
 | `plot_table_2_results` | 3196-3438 | None | Hard-coded publication metrics | Table 2 PNG/PDF, interactive plot | experiment-figure | Split-out started: `experiments.plot_publication_table2` owns the clean explicit CLI; legacy wrapper delegates and still defaults to `figs/`. |
 | `plot_table_time_efficiency` | 3439-3583 | None | Hard-coded time-efficiency metrics | Table-time PNG/PDF, interactive plot | experiment-figure | Split-out started: `experiments.plot_publication_time_efficiency` owns the clean explicit CLI; legacy wrapper delegates and still defaults to `figs/`. |
-| `plot_table_noise_robustness` | 3584-3772 | None | Hard-coded noise metrics | Table-noise PNG/PDF, interactive plot | experiment-figure | Keep as publication-table script reading managed metrics. |
+| `plot_table_noise_robustness` | 3584-3772 | None | Hard-coded noise metrics | Table-noise PNG/PDF, interactive plot | experiment-figure | Split-out started: `experiments.plot_publication_noise_robustness` owns the clean explicit CLI; legacy wrapper delegates and still defaults to `figs/`. |
 
 ## Migration order recommendation
 

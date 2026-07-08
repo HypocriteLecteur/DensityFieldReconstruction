@@ -3467,6 +3467,22 @@ def plot_table_noise_robustness(save_dir=None):
     save_dir : str or None
         Directory for saving outputs.  Defaults to ``"figs"`` under cwd.
     """
+    from experiments.plot_publication_noise_robustness import plot_noise_robustness
+    from dfr.plotting import save_figure
+
+    out_dir = save_dir or os.path.join(os.getcwd(), "figs")
+    fig, ax = plot_noise_robustness()
+    for fmt in ("png", "pdf"):
+        save_figure(
+            fig,
+            os.path.join(out_dir, f"table_noise_robustness.{fmt}"),
+            dpi=300,
+            bbox_inches="tight",
+        )
+    print(f"Figure saved -> {out_dir}/table_noise_robustness.[png|pdf]")
+    plt.show()
+    return fig, ax
+
     # ── Table data ───────────────────────────────────────────────────────
     datasets_order = ["Swift", "Starling", "Jackdaw", "Jackdaw 2"]
     cam_labels     = ["2-cam", "3-cam", "5-cam"]

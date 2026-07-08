@@ -63,11 +63,13 @@ or deleting any `dfr_plot.py` function. The migrated wrappers so far are
 `plot_jackdaw2_multiscale_density` and
 `plot_jackdaw2_dra_scale_model_order_surface`, whose rendering now lives in
 `dfr.plotting` while the legacy wrappers still write to `figs/`.
-The Table 2 capacity/tradeoff figures and time-efficiency publication table
-have also been split into `plot_publication_table2.py` and
-`plot_publication_time_efficiency.py`; the legacy `plot_table_2_results` and
-`plot_table_time_efficiency` wrappers delegate to those named scripts while
-preserving their historical `figs/` defaults.
+The Table 2 capacity/tradeoff figures, time-efficiency publication table, and
+noise-robustness publication table have also been split into
+`plot_publication_table2.py`, `plot_publication_time_efficiency.py`, and
+`plot_publication_noise_robustness.py`; the legacy `plot_table_2_results`,
+`plot_table_time_efficiency`, and `plot_table_noise_robustness` wrappers
+delegate to those named scripts while preserving their historical `figs/`
+defaults.
 
 `plotting_utils.py` is a helper module rather than an entry point. Its
 style/layout compatibility helpers and 3D density/GMM renderers now delegate
@@ -104,6 +106,8 @@ Publication figure split-outs are explicit commands too:
   figures formerly owned by `dfr_plot.py`.
 - `python -m experiments.plot_publication_time_efficiency --help` — render the
   hard-coded training-time scaling figure formerly owned by `dfr_plot.py`.
+- `python -m experiments.plot_publication_noise_robustness --help` — render
+  the hard-coded noise-robustness figure formerly owned by `dfr_plot.py`.
 
 The remaining angle, flock, and UE4 differences are cataloged in
 `RUNNER_SPECIALIZATIONS.md`. All three now require explicit command dispatch.

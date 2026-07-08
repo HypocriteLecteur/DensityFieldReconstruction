@@ -637,6 +637,7 @@ execution.
 | `parameter_manifold.py` | Managed 3PL fit/clustering/publication CLI using package manifold computation, style, and save defaults. |
 | `parameter_manifold_2pl.py` | Managed symmetric-2PL manifold and temporal/N-dependence CLI using package style and save defaults. |
 | `plot_dra_scale_model_order.py` | CUDA CLI for DRA over scale and model order with resumable caches, surface fits, package plotting primitives, and shared figure-save defaults. |
+| `plot_publication_noise_robustness.py` | Explicit publication figure CLI for the hard-coded noise-robustness table formerly embedded in `dfr_plot.py`. |
 | `plot_publication_table2.py` | Explicit publication figure CLI for the hard-coded Table 2 capacity/tradeoff figures formerly embedded in `dfr_plot.py`. |
 | `plot_publication_time_efficiency.py` | Explicit publication figure CLI for the hard-coded training-time scaling table formerly embedded in `dfr_plot.py`. |
 | `plotting_utils.py` | Legacy plotting/math compatibility helpers used by DRA figures; style/layout and density/GMM rendering helpers delegate to `dfr.plotting`; not an entry point. |
