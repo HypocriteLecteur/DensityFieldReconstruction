@@ -10,8 +10,8 @@ on chat history.
   `experiments/dfr_plot.py` function catalog is frozen in
   `experiments/DFR_PLOT_CATALOG.md`; reusable camera-configuration,
   trajectory-snapshot, 2D projection/GMM, mode-count curve, DRA
-  scale/model-order surface, and multiscale density plotting primitives have
-  moved to `dfr.plotting`.
+  scale/model-order surface, multiscale density, and 3D density/GMM rendering
+  primitives have moved to `dfr.plotting`.
 - **Stable baseline:** annotated tag `v0.1.0`, commit `7cde21e`.
 - **Version storage:** local Git repository only; do not push unless the owner
   explicitly changes this policy.
@@ -288,9 +288,9 @@ reconstruct -> evaluate, and scenario runners no longer duplicate the pipeline.
     figure-saving defaults now live in `dfr.plotting`; `experiments`
     compatibility helpers delegate to the package. Supported analysis CLIs no
     longer call Matplotlib `savefig` directly. Multiscale 3D density rendering
-    has also moved to `dfr.plotting`. Remaining work: migrate layout patterns
-    and the remaining heavier density/GMM helpers when touching their owning
-    figures.
+    and the remaining 3D density/GMM renderers have also moved to
+    `dfr.plotting`. Remaining work: migrate repeated layout patterns when
+    touching their owning figures.
 - [ ] Make plotting functions accept result objects/axes and return Figure/Axes;
   saving is optional and uses the output manager.
 - [ ] Split publication/table-specific figures into small, named experiment
@@ -341,10 +341,10 @@ The next agent should continue Phase 6:
 
 1. Continue moving low-risk reusable plot primitives identified in
    `experiments/DFR_PLOT_CATALOG.md`; next candidates are evaluation/noise plots
-   after their computation has typed result objects, or remaining density/GMM
-   helpers used by active figures.
-2. Continue Phase 6 step 3 by migrating repeated layout calls and heavier
-   density-rendering helpers to `dfr.plotting` as their owning figures move.
+   after their computation has typed result objects, or publication/table
+   figure split-outs.
+2. Continue Phase 6 step 3 by migrating repeated layout calls to `dfr.plotting`
+   as their owning figures move.
 3. Migrate legacy `figs/` saving for `plot_camera_configurations` to an
    explicit output/artifact option after deciding whether these migrated
    wrappers remain supported experiment CLIs or only compatibility wrappers.
@@ -470,6 +470,24 @@ The next agent should continue Phase 6:
 
 Add one newest-first entry per working session. Include commit(s), verification,
 known failures, and the exact next step.
+
+### 2026-07-08 - Phase 6 density/GMM plotting utilities completed
+
+- Added remaining 3D density/GMM rendering helpers to `dfr.plotting.density`:
+  GMM wireframes, GMM mean overlays, GT-style density composites, and
+  reconstructed-GMM composites.
+- Exported the new density/GMM helpers from `dfr.plotting`.
+- Converted `experiments.plotting_utils` rendering helpers into compatibility
+  wrappers over `dfr.plotting`, preserving old function names and layer
+  constants for legacy callers.
+- Added headless tests for GMM wireframes, GMM means, reconstructed-GMM
+  composites, validation behavior, and static wrapper delegation.
+- Verification: focused density/entrypoint/style tests (17 passed);
+  `compileall`; `git diff --check`; `pytest -m "not cuda"` (136 passed,
+  7 deselected, 1 warning); `pytest -m cuda` (6 passed, 1 skipped,
+  136 deselected).
+- Next step: continue Phase 6 step 3 with repeated layout helpers, or begin
+  the next evaluation/noise plot extraction after typing its computation.
 
 ### 2026-07-07 - Phase 6 multiscale density renderer
 

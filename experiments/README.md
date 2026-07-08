@@ -65,10 +65,9 @@ or deleting any `dfr_plot.py` function. The migrated wrappers so far are
 `dfr.plotting` while the legacy wrappers still write to `figs/`.
 
 `plotting_utils.py` is a helper module rather than an entry point. Its
-style/layout compatibility helpers now delegate to `dfr.plotting`; the first
-3D density renderer has moved, while voxel construction and remaining
-density/GMM helpers remain here until their owning figures get dedicated smoke
-tests.
+style/layout compatibility helpers and 3D density/GMM renderers now delegate
+to `dfr.plotting`; voxel construction and density evaluation remain here until
+their owning computation paths are migrated.
 
 Supported analysis CLIs now route figure exports through
 `dfr.plotting.save_figure` or managed artifact helpers instead of direct

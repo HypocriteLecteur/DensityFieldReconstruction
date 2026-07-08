@@ -11,10 +11,16 @@ from dfr.plotting.analysis import (
     plot_mode_count_curve,
 )
 from dfr.plotting.density import (
+    DEFAULT_DENSITY_LAYERS,
+    FIELD_DENSITY_LAYERS,
     plot_density_field_3d,
     plot_multiscale_density_fields,
     render_agent_positions,
     render_density_shells,
+    render_density_field_3d,
+    render_gmm_means,
+    render_gmm_wireframes,
+    render_reconstructed_gmm_3d,
 )
 from dfr.plotting.projections import (
     plot_density_image,
@@ -27,6 +33,8 @@ from dfr.plotting.trajectories import plot_trajectory_snapshot
 
 __all__ = [
     "apply_academic_style",
+    "DEFAULT_DENSITY_LAYERS",
+    "FIELD_DENSITY_LAYERS",
     "plot_camera_configurations",
     "plot_density_image",
     "plot_density_field_3d",
@@ -39,6 +47,10 @@ __all__ = [
     "plot_trajectory_snapshot",
     "render_agent_positions",
     "render_density_shells",
+    "render_density_field_3d",
+    "render_gmm_means",
+    "render_gmm_wireframes",
+    "render_reconstructed_gmm_3d",
     "save_figure",
     "style_3d_axis",
     "transparent_colormap",

@@ -10,12 +10,22 @@ from __future__ import annotations
 
 from typing import Sequence
 
-import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-from dfr.plotting import apply_academic_style, style_3d_axis
+from dfr.plotting import (
+    DEFAULT_DENSITY_LAYERS,
+    FIELD_DENSITY_LAYERS,
+    apply_academic_style,
+    render_agent_positions as _render_agent_positions,
+    render_density_field_3d as _render_density_field_3d,
+    render_density_shells as _render_density_shells,
+    render_gmm_means as _render_gmm_means,
+    render_gmm_wireframes as _render_gmm_wireframes,
+    render_reconstructed_gmm_3d as _render_reconstructed_gmm_3d,
+    style_3d_axis,
+)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -135,19 +145,9 @@ def compute_gt_density(
 #  3D scatter-based density rendering primitives
 # ═══════════════════════════════════════════════════════════════════════════════
 
-# Default density-shell layer configuration matching the existing figures.
-DEFAULT_LAYERS = [
-    {"thresh_frac": 0.10, "alpha_min": 0.45, "alpha_max": 0.95, "size": 8},
-    {"thresh_frac": 0.02, "alpha_min": 0.25, "alpha_max": 0.80, "size": 6},
-    {"thresh_frac": 0.002, "alpha_min": 0.08, "alpha_max": 0.50, "size": 4},
-]
-
-# Lower-alpha variant for when wireframes are overlaid.
-FIELD_LAYERS = [
-    {"thresh_frac": 0.10, "alpha_min": 0.18, "alpha_max": 0.55, "size": 8},
-    {"thresh_frac": 0.02, "alpha_min": 0.10, "alpha_max": 0.40, "size": 6},
-    {"thresh_frac": 0.002, "alpha_min": 0.04, "alpha_max": 0.22, "size": 4},
-]
+# Layer aliases kept for older experiment imports.
+DEFAULT_LAYERS = DEFAULT_DENSITY_LAYERS
+FIELD_LAYERS = FIELD_DENSITY_LAYERS
 
 
 def _layer_thresholds(
@@ -170,47 +170,16 @@ def render_density_shells(
     max_density: float | None = None,
     layers: Sequence[dict] | None = None,
 ) -> None:
-    """Render a 3D density field as nested semi-transparent scatter shells.
-
-    Voxels above each layer's absolute density threshold are drawn as scatter
-    points coloured by ``viridis`` with ``PowerNorm(gamma=0.35)``.
-
-    Parameters
-    ----------
-    ax : mpl_toolkits.mplot3d.Axes3D
-    density_3d : (nx, ny, nz) float64
-    x_ticks_np, y_ticks_np, z_ticks_np : 1D ndarray
-        Voxel-centre coordinates on each axis (NumPy, on CPU).
-    max_density : float, optional
-        Max density for normalisation.  Defaults to ``density_3d.max()``.
-    layers : list of dict, optional
-        Each dict: thresh_frac, alpha_min, alpha_max, size.  Defaults to
-        ``DEFAULT_LAYERS``.
-    """
-    if max_density is None:
-        max_density = float(density_3d.max())
-
-    resolved = _layer_thresholds(max_density, layers)
-    norm = mcolors.PowerNorm(gamma=0.35, vmin=0, vmax=max_density)
-
-    for layer in resolved:
-        mask = density_3d >= layer["thresh"]
-        if not mask.any():
-            continue
-        ix, iy, iz = np.where(mask)
-        pts = np.stack([x_ticks_np[ix], y_ticks_np[iy], z_ticks_np[iz]], axis=-1)
-        vals = density_3d[mask]
-        colours = plt.cm.viridis(norm(vals))
-        alphas = (
-            norm(vals) * (layer["alpha_max"] - layer["alpha_min"])
-            + layer["alpha_min"]
-        )
-        colours[:, 3] = np.clip(alphas, layer["alpha_min"], layer["alpha_max"])
-        ax.scatter(
-            pts[:, 0], pts[:, 1], pts[:, 2],
-            c=colours, s=layer["size"], edgecolors="none",
-            depthshade=False, rasterized=True,
-        )
+    """Compatibility wrapper for :func:`dfr.plotting.render_density_shells`."""
+    _render_density_shells(
+        ax,
+        density_3d,
+        x_ticks_np,
+        y_ticks_np,
+        z_ticks_np,
+        max_density=max_density,
+        layers=layers,
+    )
 
 
 def render_gmm_wireframes(
@@ -222,65 +191,16 @@ def render_gmm_wireframes(
     z_sort_pos: float = -5e8,
     sphere_res: int = 20,
 ) -> None:
-    """Draw each isotropic GMM component as a wireframe sphere.
-
-    Alpha is scaled by component weight relative to the max weight.  Each
-    wireframe artist has its ``do_3d_projection`` monkey-patched so it sorts
-    at a fixed ``_sort_zpos``, placing it in front of the density-field scatter
-    but behind higher-priority overlays (agent positions / GMM means).
-
-    Parameters
-    ----------
-    ax : mpl_toolkits.mplot3d.Axes3D
-    means_np : (K, 3) float64
-    sigmas_np : (K,) float64
-        Isotropic sigma (radius) per component.
-    weights_np : (K,) float64
-    colour : str
-        Matplotlib colour for the wireframes.
-    z_sort_pos : float
-        Fixed ``_sort_zpos`` for depth ordering.
-    sphere_res : int
-        Angular resolution of the sphere mesh.
-    """
-    K = means_np.shape[0]
-    w_max = float(weights_np.max()) if weights_np.size > 0 else 1.0
-
-    # Sphere mesh template (unit sphere)
-    u = np.linspace(0, 2 * np.pi, sphere_res)
-    v = np.linspace(0, np.pi, sphere_res)
-    sx = np.outer(np.cos(u), np.sin(v))
-    sy = np.outer(np.sin(u), np.sin(v))
-    sz = np.outer(np.ones(np.size(u)), np.cos(v))
-
-    wireframe_objs = []
-    for j in range(K):
-        r = float(sigmas_np[j])
-        alpha = (
-            max(0.15, min(0.70, float(weights_np[j]) / w_max))
-            if w_max > 0
-            else 0.25
-        )
-        rgba = (*mcolors.to_rgb(colour), alpha)
-        wf = ax.plot_wireframe(
-            means_np[j, 0] + r * sx,
-            means_np[j, 1] + r * sy,
-            means_np[j, 2] + r * sz,
-            color=rgba,
-            rstride=2, cstride=2, linewidth=1.7,
-        )
-        wireframe_objs.append(wf)
-
-    # Monkey-patch each wireframe for depth ordering.
-    for wf in wireframe_objs:
-        _orig_wf = wf.do_3d_projection
-
-        def _patch(orig=_orig_wf, obj=wf, zpos=z_sort_pos):
-            orig()
-            obj._sort_zpos = zpos
-            return obj._sort_zpos
-
-        wf.do_3d_projection = _patch
+    """Compatibility wrapper for :func:`dfr.plotting.render_gmm_wireframes`."""
+    _render_gmm_wireframes(
+        ax,
+        means_np,
+        sigmas_np,
+        weights_np,
+        colour=colour,
+        z_sort_pos=z_sort_pos,
+        sphere_res=sphere_res,
+    )
 
 
 def render_agent_positions(
@@ -291,25 +211,15 @@ def render_agent_positions(
     alpha: float = 1.0,
     z_sort_pos: float = -1e9,
 ) -> None:
-    """Overlay agent positions as scatter points forced to render on top.
-
-    The returned collection has its ``do_3d_projection`` monkey-patched so
-    ``_sort_zpos`` is fixed at *z_sort_pos* (default ``-1e9``, i.e. in front
-    of everything).
-    """
-    coll = ax.scatter(
-        positions[:, 0], positions[:, 1], positions[:, 2],
-        c=colour, s=size, alpha=alpha, linewidths=0.8,
+    """Compatibility wrapper for :func:`dfr.plotting.render_agent_positions`."""
+    return _render_agent_positions(
+        ax,
+        positions,
+        colour=colour,
+        size=size,
+        alpha=alpha,
+        z_sort_pos=z_sort_pos,
     )
-    _orig = coll.do_3d_projection
-
-    def _force(zpos=z_sort_pos, orig=_orig, obj=coll):
-        orig()
-        obj._sort_zpos = zpos
-        return obj._sort_zpos
-
-    coll.do_3d_projection = _force
-    return coll
 
 
 def render_gmm_means(
@@ -320,21 +230,15 @@ def render_gmm_means(
     alpha: float = 0.85,
     z_sort_pos: float = -6e8,
 ) -> None:
-    """Overlay GMM mean positions as small markers, sorted behind agents but
-    in front of wireframes."""
-    coll = ax.scatter(
-        means_np[:, 0], means_np[:, 1], means_np[:, 2],
-        c=colour, marker="o", s=size, alpha=alpha,
-        edgecolors="none", depthshade=True,
+    """Compatibility wrapper for :func:`dfr.plotting.render_gmm_means`."""
+    return _render_gmm_means(
+        ax,
+        means_np,
+        colour=colour,
+        size=size,
+        alpha=alpha,
+        z_sort_pos=z_sort_pos,
     )
-    _orig = coll.do_3d_projection
-
-    def _force(zpos=z_sort_pos, orig=_orig, obj=coll):
-        orig()
-        obj._sort_zpos = zpos
-        return obj._sort_zpos
-
-    coll.do_3d_projection = _force
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -351,29 +255,17 @@ def render_density_field_3d(
     max_density: float | None = None,
     layers: Sequence[dict] | None = None,
 ) -> None:
-    """Render a GT-style density field: nested density shells + agent overlay.
-
-    This is the common rendering used by Figure 1 of
-    ``plot_jackdaw2_density_field`` and the multi-scale density figures.
-
-    Parameters
-    ----------
-    ax : mpl_toolkits.mplot3d.Axes3D
-        Should already have ``view_init`` applied and ``set_axis_off()`` called.
-    density_3d : (nx, ny, nz) float64
-    x_ticks_np, y_ticks_np, z_ticks_np : 1D ndarray
-    positions : (N, 3) float32/float64
-    max_density : float, optional
-    layers : list of dict, optional
-    """
-    if max_density is None:
-        max_density = float(density_3d.max())
-
-    render_density_shells(
-        ax, density_3d, x_ticks_np, y_ticks_np, z_ticks_np,
-        max_density=max_density, layers=layers,
+    """Compatibility wrapper for :func:`dfr.plotting.render_density_field_3d`."""
+    _render_density_field_3d(
+        ax,
+        density_3d,
+        x_ticks_np,
+        y_ticks_np,
+        z_ticks_np,
+        positions,
+        max_density=max_density,
+        layers=layers,
     )
-    render_agent_positions(ax, positions)
 
 
 def render_reconstructed_gmm_3d(
@@ -389,29 +281,17 @@ def render_reconstructed_gmm_3d(
     max_density: float | None = None,
     gmm_colour: str = "#4169e1",
 ) -> None:
-    """Render a reconstructed GMM: density shells + wireframe ellipsoids +
-    GMM mean markers + agent overlay.
-
-    This is the composite used by Figure 2 of
-    ``plot_jackdaw2_density_field`` and by ``_draw_gmm_frame``.
-    """
-    if max_density is None:
-        max_density = float(density_3d.max())
-
-    # 1. Density shells (reduced alpha so wireframes show through)
-    render_density_shells(
-        ax, density_3d, x_ticks_np, y_ticks_np, z_ticks_np,
-        max_density=max_density, layers=FIELD_LAYERS,
+    """Compatibility wrapper for :func:`dfr.plotting.render_reconstructed_gmm_3d`."""
+    _render_reconstructed_gmm_3d(
+        ax,
+        density_3d,
+        x_ticks_np,
+        y_ticks_np,
+        z_ticks_np,
+        positions,
+        means_np,
+        sigmas_np,
+        weights_np,
+        max_density=max_density,
+        gmm_colour=gmm_colour,
     )
-
-    # 2. GMM wireframe ellipsoids
-    render_gmm_wireframes(
-        ax, means_np, sigmas_np, weights_np,
-        colour=gmm_colour, z_sort_pos=-5e8,
-    )
-
-    # 3. GMM mean markers
-    render_gmm_means(ax, means_np, colour=gmm_colour, z_sort_pos=-6e8)
-
-    # 4. Agent positions on top
-    render_agent_positions(ax, positions, z_sort_pos=-1e9)

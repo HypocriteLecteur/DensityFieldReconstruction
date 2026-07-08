@@ -16,6 +16,12 @@ DEFAULT_DENSITY_LAYERS = [
     {"thresh_frac": 0.002, "alpha_min": 0.08, "alpha_max": 0.50, "size": 4},
 ]
 
+FIELD_DENSITY_LAYERS = [
+    {"thresh_frac": 0.10, "alpha_min": 0.18, "alpha_max": 0.55, "size": 8},
+    {"thresh_frac": 0.02, "alpha_min": 0.10, "alpha_max": 0.40, "size": 6},
+    {"thresh_frac": 0.002, "alpha_min": 0.04, "alpha_max": 0.22, "size": 4},
+]
+
 
 def render_density_shells(
     ax,
@@ -91,6 +97,147 @@ def render_agent_positions(
     return collection
 
 
+def render_gmm_wireframes(
+    ax,
+    means,
+    sigmas,
+    weights,
+    *,
+    colour: str = "#4169e1",
+    z_sort_pos: float = -5e8,
+    sphere_res: int = 20,
+) -> list:
+    """Draw isotropic GMM components as depth-ordered wireframe spheres."""
+    means_array, sigmas_array, weights_array = _gmm_components(means, sigmas, weights)
+    if sphere_res < 4:
+        raise ValueError("sphere_res must be at least 4.")
+    if len(means_array) == 0:
+        return []
+
+    weight_max = float(weights_array.max()) if weights_array.size else 1.0
+    u = np.linspace(0, 2 * np.pi, sphere_res)
+    v = np.linspace(0, np.pi, sphere_res)
+    sphere_x = np.outer(np.cos(u), np.sin(v))
+    sphere_y = np.outer(np.sin(u), np.sin(v))
+    sphere_z = np.outer(np.ones(np.size(u)), np.cos(v))
+
+    wireframes = []
+    for mean, sigma, weight in zip(means_array, sigmas_array, weights_array):
+        alpha = (
+            max(0.15, min(0.70, float(weight) / weight_max))
+            if weight_max > 0
+            else 0.25
+        )
+        rgba = (*mcolors.to_rgb(colour), alpha)
+        wireframe = ax.plot_wireframe(
+            mean[0] + float(sigma) * sphere_x,
+            mean[1] + float(sigma) * sphere_y,
+            mean[2] + float(sigma) * sphere_z,
+            color=rgba,
+            rstride=2,
+            cstride=2,
+            linewidth=1.7,
+        )
+        _force_depth_order(wireframe, z_sort_pos)
+        wireframes.append(wireframe)
+    return wireframes
+
+
+def render_gmm_means(
+    ax,
+    means,
+    *,
+    colour: str = "#4169e1",
+    size: float = 14,
+    alpha: float = 0.85,
+    z_sort_pos: float = -6e8,
+):
+    """Overlay GMM mean positions, sorted in front of wireframes."""
+    means_array = _positions(means, allow_empty=True)
+    collection = ax.scatter(
+        means_array[:, 0],
+        means_array[:, 1],
+        means_array[:, 2],
+        c=colour,
+        marker="o",
+        s=size,
+        alpha=alpha,
+        edgecolors="none",
+        depthshade=True,
+    )
+    _force_depth_order(collection, z_sort_pos)
+    return collection
+
+
+def render_density_field_3d(
+    ax,
+    density_3d,
+    x_ticks,
+    y_ticks,
+    z_ticks,
+    positions,
+    *,
+    max_density: Optional[float] = None,
+    layers: Optional[Sequence[dict]] = None,
+) -> None:
+    """Render a GT-style density field: density shells plus agent overlay."""
+    density = _density(density_3d)
+    x_axis, y_axis, z_axis = _ticks(x_ticks, y_ticks, z_ticks, density.shape)
+    points = _positions(positions)
+    maximum = float(np.max(density)) if max_density is None else float(max_density)
+    render_density_shells(
+        ax,
+        density,
+        x_axis,
+        y_axis,
+        z_axis,
+        max_density=maximum,
+        layers=layers,
+    )
+    render_agent_positions(ax, points)
+
+
+def render_reconstructed_gmm_3d(
+    ax,
+    density_3d,
+    x_ticks,
+    y_ticks,
+    z_ticks,
+    positions,
+    means,
+    sigmas,
+    weights,
+    *,
+    max_density: Optional[float] = None,
+    gmm_colour: str = "#4169e1",
+) -> None:
+    """Render density shells plus reconstructed isotropic GMM wireframes."""
+    density = _density(density_3d)
+    x_axis, y_axis, z_axis = _ticks(x_ticks, y_ticks, z_ticks, density.shape)
+    points = _positions(positions)
+    means_array, sigmas_array, weights_array = _gmm_components(means, sigmas, weights)
+    maximum = float(np.max(density)) if max_density is None else float(max_density)
+    render_density_shells(
+        ax,
+        density,
+        x_axis,
+        y_axis,
+        z_axis,
+        max_density=maximum,
+        layers=FIELD_DENSITY_LAYERS,
+    )
+    render_gmm_wireframes(
+        ax,
+        means_array,
+        sigmas_array,
+        weights_array,
+        colour=gmm_colour,
+        z_sort_pos=-5e8,
+    )
+    render_gmm_means(ax, means_array, colour=gmm_colour, z_sort_pos=-6e8)
+    render_agent_positions(ax, points, z_sort_pos=-1e9)
+
+
 def plot_density_field_3d(
     density_3d,
     x_ticks,
@@ -121,15 +268,15 @@ def plot_density_field_3d(
     if axis_off:
         ax.set_axis_off()
 
-    render_density_shells(
+    render_density_field_3d(
         ax,
         density,
         x_axis,
         y_axis,
         z_axis,
+        points,
         layers=layers,
     )
-    render_agent_positions(ax, points)
     if normalized_scale is not None and mode_count is not None:
         ax.text2D(
             0.02,
@@ -196,15 +343,30 @@ def _ticks(x_ticks, y_ticks, z_ticks, shape) -> tuple[np.ndarray, np.ndarray, np
     return axes
 
 
-def _positions(values) -> np.ndarray:
+def _positions(values, *, allow_empty: bool = False) -> np.ndarray:
     points = np.asarray(values, dtype=float)
     if points.ndim != 2 or points.shape[1] != 3:
         raise ValueError("positions must have shape (agents, 3).")
-    if len(points) == 0:
+    if len(points) == 0 and not allow_empty:
         raise ValueError("positions must not be empty.")
     if np.any(~np.isfinite(points)):
         raise ValueError("positions must contain finite values.")
     return points
+
+
+def _gmm_components(means, sigmas, weights) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    means_array = _positions(means, allow_empty=True)
+    sigmas_array = np.asarray(sigmas, dtype=float).reshape(-1)
+    weights_array = np.asarray(weights, dtype=float).reshape(-1)
+    if sigmas_array.shape != (len(means_array),):
+        raise ValueError("sigmas must contain one value per GMM mean.")
+    if weights_array.shape != (len(means_array),):
+        raise ValueError("weights must contain one value per GMM mean.")
+    if np.any(~np.isfinite(sigmas_array)) or np.any(sigmas_array <= 0):
+        raise ValueError("sigmas must contain positive finite values.")
+    if np.any(~np.isfinite(weights_array)) or np.any(weights_array < 0):
+        raise ValueError("weights must contain finite non-negative values.")
+    return means_array, sigmas_array, weights_array
 
 
 def _density_layers(max_density: float, layers: Optional[Sequence[dict]]) -> list[dict]:
@@ -226,3 +388,14 @@ def _set_view(ax, view: tuple[float, float, float]) -> None:
         ax.view_init(elev=elev, azim=azim, roll=roll)
     except TypeError:
         ax.view_init(elev=elev, azim=azim)
+
+
+def _force_depth_order(artist, z_sort_pos: float) -> None:
+    original_projection = artist.do_3d_projection
+
+    def _force_projection(zpos=z_sort_pos, orig=original_projection, obj=artist):
+        orig()
+        obj._sort_zpos = zpos
+        return obj._sort_zpos
+
+    artist.do_3d_projection = _force_projection

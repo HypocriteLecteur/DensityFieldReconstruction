@@ -74,11 +74,27 @@ def test_legacy_plotting_utils_style_helpers_delegate_to_package():
         "def build_voxel_grid", 1
     )[0]
 
-    assert "from dfr.plotting import apply_academic_style, style_3d_axis" in source
+    assert "apply_academic_style" in source
+    assert "style_3d_axis" in source
     assert "apply_academic_style(" in style_region
     assert "style_3d_axis(ax)" in style_region
     assert "plt.rcParams.update" not in style_region
     assert "axis._axinfo" not in style_region
+
+
+def test_legacy_plotting_utils_density_helpers_delegate_to_package():
+    experiments = Path(__file__).resolve().parents[1] / "experiments"
+    source = (experiments / "plotting_utils.py").read_text(encoding="utf-8")
+    rendering_region = source.split("def render_density_shells", 1)[1]
+
+    assert "render_density_shells as _render_density_shells" in source
+    assert "render_gmm_wireframes as _render_gmm_wireframes" in source
+    assert "render_reconstructed_gmm_3d as _render_reconstructed_gmm_3d" in source
+    assert "_render_density_shells(" in rendering_region
+    assert "_render_gmm_wireframes(" in rendering_region
+    assert "_render_reconstructed_gmm_3d(" in rendering_region
+    assert "mcolors.PowerNorm" not in rendering_region
+    assert "np.outer(np.cos" not in rendering_region
 
 
 def test_analysis_catalog_documents_every_supported_entrypoint():
