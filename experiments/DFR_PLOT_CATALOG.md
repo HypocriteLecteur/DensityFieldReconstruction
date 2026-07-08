@@ -90,6 +90,71 @@ updated and the migration target has tests.
 4. Leave publication-table and schematic figures as small experiment scripts
    unless they prove broadly reusable.
 
+## Compatibility support decision
+
+This section is the operational support policy for the remaining
+`experiments.dfr_plot` public functions. It is intentionally stricter than the
+migration-classification table above: a function can be scientifically useful
+and still be archive-only until it has an explicit CLI, typed result contract,
+or package owner.
+
+Rules:
+
+- New code should not add imports from `experiments.dfr_plot`.
+- Supported compatibility wrappers exist only to keep historical explicit
+  imports working while callers migrate to the named package or experiment
+  entry point.
+- Archive-only functions are retained for inspection and `v0.1.0` comparison,
+  but they are not maintained as active commands. Revive one only by giving it
+  a documented owner, explicit output contract, and tests.
+- Private helpers such as `_load_scenario`, `_build_cam_system`, and
+  `_select_adaptive_density_scales` are implementation details for retained
+  legacy functions and are not public compatibility API.
+
+### Supported compatibility wrappers
+
+These functions delegate meaningful rendering to `dfr.plotting` or to a small
+named experiment script, have characterization tests, and may remain until
+Phase 8 removes compatibility shims:
+
+- `plot_single_scenario_new`
+- `plot_jackdaw2_2d_gmm`
+- `plot_jackdaw2_2d_observations`
+- `plot_jackdaw2_mode_count_curve`
+- `plot_jackdaw2_multiscale_density`
+- `plot_jackdaw2_dra_scale_model_order_surface`
+- `plot_camera_configurations`
+- `plot_table_2_results`
+- `plot_table_time_efficiency`
+- `plot_table_noise_robustness`
+
+### Archive-only public functions
+
+These functions have no supported caller or documented command after the Phase
+6 review. Keep them only as historical references until a later cleanup removes
+them or a fresh migration re-owns them:
+
+- `scale_estimation`
+- `plot_multiple_scenarios`
+- `plot_jackdaw2_density_field`
+- `plot_all_ground_truth_density_fields`
+- `plot_single_scenario`
+- `overview_scaling_law`
+- `plot_scale_space_curve`
+- `visual_hull_diagram`
+- `assumption_3_error`
+- `visual_hull_tau_vs_visual_hull_ghost`
+- `run_geometric_visual_hulls`
+- `plot_ratio_surface`
+- `dra_metrics`
+- `one_frame_parameter_search`
+- `one_frame_convergence`
+- `one_frame_dMOTA_factor_analysis`
+- `one_frame_dMOTA_factor_analysis_2`
+- `one_frame_dMOTA_noise`
+- `one_frame_dMOTA_3d_noise`
+- `plot_dra_and_loss`
+
 ## Open questions for the owner
 
 - Which paper figures are still active deliverables versus historical drafts?

@@ -1,4 +1,5 @@
 import ast
+import re
 from pathlib import Path
 
 
@@ -16,6 +17,44 @@ def test_dfr_plot_catalog_lists_every_top_level_function():
     assert len(functions) == 36
     for name in functions:
         assert f"`{name}`" in document
+
+
+def test_dfr_plot_support_policy_classifies_every_public_function():
+    root = Path(__file__).resolve().parents[1]
+    source = root / "experiments" / "dfr_plot.py"
+    catalog = root / "experiments" / "DFR_PLOT_CATALOG.md"
+
+    tree = ast.parse(source.read_text(encoding="utf-8"))
+    public_functions = {
+        node.name
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef) and not node.name.startswith("_")
+    }
+    document = catalog.read_text(encoding="utf-8")
+
+    support_section = document.split("### Supported compatibility wrappers", 1)[
+        1
+    ].split("### Archive-only public functions", 1)[0]
+    archive_section = document.split("### Archive-only public functions", 1)[1].split(
+        "## Open questions for the owner", 1
+    )[0]
+    supported = set(re.findall(r"`([A-Za-z0-9_]+)`", support_section))
+    archived = set(re.findall(r"`([A-Za-z0-9_]+)`", archive_section))
+
+    assert supported == {
+        "plot_single_scenario_new",
+        "plot_jackdaw2_2d_gmm",
+        "plot_jackdaw2_2d_observations",
+        "plot_jackdaw2_mode_count_curve",
+        "plot_jackdaw2_multiscale_density",
+        "plot_jackdaw2_dra_scale_model_order_surface",
+        "plot_camera_configurations",
+        "plot_table_2_results",
+        "plot_table_time_efficiency",
+        "plot_table_noise_robustness",
+    }
+    assert supported.isdisjoint(archived)
+    assert supported | archived == public_functions
 
 
 def test_camera_configuration_legacy_wrapper_uses_package_plotting():

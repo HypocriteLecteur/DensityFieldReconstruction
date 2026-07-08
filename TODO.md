@@ -17,7 +17,10 @@ on chat history.
   publication/table split-outs, `experiments.plot_publication_table2`,
   `experiments.plot_publication_time_efficiency`, and
   `experiments.plot_publication_noise_robustness`, now own hard-coded
-  publication figures formerly embedded in `experiments/dfr_plot.py`.
+  publication figures formerly embedded in `experiments/dfr_plot.py`. The
+  remaining public `dfr_plot.py` functions have a documented support policy:
+  delegated wrappers are compatibility-supported, while all other public
+  functions are archive-only historical references until re-owned.
 - **Stable baseline:** annotated tag `v0.1.0`, commit `7cde21e`.
 - **Version storage:** local Git repository only; do not push unless the owner
   explicitly changes this policy.
@@ -377,9 +380,10 @@ The next agent should continue Phase 6:
 2. Migrate legacy `figs/` saving for `plot_camera_configurations` to an
    explicit output/artifact option after deciding whether these migrated
    wrappers remain supported experiment CLIs or only compatibility wrappers.
-3. Review the remaining `experiments/dfr_plot.py` wrappers and decide which
-   ones are still supported compatibility entry points versus archive-only
-   historical figures.
+3. For any archive-only `experiments/dfr_plot.py` function that becomes
+   scientifically active again, first move it to a named CLI or package API
+   with an explicit output contract and tests; do not add new callers to the
+   archive function directly.
 4. Add headless plotting smoke tests before migrating each high-value figure.
 5. Keep the Phase 4 supported/legacy classification in
    `experiments/README.md` current when promoting another research study.
@@ -510,11 +514,46 @@ The next agent should continue Phase 6:
   return figure/axes collections. Reason: inventing pseudo-result wrappers for
   transient plotting arrays would add ceremony without improving workflow
   clarity.
+- **2026-07-08 - `dfr_plot.py` compatibility boundary:** Only delegated
+  wrappers documented under "Supported compatibility wrappers" in
+  `experiments/DFR_PLOT_CATALOG.md` are compatibility-supported. All other
+  public `dfr_plot.py` functions are archive-only historical references until
+  someone re-owns them as a named CLI or package API with tests. Reason:
+  preserving every old plotting function as active API would keep the grab-bag
+  module alive indefinitely.
 
 ## Handoff Log
 
 Add one newest-first entry per working session. Include commit(s), verification,
 known failures, and the exact next step.
+
+### 2026-07-08 - Phase 6 dfr_plot compatibility policy documented
+
+- Reviewed the remaining public functions in `experiments/dfr_plot.py` and
+  documented the operational support policy in
+  `experiments/DFR_PLOT_CATALOG.md`.
+- Classified 10 delegated functions as supported compatibility wrappers:
+  trajectory, 2D projection/GMM, mode-count, multiscale density, DRA surface,
+  camera configuration, and the three publication-table split-outs.
+- Classified the remaining public `dfr_plot.py` functions as archive-only
+  historical references. New callers should not import them directly; revive
+  one only by moving it to a named CLI or package API with an explicit output
+  contract and tests.
+- Updated `experiments/README.md` and TODO status/decision text with the
+  support boundary.
+- Added a `tests/test_plot_catalog.py` check that every public
+  `dfr_plot.py` function is covered by exactly one support-policy bucket.
+- Verification: focused catalog tests passed with 8 tests; `compileall dfr
+  experiments tests` passed; `git diff --check` passed with Windows
+  line-ending warnings only; `pytest -m "not cuda"` passed with 164 tests and
+  7 deselected; `pytest -m cuda` passed with 6 tests, 1 skipped
+  rasterizer-extension test, and 164 deselected.
+- Known limitation: `experiments/dfr_plot.py` still exists as a compatibility
+  archive; actual removal remains a later Phase 6/8 cleanup after compatibility
+  policy is accepted.
+- Next step: migrate legacy `figs/` saving for supported wrappers, starting
+  with `plot_camera_configurations`, or proceed to Phase 7 documentation if no
+  further Phase 6 compatibility cleanup is desired.
 
 ### 2026-07-08 - Phase 6 publication noise robustness split-out completed
 

@@ -71,6 +71,12 @@ noise-robustness publication table have also been split into
 delegate to those named scripts while preserving their historical `figs/`
 defaults.
 
+The Phase 6 support review classifies only the delegated wrappers listed above
+as supported compatibility entry points. The other public functions retained in
+`dfr_plot.py` are archive-only historical references; do not add new callers to
+them unless the function is first moved to a named CLI or package API with an
+explicit output contract and tests.
+
 `plotting_utils.py` is a helper module rather than an entry point. Its
 style/layout compatibility helpers and 3D density/GMM renderers now delegate
 to `dfr.plotting`; voxel construction and density evaluation remain here until
