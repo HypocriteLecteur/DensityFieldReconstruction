@@ -13,7 +13,10 @@ on chat history.
   scale/model-order surface, multiscale density, 3D density/GMM rendering,
   shared style/save/layout primitives, typed analysis-result plotting paths,
   typed frame-reconstruction GMM plotting, and typed evaluation-summary
-  and metric-series plotting have moved to `dfr.plotting`.
+  and metric-series plotting have moved to `dfr.plotting`. The first
+  publication/table split-out, `experiments.plot_publication_time_efficiency`,
+  now owns the training-time scaling figure formerly embedded in
+  `experiments/dfr_plot.py`.
 - **Stable baseline:** annotated tag `v0.1.0`, commit `7cde21e`.
 - **Version storage:** local Git repository only; do not push unless the owner
   explicitly changes this policy.
@@ -309,6 +312,12 @@ reconstruct -> evaluate, and scenario runners no longer duplicate the pipeline.
     figure/axes collections rather than a single axes object.
 - [ ] Split publication/table-specific figures into small, named experiment
   scripts rather than one replacement monolith.
+  - Started with `experiments.plot_publication_time_efficiency`, which owns the
+    hard-coded training-time scaling figure and provides an explicit CLI.
+    `plot_table_time_efficiency` remains as a compatibility wrapper that
+    delegates to the named script and preserves the historical `figs/` default.
+    Continue this task by splitting the remaining Table 2 and noise robustness
+    publication figures out of `experiments/dfr_plot.py`.
 - [x] Add headless smoke tests for representative 2D, 3D, camera, scale, and
   evaluation plots.
   - Complete: camera layout, 2D projection/density/GMM, 3D trajectory,
@@ -357,13 +366,14 @@ reading implementation or experiment source.
 
 The next agent should continue Phase 6:
 
-1. Continue moving low-risk reusable plot primitives identified in
-   `experiments/DFR_PLOT_CATALOG.md`; next candidates are evaluation/noise plots
-   after their computation has typed result objects, or publication/table
-   figure split-outs.
-2. Begin the next unchecked Phase 6 task by splitting publication/table-specific
-   figures into small named experiment scripts, starting with the hard-coded
-   Table 2/time/noise figures in `experiments/dfr_plot.py`.
+1. Continue the unchecked publication/table split-out task. The
+   time-efficiency figure is now in
+   `experiments.plot_publication_time_efficiency`; next candidates are
+   `plot_table_2_results` and `plot_table_noise_robustness` in
+   `experiments/dfr_plot.py`.
+2. Keep moving low-risk reusable plot primitives identified in
+   `experiments/DFR_PLOT_CATALOG.md` only when the figure has a clear typed
+   result object or a documented experiment-only CLI owner.
 3. Migrate legacy `figs/` saving for `plot_camera_configurations` to an
    explicit output/artifact option after deciding whether these migrated
    wrappers remain supported experiment CLIs or only compatibility wrappers.
@@ -502,6 +512,30 @@ The next agent should continue Phase 6:
 
 Add one newest-first entry per working session. Include commit(s), verification,
 known failures, and the exact next step.
+
+### 2026-07-08 - Phase 6 publication time-efficiency split-out started
+
+- Added `experiments/plot_publication_time_efficiency.py`, an explicit
+  experiment CLI for the hard-coded training-time scaling publication figure
+  formerly embedded in `experiments/dfr_plot.py`.
+- Kept `plot_table_time_efficiency` as a compatibility wrapper that delegates
+  to the named script and preserves the historical `figs/` output default.
+- Updated `README.md`, `experiments/README.md`, and
+  `experiments/DFR_PLOT_CATALOG.md` so the new command and migration boundary
+  are discoverable.
+- Added `tests/test_publication_time_efficiency.py` for headless plotting,
+  save-helper behavior, and legacy wrapper delegation.
+- Verification: focused publication/catalog tests passed with 10 tests; the
+  `experiments.plot_publication_time_efficiency --help` CLI passed;
+  `compileall dfr experiments tests` passed; `git diff --check` passed with
+  Windows line-ending warnings only; `pytest -m "not cuda"` passed with 156
+  tests and 7 deselected; `pytest -m cuda` passed with 6 tests, 1 skipped
+  rasterizer-extension test, and 156 deselected.
+- Known limitation: the broader publication/table split-out task remains open;
+  `plot_table_2_results` and `plot_table_noise_robustness` are the next
+  candidates in `experiments/dfr_plot.py`.
+- Next step: continue the publication/table split-out with
+  `plot_table_2_results` or `plot_table_noise_robustness`.
 
 ### 2026-07-08 - Phase 6 representative plotting smoke matrix completed
 

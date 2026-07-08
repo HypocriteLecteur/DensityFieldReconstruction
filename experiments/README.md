@@ -63,6 +63,10 @@ or deleting any `dfr_plot.py` function. The migrated wrappers so far are
 `plot_jackdaw2_multiscale_density` and
 `plot_jackdaw2_dra_scale_model_order_surface`, whose rendering now lives in
 `dfr.plotting` while the legacy wrappers still write to `figs/`.
+The time-efficiency publication table has also been split into
+`plot_publication_time_efficiency.py`; the legacy
+`plot_table_time_efficiency` wrapper delegates to that named script while
+preserving its historical `figs/` default.
 
 `plotting_utils.py` is a helper module rather than an entry point. Its
 style/layout compatibility helpers and 3D density/GMM renderers now delegate
@@ -91,6 +95,11 @@ Use action `run` instead of `reconstruct` to evaluate each in-memory result.
 Both stages use `outputs/<workflow>/<run-id>/`; dataset, camera, noise, and
 iteration settings are encoded in each run ID. Commands require an action so
 importing or accidentally invoking a module never launches a long CUDA study.
+
+Publication figure split-outs are explicit commands too. The first one is:
+
+- `python -m experiments.plot_publication_time_efficiency --help` — render the
+  hard-coded training-time scaling figure formerly owned by `dfr_plot.py`.
 
 The remaining angle, flock, and UE4 differences are cataloged in
 `RUNNER_SPECIALIZATIONS.md`. All three now require explicit command dispatch.

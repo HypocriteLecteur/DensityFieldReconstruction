@@ -71,7 +71,7 @@ updated and the migration target has tests.
 | `plot_dra_and_loss` | 2756-3119 | None | `reconstruction_scale.npz`, reconstructed models/losses | DRA/loss and GT/reconstruction figures | experiment-figure | Use saved reconstruction/evaluation readers; extract reusable dual-axis plot. |
 | `plot_camera_configurations` | 3120-3195 | None | Named scenario/camera generated poses | `figs/camera_configurations.[png|pdf]` | package-plot | Migrated wrapper: rendering now delegates to `dfr.plotting.plot_camera_configurations`; legacy wrapper still saves to `figs/`. |
 | `plot_table_2_results` | 3196-3438 | None | Hard-coded publication metrics | Table 2 PNG/PDF, interactive plot | experiment-figure | Keep as publication-table script reading managed metrics. |
-| `plot_table_time_efficiency` | 3439-3583 | None | Hard-coded time-efficiency metrics | Table-time PNG/PDF, interactive plot | experiment-figure | Keep as publication-table script reading managed metrics. |
+| `plot_table_time_efficiency` | 3439-3583 | None | Hard-coded time-efficiency metrics | Table-time PNG/PDF, interactive plot | experiment-figure | Split-out started: `experiments.plot_publication_time_efficiency` owns the clean explicit CLI; legacy wrapper delegates and still defaults to `figs/`. |
 | `plot_table_noise_robustness` | 3584-3772 | None | Hard-coded noise metrics | Table-noise PNG/PDF, interactive plot | experiment-figure | Keep as publication-table script reading managed metrics. |
 
 ## Migration order recommendation

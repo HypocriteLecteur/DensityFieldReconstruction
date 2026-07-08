@@ -3277,6 +3277,22 @@ def plot_table_time_efficiency(save_dir=None):
     save_dir : str or None
         Directory for saving outputs.  Defaults to ``"figs"`` under cwd.
     """
+    from experiments.plot_publication_time_efficiency import plot_time_efficiency
+    from dfr.plotting import save_figure
+
+    out_dir = save_dir or os.path.join(os.getcwd(), "figs")
+    fig, ax = plot_time_efficiency()
+    for fmt in ("png", "pdf"):
+        save_figure(
+            fig,
+            os.path.join(out_dir, f"table_dra_vs_iters.{fmt}"),
+            dpi=300,
+            bbox_inches="tight",
+        )
+    print(f"Figure saved -> {out_dir}/table_dra_vs_iters.[png|pdf]")
+    plt.show()
+    return fig, ax
+
     from matplotlib.lines import Line2D
 
     # ── Table data ───────────────────────────────────────────────────────
