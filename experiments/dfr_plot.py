@@ -155,8 +155,8 @@ def plot_multiple_scenarios():
         plot_single_scenario_new(run_params)
     plt.show()
 
-def plot_single_scenario_new(run_params):
-    from dfr.plotting import plot_trajectory_snapshot
+def plot_single_scenario_new(run_params, output_dir=None, formats=("png",)):
+    from dfr.plotting import plot_trajectory_snapshot, save_figure
 
     name, log_name, start_step, end_step, step_length = _unpack(run_params)
     config, dataset, scenario_path = _load_scenario(name)
@@ -172,9 +172,15 @@ def plot_single_scenario_new(run_params):
         positions,
     )
 
-    # Optional: Save with zero padding to keep the image strictly focused on the data
-    os.makedirs("figs", exist_ok=True)
-    fig.savefig(f"figs/scene_traj_{name}.png", transparent=True, bbox_inches='tight', pad_inches=0)
+    if output_dir is not None:
+        for fmt in formats:
+            save_figure(
+                fig,
+                os.path.join(os.fspath(output_dir), f"scene_traj_{name}.{fmt}"),
+                transparent=True,
+                bbox_inches="tight",
+                pad_inches=0,
+            )
     return fig, ax
 
 

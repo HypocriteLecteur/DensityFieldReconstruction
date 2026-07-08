@@ -80,7 +80,10 @@ def test_trajectory_legacy_wrapper_uses_package_plotting():
 
     assert "from dfr.plotting import plot_trajectory_snapshot" in wrapper
     assert "plot_trajectory_snapshot(" in wrapper
-    assert 'fig.savefig(f"figs/scene_traj_{name}.png"' in wrapper
+    assert "output_dir=None" in wrapper
+    assert "save_figure(" in wrapper
+    assert 'fig.savefig(f"figs/scene_traj_{name}.png"' not in wrapper
+    assert 'os.makedirs("figs"' not in wrapper
     assert "logs" not in wrapper
 
 
