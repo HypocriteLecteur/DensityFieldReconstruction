@@ -309,8 +309,12 @@ reconstruct -> evaluate, and scenario runners no longer duplicate the pipeline.
     figure/axes collections rather than a single axes object.
 - [ ] Split publication/table-specific figures into small, named experiment
   scripts rather than one replacement monolith.
-- [ ] Add headless smoke tests for representative 2D, 3D, camera, scale, and
+- [x] Add headless smoke tests for representative 2D, 3D, camera, scale, and
   evaluation plots.
+  - Complete: camera layout, 2D projection/density/GMM, 3D trajectory,
+    density/multiscale/reconstruction-GMM, scale/mode/DRA, evaluation summary,
+    evaluation metric series, style/layout, legacy-wrapper delegation, and the
+    smoke-test matrix are covered under the Agg backend.
 - [ ] Remove `experiments/dfr_plot.py` only after callers and documented commands
   migrate.
 
@@ -357,9 +361,9 @@ The next agent should continue Phase 6:
    `experiments/DFR_PLOT_CATALOG.md`; next candidates are evaluation/noise plots
    after their computation has typed result objects, or publication/table
    figure split-outs.
-2. Begin Phase 6 step 5 by adding or tightening headless smoke tests for the
-   remaining representative camera, 2D, 3D, scale, and evaluation plot
-   families before migrating more high-value figures.
+2. Begin the next unchecked Phase 6 task by splitting publication/table-specific
+   figures into small named experiment scripts, starting with the hard-coded
+   Table 2/time/noise figures in `experiments/dfr_plot.py`.
 3. Migrate legacy `figs/` saving for `plot_camera_configurations` to an
    explicit output/artifact option after deciding whether these migrated
    wrappers remain supported experiment CLIs or only compatibility wrappers.
@@ -498,6 +502,24 @@ The next agent should continue Phase 6:
 
 Add one newest-first entry per working session. Include commit(s), verification,
 known failures, and the exact next step.
+
+### 2026-07-08 - Phase 6 representative plotting smoke matrix completed
+
+- Added `tests/test_plotting_smoke_matrix.py` to make the Phase 6 headless
+  smoke-test matrix explicit and durable across camera, 2D, 3D, trajectory,
+  scale, and evaluation plot families.
+- Confirmed representative plot tests run under Matplotlib's Agg backend and
+  cover public exports for camera configuration, projection/density/GMM,
+  trajectory, density/multiscale/reconstruction-GMM, mode/DRA scale surfaces,
+  evaluation summary, and evaluation metric-series plots.
+- Marked Phase 6 step 5 complete.
+- Verification: focused plotting/catalog/entrypoint suite (58 passed);
+  `compileall`; `git diff --check`; `pytest -m "not cuda"` (153 passed,
+  7 deselected, 1 warning); `pytest -m cuda` (6 passed, 1 skipped,
+  153 deselected).
+- Next step: begin the next unchecked Phase 6 task by splitting
+  publication/table-specific figures into small named experiment scripts, with
+  the hard-coded Table 2/time/noise figures as likely first candidates.
 
 ### 2026-07-08 - Phase 6 result-object plotting contracts completed
 
