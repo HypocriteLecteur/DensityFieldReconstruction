@@ -24,6 +24,7 @@ from dfr.plotting.density import (
     render_gmm_wireframes,
     render_reconstructed_gmm_3d,
 )
+from dfr.plotting.evaluation import plot_evaluation_summary
 from dfr.plotting.projections import (
     plot_density_image,
     plot_projected_gmm_density,
@@ -51,6 +52,7 @@ __all__ = [
     "plot_frame_reconstruction_gmm_3d",
     "plot_dra_scale_model_order_surface",
     "plot_dra_surface_grid",
+    "plot_evaluation_summary",
     "plot_mode_count_curve",
     "plot_multiscale_density_fields",
     "plot_projected_gmm_density",

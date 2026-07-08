@@ -12,7 +12,8 @@ on chat history.
   trajectory-snapshot, 2D projection/GMM, mode-count curve, DRA
   scale/model-order surface, multiscale density, 3D density/GMM rendering,
   shared style/save/layout primitives, typed analysis-result plotting paths,
-  and typed frame-reconstruction GMM plotting have moved to `dfr.plotting`.
+  typed frame-reconstruction GMM plotting, and typed evaluation-summary
+  plotting have moved to `dfr.plotting`.
 - **Stable baseline:** annotated tag `v0.1.0`, commit `7cde21e`.
 - **Version storage:** local Git repository only; do not push unless the owner
   explicitly changes this policy.
@@ -301,6 +302,8 @@ reconstruct -> evaluate, and scenario runners no longer duplicate the pipeline.
     `FrameReconstruction` now has a direct 3D reconstructed-GMM plot path; raw
     density-grid plots still require explicit density/tick arrays because the
     reconstruction result object does not store a reusable voxel density grid.
+    `EvaluationRun`, `FrameEvaluation`, and `EvaluationSummary` now have a
+    direct summary-metric bar plot path.
 - [ ] Split publication/table-specific figures into small, named experiment
   scripts rather than one replacement monolith.
 - [ ] Add headless smoke tests for representative 2D, 3D, camera, scale, and
@@ -351,9 +354,9 @@ The next agent should continue Phase 6:
    `experiments/DFR_PLOT_CATALOG.md`; next candidates are evaluation/noise plots
    after their computation has typed result objects, or publication/table
    figure split-outs.
-2. Continue Phase 6 step 4 by adding typed adapters for evaluation plots
-   (`EvaluationRun`/`FrameEvaluation`) or by extracting the next noise/dMOTA
-   plotting primitive after its computation has a typed result object.
+2. Continue Phase 6 step 4 by extracting the next noise/dMOTA plotting
+   primitive after its computation has a typed result object, or add per-frame
+   evaluation metric-series plots if needed by active studies.
 3. Migrate legacy `figs/` saving for `plot_camera_configurations` to an
    explicit output/artifact option after deciding whether these migrated
    wrappers remain supported experiment CLIs or only compatibility wrappers.
@@ -485,6 +488,22 @@ The next agent should continue Phase 6:
 
 Add one newest-first entry per working session. Include commit(s), verification,
 known failures, and the exact next step.
+
+### 2026-07-08 - Phase 6 typed evaluation summary plot path
+
+- Added `dfr.plotting.evaluation` with `plot_evaluation_summary`, a compact
+  metric bar chart that accepts `EvaluationRun`, `FrameEvaluation`, or
+  `EvaluationSummary` directly and returns Figure/Axes without saving.
+- Exported the helper from `dfr.plotting` and documented explicit save usage in
+  the README evaluation section.
+- Added headless tests for aggregate runs, individual frames, bare summaries,
+  existing axes, metric subsets, and validation errors.
+- Verification: focused plotting/evaluation checks (31 passed); `compileall`;
+  `git diff --check`; `pytest -m "not cuda"` (149 passed, 7 deselected,
+  1 warning); `pytest -m cuda` (6 passed, 1 skipped, 149 deselected).
+- Next step: extract the next noise/dMOTA plotting primitive after its
+  computation has a typed result object, or add per-frame evaluation
+  metric-series plots if an active study needs them.
 
 ### 2026-07-08 - Phase 6 typed reconstruction GMM plot path
 

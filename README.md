@@ -442,6 +442,16 @@ print(evaluation.summary.hallucination)
 print(evaluation.summary.dmota)
 ```
 
+Evaluation plots accept the typed run or frame results directly and still leave
+file output explicit:
+
+```python
+from dfr.plotting import plot_evaluation_summary, save_figure
+
+fig, ax = plot_evaluation_summary(evaluation)
+save_figure(fig, "outputs/evaluation-summary.png")
+```
+
 `dfr.evaluate("outputs/reconstruction/<run-id>", config=...)` loads managed
 reconstruction arrays directly. Bounds default to the ground-truth extent plus
 three reconstruction scales; set `EvaluationConfig.bounds` for an exact common
