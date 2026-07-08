@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from dfr.plotting.style import apply_figure_layout, prepare_3d_axis
+from dfr.reconstruction.results import FrameReconstruction
 
 
 DEFAULT_DENSITY_LAYERS = [
@@ -238,6 +239,75 @@ def render_reconstructed_gmm_3d(
     )
     render_gmm_means(ax, means_array, colour=gmm_colour, z_sort_pos=-6e8)
     render_agent_positions(ax, points, z_sort_pos=-1e9)
+
+
+def render_frame_reconstruction_gmm_3d(
+    ax,
+    frame: FrameReconstruction,
+    *,
+    gmm_colour: str = "#4169e1",
+    show_positions: bool = True,
+) -> dict[str, object]:
+    """Render a typed reconstructed frame as GMM wireframes and optional agents."""
+    if not isinstance(frame, FrameReconstruction):
+        raise TypeError("frame must be a FrameReconstruction.")
+    wireframes = render_gmm_wireframes(
+        ax,
+        frame.means,
+        frame.radii,
+        frame.weights,
+        colour=gmm_colour,
+        z_sort_pos=-5e8,
+    )
+    means = render_gmm_means(ax, frame.means, colour=gmm_colour, z_sort_pos=-6e8)
+    positions = None
+    if show_positions:
+        positions = render_agent_positions(ax, frame.positions, z_sort_pos=-1e9)
+    return {
+        "wireframes": wireframes,
+        "means": means,
+        "positions": positions,
+    }
+
+
+def plot_frame_reconstruction_gmm_3d(
+    frame: FrameReconstruction,
+    *,
+    ax=None,
+    view: Optional[tuple[float, float, float]] = (33, -117, 0),
+    figsize: tuple[float, float] = (10, 10),
+    axis_off: bool = True,
+    show_positions: bool = True,
+    title: Optional[str] = None,
+    gmm_colour: str = "#4169e1",
+):
+    """Plot a :class:`dfr.reconstruction.FrameReconstruction` GMM in 3D."""
+    if not isinstance(frame, FrameReconstruction):
+        raise TypeError("frame must be a FrameReconstruction.")
+    if ax is None:
+        fig = plt.figure(figsize=figsize)
+        ax = fig.add_subplot(111, projection="3d")
+    else:
+        fig = ax.figure
+
+    prepare_3d_axis(ax, view=view, axis_off=axis_off)
+    artists = render_frame_reconstruction_gmm_3d(
+        ax,
+        frame,
+        gmm_colour=gmm_colour,
+        show_positions=show_positions,
+    )
+    label = (
+        title
+        if title is not None
+        else (
+            f"{frame.dataset_name} frame {frame.frame}: "
+            f"{frame.gaussian_count} Gaussians, scale={frame.scale:.3g}"
+        )
+    )
+    ax.text2D(0.02, 0.98, label, transform=ax.transAxes, fontsize=14, va="top")
+    apply_figure_layout(fig, pad=0)
+    return fig, ax, artists
 
 
 def plot_density_field_3d(

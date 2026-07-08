@@ -11,8 +11,8 @@ on chat history.
   `experiments/DFR_PLOT_CATALOG.md`; reusable camera-configuration,
   trajectory-snapshot, 2D projection/GMM, mode-count curve, DRA
   scale/model-order surface, multiscale density, 3D density/GMM rendering,
-  shared style/save/layout primitives, and typed analysis-result plotting
-  paths have moved to `dfr.plotting`.
+  shared style/save/layout primitives, typed analysis-result plotting paths,
+  and typed frame-reconstruction GMM plotting have moved to `dfr.plotting`.
 - **Stable baseline:** annotated tag `v0.1.0`, commit `7cde21e`.
 - **Version storage:** local Git repository only; do not push unless the owner
   explicitly changes this policy.
@@ -298,6 +298,9 @@ reconstruct -> evaluate, and scenario runners no longer duplicate the pipeline.
   - Started: mode-count and DRA scale/model-order plotting now accept
     `ModeCurveResult` and `ScaleAnalysisResult` directly while preserving the
     existing array/legacy tuple APIs and Figure/Axes return contracts.
+    `FrameReconstruction` now has a direct 3D reconstructed-GMM plot path; raw
+    density-grid plots still require explicit density/tick arrays because the
+    reconstruction result object does not store a reusable voxel density grid.
 - [ ] Split publication/table-specific figures into small, named experiment
   scripts rather than one replacement monolith.
 - [ ] Add headless smoke tests for representative 2D, 3D, camera, scale, and
@@ -348,9 +351,9 @@ The next agent should continue Phase 6:
    `experiments/DFR_PLOT_CATALOG.md`; next candidates are evaluation/noise plots
    after their computation has typed result objects, or publication/table
    figure split-outs.
-2. Continue Phase 6 step 4 by giving the remaining migrated reconstruction and
-   density plotting helpers explicit typed result-object adapters where a
-   stable package result already exists.
+2. Continue Phase 6 step 4 by adding typed adapters for evaluation plots
+   (`EvaluationRun`/`FrameEvaluation`) or by extracting the next noise/dMOTA
+   plotting primitive after its computation has a typed result object.
 3. Migrate legacy `figs/` saving for `plot_camera_configurations` to an
    explicit output/artifact option after deciding whether these migrated
    wrappers remain supported experiment CLIs or only compatibility wrappers.
@@ -482,6 +485,25 @@ The next agent should continue Phase 6:
 
 Add one newest-first entry per working session. Include commit(s), verification,
 known failures, and the exact next step.
+
+### 2026-07-08 - Phase 6 typed reconstruction GMM plot path
+
+- Added `render_frame_reconstruction_gmm_3d` and
+  `plot_frame_reconstruction_gmm_3d` so a typed `FrameReconstruction` can be
+  rendered directly as 3D GMM wireframes, mean markers, and optional source
+  agent positions.
+- Exported the new helpers from `dfr.plotting` and documented their explicit
+  save behavior in the README reconstruction section.
+- Kept density-grid rendering array-based because `FrameReconstruction` stores
+  the reconstructed GMM and original positions, not a reusable voxel grid or
+  density tensor.
+- Verification: focused density/analysis/entrypoint tests (27 passed);
+  `compileall`; `git diff --check`; `pytest -m "not cuda"` (145 passed,
+  7 deselected, 1 warning); `pytest -m cuda` (6 passed, 1 skipped,
+  145 deselected).
+- Next step: continue Phase 6 step 4 with typed evaluation plot adapters or
+  extract the next noise/dMOTA plotting primitive after giving its computation
+  a package result object.
 
 ### 2026-07-08 - Phase 6 typed analysis plot contracts started
 

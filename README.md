@@ -370,6 +370,16 @@ print(frame.means, frame.radii, frame.weights, frame.scale)
 print(run.run_dir)
 ```
 
+Reconstruction plotting helpers can consume the typed frame result directly and
+still leave saving as an explicit caller choice:
+
+```python
+from dfr.plotting import plot_frame_reconstruction_gmm_3d, save_figure
+
+fig, ax, artists = plot_frame_reconstruction_gmm_3d(frame)
+save_figure(fig, "outputs/reconstruction-gmm.png")
+```
+
 Pass `CameraConfig.explicit(...)` to use exact camera poses. Multiple frame
 indices produce one `FrameReconstruction` per frame in the requested order.
 Omit `output` to return arrays without writing files. The current backend

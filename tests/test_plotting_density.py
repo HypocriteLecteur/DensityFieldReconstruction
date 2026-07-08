@@ -8,11 +8,14 @@ import pytest
 
 from dfr.plotting import (
     plot_density_field_3d,
+    plot_frame_reconstruction_gmm_3d,
     plot_multiscale_density_fields,
+    render_frame_reconstruction_gmm_3d,
     render_gmm_means,
     render_gmm_wireframes,
     render_reconstructed_gmm_3d,
 )
+from dfr.reconstruction.results import FrameReconstruction
 
 
 def _density_case():
@@ -22,6 +25,28 @@ def _density_case():
     ticks = np.array([-1.0, 0.0, 1.0])
     positions = np.array([[0.0, 0.0, 0.0], [0.5, 0.0, 0.0]])
     return density, ticks, positions
+
+
+def _frame_reconstruction() -> FrameReconstruction:
+    return FrameReconstruction(
+        dataset_name="tiny",
+        frame=3,
+        positions=np.array([[-0.5, 0.0, 0.0], [0.5, 0.0, 0.0]], dtype=np.float32),
+        means=np.array([[0.0, 0.0, 0.0], [0.25, 0.0, 0.0]], dtype=np.float32),
+        radii=np.array([[0.35], [0.2]], dtype=np.float32),
+        weights=np.array([[1.5], [0.5]], dtype=np.float32),
+        camera_poses=np.array(
+            [[-10.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]],
+            dtype=np.float32,
+        ),
+        projections=(np.zeros((2, 2), dtype=np.float32),),
+        visible_mask=np.array([True, True]),
+        scale=0.35,
+        mean_training_loss=0.1,
+        density_dissimilarity=0.2,
+        time_ms={"train": 1.0},
+        scale_space_shapes=((1, 8, 8),),
+    )
 
 
 def test_plot_density_field_3d_draws_shells_and_agents():
@@ -106,6 +131,31 @@ def test_render_reconstructed_gmm_3d_combines_density_and_gmm_layers():
     plt.close(fig)
 
 
+def test_frame_reconstruction_gmm_renderer_accepts_typed_result():
+    frame = _frame_reconstruction()
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection="3d")
+
+    artists = render_frame_reconstruction_gmm_3d(ax, frame)
+
+    assert len(artists["wireframes"]) == frame.gaussian_count
+    assert artists["means"] in ax.collections
+    assert artists["positions"] in ax.collections
+    plt.close(fig)
+
+
+def test_plot_frame_reconstruction_gmm_3d_returns_figure_axes_and_artists():
+    frame = _frame_reconstruction()
+
+    fig, ax, artists = plot_frame_reconstruction_gmm_3d(frame)
+
+    assert fig is ax.figure
+    assert len(artists["wireframes"]) == frame.gaussian_count
+    assert len(ax.texts) == 1
+    assert "tiny frame 3" in ax.texts[0].get_text()
+    plt.close(fig)
+
+
 def test_plot_density_field_3d_validates_inputs():
     density, ticks, positions = _density_case()
     with pytest.raises(ValueError, match="density_3d"):
@@ -114,6 +164,8 @@ def test_plot_density_field_3d_validates_inputs():
         plot_density_field_3d(density, ticks[:2], ticks, ticks, positions)
     with pytest.raises(ValueError, match="positions"):
         plot_density_field_3d(density, ticks, ticks, ticks, np.ones((2, 2)))
+    with pytest.raises(TypeError, match="FrameReconstruction"):
+        plot_frame_reconstruction_gmm_3d(object())
     with pytest.raises(ValueError, match="sigmas"):
         fig = plt.figure()
         ax = fig.add_subplot(111, projection="3d")
