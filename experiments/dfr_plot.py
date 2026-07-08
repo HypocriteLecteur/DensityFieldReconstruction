@@ -2943,7 +2943,7 @@ def plot_dra_and_loss(run_params=None, baseline_deg=90, eval_every=1,
     print(f"Saved → {out_path}")
     return fig, (ax1, ax2)
 
-def plot_camera_configurations(dataset_name="swift"):
+def plot_camera_configurations(dataset_name="swift", output_dir=None, formats=("png", "pdf")):
     """Generate a publication-quality figure showing encircling camera
     configurations for 2, 3, and 5 cameras overlaid on a single panel.
 
@@ -2958,8 +2958,16 @@ def plot_camera_configurations(dataset_name="swift"):
     dataset_name : str
         Name of the scenario dataset used to determine realistic swarm
         extent and camera distance.
+    output_dir : str, path-like, or None
+        Directory for saved figures. When omitted, the figure is returned
+        without writing files.
+    formats : iterable of str
+        Figure formats to save when ``output_dir`` is supplied.
     """
-    from dfr.plotting import plot_camera_configurations as _plot_camera_configurations
+    from dfr.plotting import (
+        plot_camera_configurations as _plot_camera_configurations,
+        save_figure,
+    )
 
     config, dataset, scenario_path = _load_scenario(dataset_name)
     max_steps = dataset.trajectories.shape[0]
@@ -3011,11 +3019,15 @@ def plot_camera_configurations(dataset_name="swift"):
 
 
     # ── Save & return ────────────────────────────────────────────
-    out_dir = os.path.join(os.getcwd(), "figs")
-    os.makedirs(out_dir, exist_ok=True)
-    for fmt in ("png", "pdf"):
-        fig.savefig(os.path.join(out_dir, f"camera_configurations.{fmt}"),
-                    dpi=300, bbox_inches="tight", transparent=True)
+    if output_dir is not None:
+        for fmt in formats:
+            save_figure(
+                fig,
+                os.path.join(os.fspath(output_dir), f"camera_configurations.{fmt}"),
+                dpi=300,
+                bbox_inches="tight",
+                transparent=True,
+            )
     return fig, ax
 
 

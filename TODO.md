@@ -314,6 +314,9 @@ reconstruct -> evaluate, and scenario runners no longer duplicate the pipeline.
     direct summary-metric bar plot path, and `EvaluationRun`/frame sequences
     have a per-frame metric-series plot path. Grid/multiscale helpers return
     figure/axes collections rather than a single axes object.
+    `experiments.dfr_plot.plot_camera_configurations` now follows the
+    no-implicit-save rule too: it returns Figure/Axes by default and saves only
+    when an explicit `output_dir` is supplied.
 - [x] Split publication/table-specific figures into small, named experiment
   scripts rather than one replacement monolith.
   - Started with `experiments.plot_publication_time_efficiency`, which owns the
@@ -377,9 +380,9 @@ The next agent should continue Phase 6:
 1. Keep moving low-risk reusable plot primitives identified in
    `experiments/DFR_PLOT_CATALOG.md` only when the figure has a clear typed
    result object or a documented experiment-only CLI owner.
-2. Migrate legacy `figs/` saving for `plot_camera_configurations` to an
-   explicit output/artifact option after deciding whether these migrated
-   wrappers remain supported experiment CLIs or only compatibility wrappers.
+2. Continue tightening supported compatibility wrappers so any remaining
+   `figs/` writes become explicit `output_dir` options or named experiment
+   commands with documented output behavior.
 3. For any archive-only `experiments/dfr_plot.py` function that becomes
    scientifically active again, first move it to a named CLI or package API
    with an explicit output contract and tests; do not add new callers to the
@@ -521,11 +524,39 @@ The next agent should continue Phase 6:
   someone re-owns them as a named CLI or package API with tests. Reason:
   preserving every old plotting function as active API would keep the grab-bag
   module alive indefinitely.
+- **2026-07-08 - Camera-configuration wrapper saving:** Keep
+  `experiments.dfr_plot.plot_camera_configurations` as a compatibility wrapper,
+  but require an explicit `output_dir` for file writes. Reason: the reusable
+  package primitive already has the correct no-save default, and preserving an
+  implicit `figs/` write would conflict with the refactor output contract.
 
 ## Handoff Log
 
 Add one newest-first entry per working session. Include commit(s), verification,
 known failures, and the exact next step.
+
+### 2026-07-08 - Phase 6 camera-configuration wrapper save tightened
+
+- Changed `experiments.dfr_plot.plot_camera_configurations` from an implicit
+  `figs/camera_configurations.[png|pdf]` writer to an explicit-save
+  compatibility wrapper: it returns Figure/Axes by default and saves only when
+  `output_dir` is supplied.
+- Kept rendering delegated to `dfr.plotting.plot_camera_configurations` and
+  figure export delegated to `dfr.plotting.save_figure`.
+- Updated `experiments/DFR_PLOT_CATALOG.md`, `experiments/README.md`, and this
+  TODO with the new output behavior.
+- Updated `tests/test_plot_catalog.py` to assert the wrapper no longer has the
+  legacy `figs/` default and uses explicit `output_dir`/`save_figure`.
+- Verification: focused catalog/camera/smoke tests passed with 12 tests;
+  `compileall dfr experiments tests` passed; `git diff --check` passed with
+  Windows line-ending warnings only; `pytest -m "not cuda"` passed with 164
+  tests and 7 deselected; `pytest -m cuda` passed with 6 tests, 1 skipped
+  rasterizer-extension test, and 164 deselected.
+- Known limitation: other supported compatibility wrappers may still preserve
+  historical `figs/` writes until tightened or replaced by named commands.
+- Next step: continue tightening supported compatibility wrappers with
+  remaining implicit `figs/` writes, or move to Phase 7 documentation if Phase
+  6 compatibility cleanup is sufficient.
 
 ### 2026-07-08 - Phase 6 dfr_plot compatibility policy documented
 

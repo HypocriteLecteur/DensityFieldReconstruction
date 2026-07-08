@@ -64,9 +64,11 @@ def test_camera_configuration_legacy_wrapper_uses_package_plotting():
         "def plot_table_2_results", 1
     )[0]
 
-    assert "from dfr.plotting import plot_camera_configurations" in wrapper
+    assert "plot_camera_configurations as _plot_camera_configurations" in wrapper
     assert "_plot_camera_configurations(" in wrapper
-    assert 'os.path.join(os.getcwd(), "figs")' in wrapper
+    assert "output_dir=None" in wrapper
+    assert "save_figure(" in wrapper
+    assert 'os.path.join(os.getcwd(), "figs")' not in wrapper
 
 
 def test_trajectory_legacy_wrapper_uses_package_plotting():
