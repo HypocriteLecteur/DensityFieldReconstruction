@@ -3042,6 +3042,33 @@ def plot_table_2_results(save_dir=None):
     save_dir : str or None
         Directory for saving outputs.  Defaults to ``"figs"`` under cwd.
     """
+    from experiments.plot_publication_table2 import (
+        plot_capacity_scaling,
+        plot_recall_hallucination_tradeoff,
+    )
+    from dfr.plotting import save_figure
+
+    out_dir = save_dir or os.path.join(os.getcwd(), "figs")
+    fig1, _ = plot_capacity_scaling()
+    fig2, _ = plot_recall_hallucination_tradeoff()
+    for fmt in ("png", "pdf"):
+        save_figure(
+            fig1,
+            os.path.join(out_dir, f"table2_dea_capacity_scaling.{fmt}"),
+            dpi=300,
+            bbox_inches="tight",
+        )
+        save_figure(
+            fig2,
+            os.path.join(out_dir, f"table2_recall_hallu_tradeoff.{fmt}"),
+            dpi=300,
+            bbox_inches="tight",
+        )
+    print(f"Figure 1 saved -> {out_dir}/table2_dea_capacity_scaling.[png|pdf]")
+    print(f"Figure 2 saved -> {out_dir}/table2_recall_hallu_tradeoff.[png|pdf]")
+    plt.show()
+    return fig1, fig2
+
     from matplotlib.lines import Line2D
 
     # ── Table data ───────────────────────────────────────────────────────

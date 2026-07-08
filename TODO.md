@@ -14,9 +14,9 @@ on chat history.
   shared style/save/layout primitives, typed analysis-result plotting paths,
   typed frame-reconstruction GMM plotting, and typed evaluation-summary
   and metric-series plotting have moved to `dfr.plotting`. The first
-  publication/table split-out, `experiments.plot_publication_time_efficiency`,
-  now owns the training-time scaling figure formerly embedded in
-  `experiments/dfr_plot.py`.
+  publication/table split-outs, `experiments.plot_publication_table2` and
+  `experiments.plot_publication_time_efficiency`, now own hard-coded
+  publication figures formerly embedded in `experiments/dfr_plot.py`.
 - **Stable baseline:** annotated tag `v0.1.0`, commit `7cde21e`.
 - **Version storage:** local Git repository only; do not push unless the owner
   explicitly changes this policy.
@@ -316,8 +316,11 @@ reconstruct -> evaluate, and scenario runners no longer duplicate the pipeline.
     hard-coded training-time scaling figure and provides an explicit CLI.
     `plot_table_time_efficiency` remains as a compatibility wrapper that
     delegates to the named script and preserves the historical `figs/` default.
-    Continue this task by splitting the remaining Table 2 and noise robustness
-    publication figures out of `experiments/dfr_plot.py`.
+    Continued with `experiments.plot_publication_table2`, which owns the
+    hard-coded Table 2 capacity-scaling and recall/hallucination tradeoff
+    figures while `plot_table_2_results` delegates. Continue this task by
+    splitting the remaining noise robustness publication figure out of
+    `experiments/dfr_plot.py`.
 - [x] Add headless smoke tests for representative 2D, 3D, camera, scale, and
   evaluation plots.
   - Complete: camera layout, 2D projection/density/GMM, 3D trajectory,
@@ -367,10 +370,10 @@ reading implementation or experiment source.
 The next agent should continue Phase 6:
 
 1. Continue the unchecked publication/table split-out task. The
-   time-efficiency figure is now in
-   `experiments.plot_publication_time_efficiency`; next candidates are
-   `plot_table_2_results` and `plot_table_noise_robustness` in
-   `experiments/dfr_plot.py`.
+   Table 2 and time-efficiency figures are now in
+   `experiments.plot_publication_table2` and
+   `experiments.plot_publication_time_efficiency`; the next candidate is
+   `plot_table_noise_robustness` in `experiments/dfr_plot.py`.
 2. Keep moving low-risk reusable plot primitives identified in
    `experiments/DFR_PLOT_CATALOG.md` only when the figure has a clear typed
    result object or a documented experiment-only CLI owner.
@@ -512,6 +515,30 @@ The next agent should continue Phase 6:
 
 Add one newest-first entry per working session. Include commit(s), verification,
 known failures, and the exact next step.
+
+### 2026-07-08 - Phase 6 publication Table 2 split-out started
+
+- Added `experiments/plot_publication_table2.py`, an explicit experiment CLI
+  for the hard-coded Table 2 capacity-scaling and recall/hallucination
+  tradeoff figures formerly embedded in `experiments/dfr_plot.py`.
+- Kept `plot_table_2_results` as a compatibility wrapper that delegates to the
+  named script and preserves the historical `figs/` output default.
+- Updated `README.md`, `experiments/README.md`, and
+  `experiments/DFR_PLOT_CATALOG.md` so the command and migration boundary are
+  discoverable.
+- Added `tests/test_publication_table2.py` for headless plotting, save-helper
+  behavior, and legacy wrapper delegation.
+- Verification: focused Table 2/publication/catalog tests passed with 14 tests;
+  the `experiments.plot_publication_table2 --help` CLI passed; `compileall dfr
+  experiments tests` passed; `git diff --check` passed with Windows
+  line-ending warnings only; `pytest -m "not cuda"` passed with 160 tests and
+  7 deselected; `pytest -m cuda` passed with 6 tests, 1 skipped
+  rasterizer-extension test, and 160 deselected.
+- Known limitation: the broader publication/table split-out task remains open;
+  `plot_table_noise_robustness` is the next candidate in
+  `experiments/dfr_plot.py`.
+- Next step: continue the publication/table split-out with
+  `plot_table_noise_robustness`.
 
 ### 2026-07-08 - Phase 6 publication time-efficiency split-out started
 

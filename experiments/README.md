@@ -63,10 +63,11 @@ or deleting any `dfr_plot.py` function. The migrated wrappers so far are
 `plot_jackdaw2_multiscale_density` and
 `plot_jackdaw2_dra_scale_model_order_surface`, whose rendering now lives in
 `dfr.plotting` while the legacy wrappers still write to `figs/`.
-The time-efficiency publication table has also been split into
-`plot_publication_time_efficiency.py`; the legacy
-`plot_table_time_efficiency` wrapper delegates to that named script while
-preserving its historical `figs/` default.
+The Table 2 capacity/tradeoff figures and time-efficiency publication table
+have also been split into `plot_publication_table2.py` and
+`plot_publication_time_efficiency.py`; the legacy `plot_table_2_results` and
+`plot_table_time_efficiency` wrappers delegate to those named scripts while
+preserving their historical `figs/` defaults.
 
 `plotting_utils.py` is a helper module rather than an entry point. Its
 style/layout compatibility helpers and 3D density/GMM renderers now delegate
@@ -96,8 +97,11 @@ Both stages use `outputs/<workflow>/<run-id>/`; dataset, camera, noise, and
 iteration settings are encoded in each run ID. Commands require an action so
 importing or accidentally invoking a module never launches a long CUDA study.
 
-Publication figure split-outs are explicit commands too. The first one is:
+Publication figure split-outs are explicit commands too:
 
+- `python -m experiments.plot_publication_table2 --help` — render the
+  hard-coded Table 2 capacity-scaling and recall/hallucination tradeoff
+  figures formerly owned by `dfr_plot.py`.
 - `python -m experiments.plot_publication_time_efficiency --help` — render the
   hard-coded training-time scaling figure formerly owned by `dfr_plot.py`.
 
