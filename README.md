@@ -287,6 +287,24 @@ Reusable DRA computation and fitting now live under `dfr.analysis`, including
 data only and support explicit NPZ save/load. Plotting and managed-run decisions
 remain in the experiment entry points.
 
+Reusable analysis plots live under `dfr.plotting`. The mode-count and DRA
+surface helpers accept typed result objects directly, still return Matplotlib
+`Figure`/`Axes` handles, and do not save unless the caller explicitly asks:
+
+```python
+from dfr.plotting import (
+    plot_dra_scale_model_order_surface,
+    plot_mode_count_curve,
+    save_figure,
+)
+
+fig, ax = plot_mode_count_curve(curve)
+save_figure(fig, "outputs/mode_curve.png")
+
+# dra_result is a ScaleAnalysisResult, for example from dfr.analyze(..., kind="dra")
+fig, ax, surface = plot_dra_scale_model_order_surface(dra_result)
+```
+
 ### Fit the parameter manifold
 
 Reusable centered-3PL fitting and cache compatibility are also available

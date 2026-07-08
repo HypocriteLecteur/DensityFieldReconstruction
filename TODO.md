@@ -11,7 +11,8 @@ on chat history.
   `experiments/DFR_PLOT_CATALOG.md`; reusable camera-configuration,
   trajectory-snapshot, 2D projection/GMM, mode-count curve, DRA
   scale/model-order surface, multiscale density, 3D density/GMM rendering,
-  and shared style/save/layout primitives have moved to `dfr.plotting`.
+  shared style/save/layout primitives, and typed analysis-result plotting
+  paths have moved to `dfr.plotting`.
 - **Stable baseline:** annotated tag `v0.1.0`, commit `7cde21e`.
 - **Version storage:** local Git repository only; do not push unless the owner
   explicitly changes this policy.
@@ -294,6 +295,9 @@ reconstruct -> evaluate, and scenario runners no longer duplicate the pipeline.
     layout calls and should migrate them when their owning figures are promoted.
 - [ ] Make plotting functions accept result objects/axes and return Figure/Axes;
   saving is optional and uses the output manager.
+  - Started: mode-count and DRA scale/model-order plotting now accept
+    `ModeCurveResult` and `ScaleAnalysisResult` directly while preserving the
+    existing array/legacy tuple APIs and Figure/Axes return contracts.
 - [ ] Split publication/table-specific figures into small, named experiment
   scripts rather than one replacement monolith.
 - [ ] Add headless smoke tests for representative 2D, 3D, camera, scale, and
@@ -344,9 +348,9 @@ The next agent should continue Phase 6:
    `experiments/DFR_PLOT_CATALOG.md`; next candidates are evaluation/noise plots
    after their computation has typed result objects, or publication/table
    figure split-outs.
-2. Start Phase 6 step 4 by tightening result-object/axes contracts for the
-   migrated reusable plots, especially evaluation/noise figures whose
-   computation already belongs outside plotting.
+2. Continue Phase 6 step 4 by giving the remaining migrated reconstruction and
+   density plotting helpers explicit typed result-object adapters where a
+   stable package result already exists.
 3. Migrate legacy `figs/` saving for `plot_camera_configurations` to an
    explicit output/artifact option after deciding whether these migrated
    wrappers remain supported experiment CLIs or only compatibility wrappers.
@@ -478,6 +482,25 @@ The next agent should continue Phase 6:
 
 Add one newest-first entry per working session. Include commit(s), verification,
 known failures, and the exact next step.
+
+### 2026-07-08 - Phase 6 typed analysis plot contracts started
+
+- Extended `dfr.plotting.plot_mode_count_curve` to accept
+  `ModeCurveResult` directly, inferring dataset/frame labels while preserving
+  the existing array-based API.
+- Extended `plot_dra_scale_model_order_surface` and
+  `plot_dra_surface_grid` to accept `ScaleAnalysisResult` objects directly
+  while retaining legacy tuple compatibility for migrated experiment wrappers.
+- Documented typed analysis plotting in the README and added headless tests for
+  typed result plotting plus validation of mixed result/array arguments.
+- Verification: focused plotting/catalog/entrypoint tests (27 passed);
+  `compileall`; `git diff --check`; `pytest -m "not cuda"` (143 passed,
+  7 deselected, 1 warning); `pytest -m cuda` (6 passed, 1 skipped,
+  143 deselected).
+- Next step: continue Phase 6 step 4 with typed adapters for reconstruction or
+  density plotting helpers whose stable package results already exist, or
+  extract the next evaluation/noise plot after its computation has a typed
+  result object.
 
 ### 2026-07-08 - Phase 6 shared layout helpers completed
 

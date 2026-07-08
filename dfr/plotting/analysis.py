@@ -8,13 +8,18 @@ from typing import Optional
 import matplotlib.pyplot as plt
 import numpy as np
 
-from dfr.analysis import select_adaptive_density_scales, validate_nnd_bounds
+from dfr.analysis import (
+    ModeCurveResult,
+    ScaleAnalysisResult,
+    select_adaptive_density_scales,
+    validate_nnd_bounds,
+)
 from dfr.plotting.style import apply_academic_style, apply_figure_layout, set_3d_view
 
 
 def plot_mode_count_curve(
     normalized_scales,
-    mode_counts,
+    mode_counts=None,
     *,
     dataset_name: Optional[str] = None,
     frame: Optional[int] = None,
@@ -26,10 +31,25 @@ def plot_mode_count_curve(
 ):
     """Plot a log-log empirical mode-count curve.
 
-    Parameters are data-only so callers can pass a ``ModeCurveResult``'s arrays,
-    legacy cache arrays, or freshly computed values. The function returns the
-    created ``(Figure, Axes)`` and never saves by itself.
+    ``normalized_scales`` may be either a scale array or a
+    :class:`dfr.analysis.ModeCurveResult`. The function returns the created
+    ``(Figure, Axes)`` and never saves by itself.
     """
+    if isinstance(normalized_scales, ModeCurveResult):
+        if mode_counts is not None:
+            raise ValueError(
+                "mode_counts must be omitted when plotting a ModeCurveResult."
+            )
+        result = normalized_scales
+        normalized_scales = result.scales
+        mode_counts = result.mode_counts
+        dataset_name = result.dataset_name if dataset_name is None else dataset_name
+        frame = result.frame if frame is None else frame
+    if mode_counts is None:
+        raise ValueError(
+            "mode_counts is required unless normalized_scales is a ModeCurveResult."
+        )
+
     scales = np.asarray(normalized_scales, dtype=float)
     counts = np.asarray(mode_counts, dtype=float)
     if scales.ndim != 1 or counts.shape != scales.shape:
@@ -144,10 +164,10 @@ def plot_mode_count_curve(
 
 def plot_dra_scale_model_order_surface(
     normalized_scales,
-    component_counts,
-    dra,
+    component_counts=None,
+    dra=None,
     *,
-    number_of_animals: int,
+    number_of_animals: Optional[int] = None,
     fitted_dra=None,
     title: Optional[str] = None,
     ax=None,
@@ -158,7 +178,35 @@ def plot_dra_scale_model_order_surface(
     max_model_order_ticks: Optional[int] = None,
     include_component_counts_in_ticks: bool = False,
 ):
-    """Plot one DRA scale/model-order surface and optional fitted wireframe."""
+    """Plot one DRA scale/model-order surface and optional fitted wireframe.
+
+    ``normalized_scales`` may be either a normalized-scale array or a
+    :class:`dfr.analysis.ScaleAnalysisResult`. Passing a result object lets
+    callers avoid unpacking arrays and preserves the same Figure/Axes return
+    contract as the array-based API.
+    """
+    if isinstance(normalized_scales, ScaleAnalysisResult):
+        if (
+            component_counts is not None
+            or dra is not None
+            or number_of_animals is not None
+        ):
+            raise ValueError(
+                "component_counts, dra, and number_of_animals must be omitted "
+                "when plotting a ScaleAnalysisResult."
+            )
+        result = normalized_scales
+        normalized_scales = result.normalized_scales
+        component_counts = result.component_counts
+        dra = result.dra
+        number_of_animals = result.number_of_animals
+        if title is None:
+            title = f"{result.dataset_name.capitalize()} frame {result.time_step}"
+    if component_counts is None or dra is None or number_of_animals is None:
+        raise ValueError(
+            "component_counts, dra, and number_of_animals are required unless "
+            "normalized_scales is a ScaleAnalysisResult."
+        )
     scales, components, surface_values = _dra_surface_arrays(
         normalized_scales,
         component_counts,
@@ -231,12 +279,12 @@ def plot_dra_scale_model_order_surface(
 
 
 def plot_dra_surface_grid(
-    results: Mapping[str, tuple],
+    results: Mapping[str, ScaleAnalysisResult | tuple],
     fits: Mapping[str, dict],
     *,
     columns: int = 2,
 ):
-    """Plot a grid of DRA scale/model-order surfaces from legacy result tuples."""
+    """Plot a grid of DRA surfaces from typed results or legacy result tuples."""
     if not results:
         raise ValueError("results must contain at least one DRA surface.")
     if columns < 1:
@@ -247,7 +295,9 @@ def plot_dra_surface_grid(
     axes = []
     surface = None
     for plot_index, (dataset_name, result) in enumerate(results.items(), start=1):
-        normalized_scales, _, components, dra, _, number_of_animals = result
+        normalized_scales, components, dra, number_of_animals = _surface_grid_result(
+            result
+        )
         fit = fits[dataset_name]
         best = fit["candidates"][fit["best_name"]]
         title = (
@@ -285,6 +335,18 @@ def plot_dra_surface_grid(
         },
     )
     return figure, axes
+
+
+def _surface_grid_result(result: ScaleAnalysisResult | tuple) -> tuple:
+    if isinstance(result, ScaleAnalysisResult):
+        return (
+            result.normalized_scales,
+            result.component_counts,
+            result.dra,
+            result.number_of_animals,
+        )
+    normalized_scales, _, components, dra, _, number_of_animals = result
+    return normalized_scales, components, dra, number_of_animals
 
 
 def _curve_label(

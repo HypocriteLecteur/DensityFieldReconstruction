@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 
+from dfr.analysis import ModeCurveResult, ScaleAnalysisResult
 from dfr.analysis import select_adaptive_density_scales, validate_nnd_bounds
 from dfr.plotting import (
     plot_dra_scale_model_order_surface,
@@ -56,6 +57,23 @@ def test_plot_mode_count_curve_returns_figure_and_marks_slices():
     plt.close(fig)
 
 
+def test_plot_mode_count_curve_accepts_mode_curve_result():
+    result = ModeCurveResult(
+        scales=np.geomspace(0.5, 1.5, 9),
+        mode_counts=np.array([90, 80, 65, 45, 32, 20, 12, 8, 5]),
+        dataset_name="jackdaw2",
+        frame=2800,
+    )
+
+    fig, ax = plot_mode_count_curve(result, n_slices=3)
+
+    assert fig is ax.figure
+    assert "jackdaw2" in ax.lines[0].get_label()
+    assert "frame 2800" in ax.lines[0].get_label()
+    assert len(ax.lines) == 5  # Main curve, three slices, and the NND marker.
+    plt.close(fig)
+
+
 def test_plot_mode_count_curve_validates_inputs():
     with pytest.raises(ValueError, match="strictly increasing"):
         plot_mode_count_curve([1.0, 1.0, 2.0], [3, 2, 1], n_slices=1)
@@ -63,6 +81,14 @@ def test_plot_mode_count_curve_validates_inputs():
         plot_mode_count_curve([1.0, 2.0, 3.0], [3, 0, 1], n_slices=1)
     with pytest.raises(ValueError, match="nnd_bounds"):
         plot_mode_count_curve([1.0, 2.0, 3.0], [3, 2, 1], nnd_bounds=(2, 1))
+    with pytest.raises(ValueError, match="must be omitted"):
+        plot_mode_count_curve(
+            ModeCurveResult([1.0, 2.0, 3.0], [3, 2, 1]),
+            [3, 2, 1],
+            n_slices=1,
+        )
+    with pytest.raises(ValueError, match="mode_counts is required"):
+        plot_mode_count_curve([1.0, 2.0, 3.0], n_slices=1)
 
 
 def test_plot_dra_scale_model_order_surface_draws_surface_and_fit():
@@ -87,6 +113,27 @@ def test_plot_dra_scale_model_order_surface_draws_surface_and_fit():
     assert ax.get_ylabel() == "Model order / N (%)"
     assert ax.get_zlabel() == "DRA"
     assert len(ax.collections) >= 2
+    plt.close(fig)
+
+
+def test_plot_dra_scale_model_order_surface_accepts_scale_result():
+    result = ScaleAnalysisResult(
+        dataset_name="jackdaw2",
+        time_step=2800,
+        normalized_scales=np.array([0.5, 1.0, 1.5]),
+        model_order_percentages=np.array([25.0, 50.0]),
+        component_counts=np.array([4, 8]),
+        dra=np.array([[0.9, 0.8], [0.7, 0.5], [0.6, 0.4]]),
+        mean_nnd=0.25,
+        number_of_animals=16,
+        voxel_res_fraction=0.005,
+    )
+
+    fig, ax, surface = plot_dra_scale_model_order_surface(result)
+
+    assert fig is ax.figure
+    assert surface in ax.collections
+    assert ax.get_title() == "Jackdaw2 frame 2800"
     plt.close(fig)
 
 
@@ -117,6 +164,35 @@ def test_plot_dra_surface_grid_returns_one_axis_per_result():
     plt.close(fig)
 
 
+def test_plot_dra_surface_grid_accepts_scale_results():
+    result = ScaleAnalysisResult(
+        dataset_name="jackdaw2",
+        time_step=2800,
+        normalized_scales=np.array([0.5, 1.0, 1.5]),
+        model_order_percentages=np.array([25.0, 50.0]),
+        component_counts=np.array([4, 8]),
+        dra=np.array([[0.9, 0.8], [0.7, 0.5], [0.6, 0.4]]),
+        mean_nnd=0.25,
+        number_of_animals=16,
+        voxel_res_fraction=0.005,
+    )
+    fit = {
+        "best_name": "linear",
+        "candidates": {
+            "linear": {
+                "prediction": result.dra * 0.95,
+                "r_squared": 0.987,
+            }
+        },
+    }
+
+    fig, axes = plot_dra_surface_grid({"jackdaw2": result}, {"jackdaw2": fit})
+
+    assert len(axes) == 1
+    assert axes[0].get_title() == "Jackdaw2 (linear, $R^2$=0.987)"
+    plt.close(fig)
+
+
 def test_plot_dra_surface_validates_inputs():
     with pytest.raises(ValueError, match="dra must have shape"):
         plot_dra_scale_model_order_surface(
@@ -133,3 +209,22 @@ def test_plot_dra_surface_validates_inputs():
             number_of_animals=16,
             fitted_dra=np.ones((2, 1)),
         )
+    with pytest.raises(ValueError, match="must be omitted"):
+        plot_dra_scale_model_order_surface(
+            ScaleAnalysisResult(
+                dataset_name="jackdaw2",
+                time_step=2800,
+                normalized_scales=np.array([0.5, 1.0]),
+                model_order_percentages=np.array([25.0, 50.0]),
+                component_counts=np.array([4, 8]),
+                dra=np.ones((2, 2)),
+                mean_nnd=0.25,
+                number_of_animals=16,
+                voxel_res_fraction=0.005,
+            ),
+            [4, 8],
+            np.ones((2, 2)),
+            number_of_animals=16,
+        )
+    with pytest.raises(ValueError, match="are required"):
+        plot_dra_scale_model_order_surface([0.5, 1.0])
