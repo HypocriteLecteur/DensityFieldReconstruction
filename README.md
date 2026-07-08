@@ -446,10 +446,17 @@ Evaluation plots accept the typed run or frame results directly and still leave
 file output explicit:
 
 ```python
-from dfr.plotting import plot_evaluation_summary, save_figure
+from dfr.plotting import (
+    plot_evaluation_metric_series,
+    plot_evaluation_summary,
+    save_figure,
+)
 
 fig, ax = plot_evaluation_summary(evaluation)
 save_figure(fig, "outputs/evaluation-summary.png")
+
+fig, ax = plot_evaluation_metric_series(evaluation)
+save_figure(fig, "outputs/evaluation-metrics-by-frame.png")
 ```
 
 `dfr.evaluate("outputs/reconstruction/<run-id>", config=...)` loads managed

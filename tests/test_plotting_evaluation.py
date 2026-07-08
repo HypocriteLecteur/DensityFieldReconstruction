@@ -7,7 +7,7 @@ import pytest
 
 from dfr import EvaluationConfig
 from dfr.evaluation import EvaluationRun, EvaluationSummary, FrameEvaluation
-from dfr.plotting import plot_evaluation_summary
+from dfr.plotting import plot_evaluation_metric_series, plot_evaluation_summary
 
 
 def _summary(
@@ -58,6 +58,38 @@ def test_plot_evaluation_summary_accepts_evaluation_run():
     plt.close(fig)
 
 
+def test_plot_evaluation_metric_series_accepts_evaluation_run():
+    fig, ax = plot_evaluation_metric_series(_run())
+
+    assert fig is ax.figure
+    assert ax.get_title() == "Evaluation metrics by frame"
+    assert ax.get_xlabel() == "Frame"
+    assert [line.get_label() for line in ax.lines] == [
+        "Recall",
+        "Hallucination",
+        "dMOTA",
+    ]
+    plt.close(fig)
+
+
+def test_plot_evaluation_metric_series_accepts_frame_sequence_and_existing_axis():
+    fig, ax = plt.subplots()
+
+    returned_fig, returned_ax = plot_evaluation_metric_series(
+        (_frame(3), _frame(5)),
+        metrics=("miss", "dmota"),
+        ax=ax,
+        title="Frame metrics",
+    )
+
+    assert returned_fig is fig
+    assert returned_ax is ax
+    assert ax.get_title() == "Frame metrics"
+    assert [line.get_label() for line in ax.lines] == ["Miss", "dMOTA"]
+    assert ax.lines[0].get_xdata().tolist() == [3, 5]
+    plt.close(fig)
+
+
 def test_plot_evaluation_summary_accepts_frame_evaluation_and_metric_subset():
     fig, ax = plot_evaluation_summary(_frame(7), metrics=("recall", "dmota"))
 
@@ -92,3 +124,12 @@ def test_plot_evaluation_summary_validates_inputs():
         plot_evaluation_summary(_summary(), metrics=("precision",))
     with pytest.raises(TypeError, match="EvaluationRun"):
         plot_evaluation_summary(object())
+
+
+def test_plot_evaluation_metric_series_validates_inputs():
+    with pytest.raises(ValueError, match="at least one"):
+        plot_evaluation_metric_series(())
+    with pytest.raises(ValueError, match="Unsupported"):
+        plot_evaluation_metric_series(_run(), metrics=("precision",))
+    with pytest.raises(TypeError, match="FrameEvaluation"):
+        plot_evaluation_metric_series([object()])

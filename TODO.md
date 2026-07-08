@@ -13,7 +13,7 @@ on chat history.
   scale/model-order surface, multiscale density, 3D density/GMM rendering,
   shared style/save/layout primitives, typed analysis-result plotting paths,
   typed frame-reconstruction GMM plotting, and typed evaluation-summary
-  plotting have moved to `dfr.plotting`.
+  and metric-series plotting have moved to `dfr.plotting`.
 - **Stable baseline:** annotated tag `v0.1.0`, commit `7cde21e`.
 - **Version storage:** local Git repository only; do not push unless the owner
   explicitly changes this policy.
@@ -294,16 +294,19 @@ reconstruct -> evaluate, and scenario runners no longer duplicate the pipeline.
     density rendering and the remaining 3D density/GMM renderers have also
     moved to `dfr.plotting`. Legacy exploratory scripts still contain local
     layout calls and should migrate them when their owning figures are promoted.
-- [ ] Make plotting functions accept result objects/axes and return Figure/Axes;
+- [x] Make plotting functions accept result objects/axes and return Figure/Axes;
   saving is optional and uses the output manager.
-  - Started: mode-count and DRA scale/model-order plotting now accept
+  - Complete for reusable package plotting primitives: mode-count and DRA
+    scale/model-order plotting now accept
     `ModeCurveResult` and `ScaleAnalysisResult` directly while preserving the
     existing array/legacy tuple APIs and Figure/Axes return contracts.
     `FrameReconstruction` now has a direct 3D reconstructed-GMM plot path; raw
     density-grid plots still require explicit density/tick arrays because the
     reconstruction result object does not store a reusable voxel density grid.
     `EvaluationRun`, `FrameEvaluation`, and `EvaluationSummary` now have a
-    direct summary-metric bar plot path.
+    direct summary-metric bar plot path, and `EvaluationRun`/frame sequences
+    have a per-frame metric-series plot path. Grid/multiscale helpers return
+    figure/axes collections rather than a single axes object.
 - [ ] Split publication/table-specific figures into small, named experiment
   scripts rather than one replacement monolith.
 - [ ] Add headless smoke tests for representative 2D, 3D, camera, scale, and
@@ -354,9 +357,9 @@ The next agent should continue Phase 6:
    `experiments/DFR_PLOT_CATALOG.md`; next candidates are evaluation/noise plots
    after their computation has typed result objects, or publication/table
    figure split-outs.
-2. Continue Phase 6 step 4 by extracting the next noise/dMOTA plotting
-   primitive after its computation has a typed result object, or add per-frame
-   evaluation metric-series plots if needed by active studies.
+2. Begin Phase 6 step 5 by adding or tightening headless smoke tests for the
+   remaining representative camera, 2D, 3D, scale, and evaluation plot
+   families before migrating more high-value figures.
 3. Migrate legacy `figs/` saving for `plot_camera_configurations` to an
    explicit output/artifact option after deciding whether these migrated
    wrappers remain supported experiment CLIs or only compatibility wrappers.
@@ -483,11 +486,37 @@ The next agent should continue Phase 6:
   keep local Matplotlib layout calls until their figures are promoted or split.
   Reason: replacing every historic `tight_layout` call in place would churn
   figure-specific legacy scripts without improving the public plotting API.
+- **2026-07-08 - Plot result-object boundary:** Phase 6 step 4 is complete for
+  reusable package plotting primitives that have stable typed package results.
+  Raw density-grid and multiscale plots remain array/data-dict based because no
+  current result object stores reusable voxel density grids; grid-style helpers
+  return figure/axes collections. Reason: inventing pseudo-result wrappers for
+  transient plotting arrays would add ceremony without improving workflow
+  clarity.
 
 ## Handoff Log
 
 Add one newest-first entry per working session. Include commit(s), verification,
 known failures, and the exact next step.
+
+### 2026-07-08 - Phase 6 result-object plotting contracts completed
+
+- Completed Phase 6 step 4 for reusable package plots: analysis plots accept
+  `ModeCurveResult`/`ScaleAnalysisResult`, reconstruction GMM plots accept
+  `FrameReconstruction`, and evaluation plots accept `EvaluationRun`,
+  `FrameEvaluation`, `EvaluationSummary`, or ordered frame sequences.
+- Added `plot_evaluation_metric_series` for per-frame recall, hallucination,
+  dMOTA, miss, or metric subsets from typed evaluation results.
+- Documented explicit save usage for evaluation summary and metric-series
+  figures in the README.
+- Recorded the boundary that raw density-grid/multiscale plots stay data-array
+  based until a stable density-grid result object exists.
+- Verification: focused plotting suite (44 passed); `compileall`;
+  `git diff --check`; `pytest -m "not cuda"` (152 passed, 7 deselected,
+  1 warning); `pytest -m cuda` (6 passed, 1 skipped, 152 deselected).
+- Next step: begin Phase 6 step 5 by ensuring the representative plotting
+  smoke-test matrix is complete, then continue extracting publication/noise
+  figures behind typed computation/results.
 
 ### 2026-07-08 - Phase 6 typed evaluation summary plot path
 
