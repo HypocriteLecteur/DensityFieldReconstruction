@@ -21,12 +21,22 @@ scenarios/<name>/config.yaml
 dataset/                   Local input data (ignored by Git)
 density_field_rasterizer/  Custom CUDA extension sources
 tests/                     CPU characterization and CUDA smoke tests
+docs/                      Workflow examples and module ownership map
 outputs/                   Canonical destination for new generated artifacts
 results/, figs/            Legacy generated artifacts being migrated
 ```
 
 Run current experiment commands from the repository root. Several legacy
 scripts still resolve paths relative to the current working directory.
+
+## Refactor docs
+
+- [`docs/WORKFLOW.md`](docs/WORKFLOW.md) gives copy/paste-oriented examples for
+  `load_dataset -> analyze -> reconstruct -> evaluate -> plot`, including a
+  CPU-safe toy dataset and CUDA reconstruction/evaluation extension.
+- [`docs/MODULE_OWNERSHIP.md`](docs/MODULE_OWNERSHIP.md) maps responsibilities
+  across `dfr/`, `experiments/`, and generated output roots so future refactors
+  know where new helpers, scripts, and artifacts belong.
 
 ## Supported environment
 

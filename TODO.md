@@ -11,7 +11,8 @@ on chat history.
   surfaces, and the main public class/function contracts for data loading,
   configuration, artifacts, reconstruction, evaluation, plotting, camera
   systems, external observations, scenario runners, analysis helpers, and model
-  checkpointing. Phase
+  checkpointing. The docs layer now includes a checked CPU toy workflow,
+  workflow examples, and a module ownership map. Phase
   6 plotting decomposition is complete: the
   `experiments/dfr_plot.py` function catalog is frozen in
   `experiments/DFR_PLOT_CATALOG.md`; reusable camera-configuration,
@@ -400,11 +401,13 @@ importable, and every remaining experiment figure has a documented command.
     APIs.
   - Added a lower-level public docstring guard for representative
     reconstruction, scenario, analysis, and manifold APIs.
-- [ ] Add runnable examples and API reference generation or a lightweight
+- [x] Add runnable examples and API reference generation or a lightweight
   `docs/` tree.
-- [ ] Add a script catalog table to the README and a module ownership map to
+- [x] Add a script catalog table to the README and a module ownership map to
   developer docs.
 - [ ] Test README/example commands in a clean environment where practical.
+  - Added `examples/toy_workflow.py` and `tests/test_examples.py`, which run a
+    CPU-safe load/analyze/plot example against a generated toy dataset.
 
 **Exit criteria:** common tasks are discoverable from README/API docs without
 reading implementation or experiment source.
@@ -428,18 +431,18 @@ reading implementation or experiment source.
 
 The next agent should continue Phase 7:
 
-1. Add runnable examples or a lightweight `docs/` tree for load -> analyze ->
-   reconstruct -> evaluate -> plot.
-2. Add a README script catalog table and a module ownership map to developer
-   docs, linking current package APIs to supported experiment wrappers.
-3. Keep documenting units, coordinate systems, shapes/dtypes, device behavior,
+1. Review remaining README/example command snippets for copy/paste accuracy;
+   run or mark CUDA/data-dependent commands where practical.
+2. Keep documenting units, coordinate systems, shapes/dtypes, device behavior,
    randomness, side effects, exceptions, and return contracts where they are
    still implicit in any remaining public legacy adapters.
-4. Revisit `dfr/__init__.py` exports only if Phase 7 identifies public names
+3. Revisit `dfr/__init__.py` exports only if Phase 7 identifies public names
    that should move to subpackages; update `tests/test_public_api.py` in the
    same commit.
-5. Do not revive archive-only `experiments.dfr_plot` functions directly; move
+4. Do not revive archive-only `experiments.dfr_plot` functions directly; move
    any revived figure to a named CLI or package API with tests.
+5. If the remaining docs review is satisfactory, mark Phase 7 complete and
+   move to Phase 8 compatibility cleanup.
 
 ## Decisions
 
@@ -614,6 +617,33 @@ The next agent should continue Phase 7:
 
 Add one newest-first entry per working session. Include commit(s), verification,
 known failures, and the exact next step.
+
+### 2026-07-09 - Phase 7 workflow docs and ownership map added
+
+- Added `docs/README.md`, `docs/WORKFLOW.md`, and
+  `docs/MODULE_OWNERSHIP.md`.
+- Added `examples/toy_workflow.py`, a CPU-safe runnable example that creates a
+  tiny dataset, loads it through `dfr.load_dataset`, computes a mode-count
+  curve on CPU, and saves a figure explicitly through `dfr.plotting`.
+- Linked the new docs from `README.md`; the root README already contains the
+  script catalog table, and the new ownership map documents how package APIs,
+  supported experiment wrappers, legacy scripts, and output roots relate.
+- Added `tests/test_docs.py` and `tests/test_examples.py` to guard README doc
+  links, workflow/output-policy coverage, ownership-map coverage, and the
+  runnable toy example.
+- Marked the Phase 7 lightweight docs/examples task and script-catalog/module
+  ownership task complete. The remaining Phase 7 documentation task is to
+  review/verify README/example command snippets where practical.
+- Verification: focused docs/examples/public/analysis-entrypoint tests passed
+  with 18 tests; `compileall dfr experiments tests examples` passed;
+  `git diff --check` passed with Windows line-ending warnings only;
+  `pytest -m "not cuda"` passed with 172 tests and 7 deselected;
+  `pytest -m cuda` passed with 6 tests, 1 skipped rasterizer-extension test,
+  and 172 deselected.
+- Next step: review remaining README/example command snippets for copy/paste
+  accuracy and either test or explicitly mark CUDA/data-dependent commands.
+  If satisfactory, mark Phase 7 complete and begin Phase 8 compatibility
+  cleanup.
 
 ### 2026-07-09 - Phase 7 lower-level public docstrings expanded
 
