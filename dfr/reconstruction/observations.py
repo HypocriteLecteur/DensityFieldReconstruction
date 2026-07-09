@@ -30,6 +30,12 @@ class ExternalObservationFrame:
     images, or any other source that already has 2-D detections/projections.
     Unlike :func:`dfr.reconstruct`, these projections are not produced by the
     simulator. The caller supplies the camera system that should interpret them.
+
+    ``positions`` must be a world-coordinate ``(agents, 3)`` array.
+    ``projections`` must contain one ``(visible_agents, 2)`` pixel-coordinate
+    array per camera. ``camera_poses`` are read from ``camera_system`` when
+    available, otherwise callers must supply ``(cameras, 7)`` poses in
+    ``(x, y, z, qx, qy, qz, qw)`` order. ``visible_mask`` defaults to all true.
     """
 
     dataset_name: str
@@ -109,7 +115,12 @@ def reconstruct_observations(
 
     ``observations`` may use either one static camera system or a different
     camera system per frame. This supports both measured flock footage and UE4
-    renders where camera poses vary over time.
+    renders where camera poses vary over time. ``scale`` and ``frame_scales``
+    are fixed world-coordinate density scales; omit both to use adaptive scale
+    selection. CUDA is required by the active reconstruction backend. No files
+    are written unless ``output`` is supplied, in which case arrays,
+    checkpoints, per-frame summaries, and aggregate statistics are saved under
+    the managed reconstruction run directory.
     """
 
     selected = tuple(observations)

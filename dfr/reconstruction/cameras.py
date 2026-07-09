@@ -18,7 +18,26 @@ def build_camera_system(
     simulation: SimulationConfig,
     config: CameraConfig,
 ) -> MultiCameraSystem:
-    """Build explicit or generated homogeneous cameras for selected frames."""
+    """Build a homogeneous multi-camera system for reconstruction.
+
+    Parameters
+    ----------
+    dataset, frames:
+        Dataset and selected integer frame IDs used to infer an encircling
+        camera orbit when ``config.layout == "encircling"``.
+    simulation:
+        Scenario camera calibration and clipping settings loaded from YAML.
+    config:
+        Camera count/layout/device settings. Explicit layouts provide poses in
+        ``(x, y, z, qx, qy, qz, qw)`` world-coordinate order.
+
+    Returns
+    -------
+    dfr.camera_system.MultiCameraSystem
+        Homogeneous cameras sharing the scenario intrinsics, image size, clip
+        planes, and requested device. For the historical two-camera encircling
+        case, the adjacent pair from a four-camera ring is preserved.
+    """
     if config.layout == "explicit":
         poses = np.asarray(config.poses, dtype=np.float32)
     else:
@@ -61,7 +80,13 @@ def add_bounded_projection_noise(
     standard_deviation: float,
     rng: np.random.Generator,
 ) -> list[np.ndarray]:
-    """Add Gaussian pixel noise while resampling coordinates outside each image."""
+    """Add bounded Gaussian pixel noise to image-plane projections.
+
+    ``projections`` is one ``(visible_agents, 2)`` pixel-coordinate array per
+    camera. Samples that would move outside ``[0, W] x [0, H]`` are resampled
+    until they land inside the corresponding camera image. A zero standard
+    deviation returns defensive copies without changing coordinates.
+    """
     if standard_deviation < 0:
         raise ValueError("standard_deviation must be non-negative.")
     if standard_deviation == 0:

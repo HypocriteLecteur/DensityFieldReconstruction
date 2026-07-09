@@ -41,7 +41,12 @@ def centered_3pl_excess(x, parameters, number_of_agents: int) -> np.ndarray:
 
 
 def median_nearest_neighbour_distance(positions) -> float:
-    """Return the median nearest-neighbour distance for one point frame."""
+    """Return the median nearest-neighbour distance for one point frame.
+
+    ``positions`` may be 2D or 3D but must contain at least two points. A small
+    positive floor prevents downstream log-scale curve fitting from receiving
+    zero.
+    """
     points = np.asarray(positions, dtype=np.float64)
     if points.ndim != 2 or len(points) < 2:
         raise ValueError("positions must contain at least two points.")
@@ -52,7 +57,13 @@ def median_nearest_neighbour_distance(positions) -> float:
 
 @dataclass
 class LegacyManifoldCache:
-    """Validated view of the historic three-file parameter-manifold cache."""
+    """Validated view of the historic three-file parameter-manifold cache.
+
+    ``mode_counts`` has shape ``(frames, scales)``. ``scale_ranges`` has shape
+    ``(frames, 2)`` and stores per-frame world-coordinate scale intervals used
+    to reconstruct logarithmic scale grids. ``nearest_neighbour_distances`` is
+    optional legacy metadata aligned with frames.
+    """
 
     mode_counts: np.ndarray
     scale_ranges: np.ndarray
@@ -104,7 +115,13 @@ def load_legacy_manifold_cache(directory: str | Path) -> LegacyManifoldCache:
 
 @dataclass
 class Centered3PLFitBatch:
-    """Aligned per-frame fit details plus a compact typed success table."""
+    """Aligned per-frame centered-3PL fit details.
+
+    ``result`` contains only successful parameter rows. ``success`` and
+    ``fitted_curves`` remain aligned to the original input frame order, and
+    ``scale_grids`` stores the reconstructed per-frame world-coordinate scale
+    grid used for fitting.
+    """
 
     result: ManifoldAnalysisResult
     success: np.ndarray
@@ -115,7 +132,12 @@ class Centered3PLFitBatch:
 
 @dataclass
 class Symmetric2PLFitBatch:
-    """Aligned success mask and compact symmetric-2PL parameter table."""
+    """Aligned success mask and compact symmetric-2PL parameter table.
+
+    ``result`` contains successful ``(k, sigma_half)`` fits. ``success`` and
+    ``aligned_parameters`` preserve the original input frame order for
+    diagnostics and plotting.
+    """
 
     result: ManifoldAnalysisResult
     success: np.ndarray
@@ -125,7 +147,12 @@ class Symmetric2PLFitBatch:
 def symmetric_2pl_mode_count(
     x, k: float, sigma_half: float, number_of_agents: int
 ) -> np.ndarray:
-    """Evaluate the symmetric two-parameter mode-count curve."""
+    """Evaluate the symmetric two-parameter mode-count curve.
+
+    ``x`` is a world-coordinate scale grid, ``sigma_half`` is the scale where
+    the fitted curve reaches half its dynamic range, and ``number_of_agents``
+    sets the asymptotic high-count limit.
+    """
     if k <= 0 or sigma_half <= 0 or number_of_agents < 2:
         raise ValueError("k, sigma_half, and number_of_agents must be positive.")
     values = np.asarray(x, dtype=np.float64)
@@ -143,7 +170,12 @@ def fit_symmetric_2pl_curves(
     dataset_name: Optional[str] = None,
     max_function_evaluations: int = 5000,
 ) -> Symmetric2PLFitBatch:
-    """Fit the symmetric 2PL model to aligned historic mode-count curves."""
+    """Fit the symmetric 2PL model to aligned historic mode-count curves.
+
+    ``frame_ids``, ``animal_counts``, and ``scale_ranges`` are 1D/per-frame
+    arrays. ``mode_counts`` is ``(frames, scales)``. Fitting failures are
+    recorded in the returned ``success`` mask instead of raising.
+    """
     frames = np.asarray(frame_ids, dtype=np.int64)
     counts = np.asarray(animal_counts, dtype=np.int64)
     ranges = np.asarray(scale_ranges, dtype=np.float64)
@@ -208,7 +240,13 @@ def fit_centered_3pl_curves(
     saturation: float = 0.8,
     max_function_evaluations: int = 5000,
 ) -> Centered3PLFitBatch:
-    """Fit the historic centered 3PL model independently to many frames."""
+    """Fit the historic centered 3PL model independently to many frames.
+
+    ``scale_ranges`` are per-frame world-coordinate intervals used to recreate
+    logarithmic scale grids. The fit starts after the first sample below the
+    requested saturation fraction of the animal count. Failed frames remain in
+    aligned diagnostic arrays but are omitted from the compact result table.
+    """
     frames = np.asarray(frame_ids, dtype=np.int64)
     counts = np.asarray(animal_counts, dtype=np.int64)
     ranges = np.asarray(scale_ranges, dtype=np.float64)
@@ -299,7 +337,11 @@ def fit_centered_3pl_curves(
 def scale_for_mode_count(
     parameters, number_of_agents: int, target_modes: float
 ) -> float:
-    """Invert a centered 3PL fit to recommend the scale for a target mode count."""
+    """Invert a centered 3PL fit to recommend the scale for a target mode count.
+
+    Returns a world-coordinate scale value for ``target_modes`` given
+    ``(k, sigma_half, log10_gamma)`` parameters.
+    """
     if not 1 < target_modes < number_of_agents:
         raise ValueError("target_modes must lie strictly between 1 and number_of_agents.")
     k, sigma_half, log10_gamma = np.asarray(parameters, dtype=np.float64)
@@ -313,7 +355,11 @@ def scale_for_mode_count(
 def fit_shape_curve(
     k_values, log_gamma_values
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Fit the historic Hill shape curve and return parameters and dense samples."""
+    """Fit the historic Hill shape curve and return parameters and dense samples.
+
+    Inputs are aligned 1D arrays from centered-3PL fits. The return value is
+    ``(parameters, log_gamma_grid, k_grid)`` for projection/visualization.
+    """
     k_values = np.asarray(k_values, dtype=np.float64)
     log_gamma_values = np.asarray(log_gamma_values, dtype=np.float64)
     if (
@@ -344,7 +390,11 @@ def fit_shape_curve(
 
 
 def project_to_shape_curve(k_values, log_gamma_values, log_gamma_grid, k_grid):
-    """Project points to their nearest samples on a fitted shape curve."""
+    """Project points to their nearest samples on a fitted shape curve.
+
+    All inputs are aligned 1D arrays. The return value is
+    ``(projected_k, projected_log_gamma)`` sampled from the fitted grid.
+    """
     k_values = np.asarray(k_values, dtype=np.float64)
     log_gamma_values = np.asarray(log_gamma_values, dtype=np.float64)
     log_gamma_grid = np.asarray(log_gamma_grid, dtype=np.float64)

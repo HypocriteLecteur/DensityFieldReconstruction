@@ -26,6 +26,12 @@ class ScenarioRunSpec:
     ``stop=None`` selects through the final dataset frame. Ground-truth scale
     caches retain the historical contract: values correspond in order to the
     selected frames rather than to absolute dataset frame numbers.
+
+    ``dataset`` is a registered scenario name resolved by :func:`dfr.load_dataset`.
+    ``start``, ``stop``, and ``step`` follow Python ``range`` semantics over
+    integer dataset frame IDs. ``projection_noise_std`` is measured in pixels.
+    ``output`` is optional and must use ``workflow="reconstruction"`` when
+    supplied; otherwise scenario runs return typed results without writing.
     """
 
     dataset: str
@@ -90,7 +96,14 @@ def run_scenario(
     *,
     project_root: str | Path,
 ) -> ReconstructionRun:
-    """Load and reconstruct one scenario according to ``spec``."""
+    """Load and reconstruct one registered scenario according to ``spec``.
+
+    ``project_root`` anchors scenario resolution, output-root resolution, and
+    ground-truth scale-cache lookup. When ``use_ground_truth_scales`` is true,
+    the scale cache is read from the scenario directory and passed as
+    per-frame fixed world-coordinate scales. CUDA requirements and artifact
+    behavior are inherited from :func:`dfr.reconstruction.reconstruct`.
+    """
     root = Path(project_root).expanduser().resolve()
     dataset = load_dataset(spec.dataset, project_root=root)
     stop = len(dataset) if spec.stop is None else min(spec.stop, len(dataset))
@@ -126,7 +139,12 @@ def run_scenarios(
     *,
     project_root: str | Path,
 ) -> tuple[ReconstructionRun, ...]:
-    """Run a sequence of scenario specifications in declaration order."""
+    """Run a sequence of scenario specifications in declaration order.
+
+    The return tuple aligns one-to-one with ``specs``. This helper is a thin
+    orchestrator: it does not add parallelism, shared output management, or
+    implicit retries.
+    """
     selected = tuple(specs)
     if not selected:
         raise ValueError("At least one scenario specification is required.")

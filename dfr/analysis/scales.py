@@ -6,7 +6,11 @@ import numpy as np
 
 
 def validate_nnd_bounds(nnd_bounds) -> tuple[float, float]:
-    """Return a validated ``(lower, upper)`` NND-normalised scale interval."""
+    """Return a validated ``(lower, upper)`` NND-normalized scale interval.
+
+    Bounds are dimensionless scale multiples of nearest-neighbour distance and
+    must satisfy ``0 < lower < upper``.
+    """
     bounds = np.asarray(nnd_bounds, dtype=float)
     if bounds.shape != (2,) or not np.all(np.isfinite(bounds)):
         raise ValueError("nnd_bounds must contain two finite numbers.")
@@ -29,6 +33,8 @@ def select_adaptive_density_scales(
     so all returned indices lie strictly inside the scale range. When
     ``relative_positions`` is provided, those positions in the open interval
     ``(0, 1)`` override adaptive placement along the logarithmic scale range.
+    Returned values are ``(indices, normalized_scales[indices])`` in ascending
+    scale order.
     """
     normalized_scales = np.asarray(normalized_scales, dtype=float)
     mode_counts = np.asarray(mode_counts, dtype=float)

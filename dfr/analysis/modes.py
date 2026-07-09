@@ -21,7 +21,14 @@ def count_modes(
     max_iter: int = 1000,
     tolerance: float = 1e-2,
 ) -> int:
-    """Count density modes for one point frame and world-space scale."""
+    """Count density modes for one point frame and world-coordinate scale.
+
+    ``positions`` must be a non-empty ``(agents, 2)`` or ``(agents, 3)`` array.
+    ``scale`` is the Gaussian kernel scale in the same coordinate units as the
+    positions. ``initial_modes`` defaults to a copy of ``positions`` and must
+    have matching dimensionality when supplied. The selected device defaults to
+    CUDA when available, otherwise CPU.
+    """
     if scale <= 0:
         raise ValueError("scale must be positive.")
     if max_iter < 1 or tolerance <= 0:
@@ -62,7 +69,12 @@ def compute_mode_curve(
     max_iter: int = 1000,
     tolerance: float = 1e-2,
 ) -> ModeCurveResult:
-    """Count modes independently at every scale and return typed curve data."""
+    """Count modes independently at every scale and return typed curve data.
+
+    ``scales`` must be a strictly increasing positive 1D world-coordinate scale
+    grid. Each scale is evaluated independently using :func:`count_modes`;
+    ``frame`` and ``dataset_name`` are copied into the result for provenance.
+    """
     scale_values = np.asarray(scales, dtype=np.float64)
     # Validate ordering before starting potentially expensive computation.
     if (
@@ -97,7 +109,13 @@ def analyze_dataset_modes(
     scales,
     **kwargs,
 ) -> ModeCurveResult:
-    """Load one dataset frame and compute its mode-count curve."""
+    """Load one dataset frame and compute its mode-count curve.
+
+    ``frame`` is normalized through the dataset, then
+    ``positions_at_time_step`` supplies the clean ``(agents, 3)`` positions.
+    The returned :class:`ModeCurveResult` records the normalized frame ID and
+    dataset name metadata when available.
+    """
     normalized_frame = dataset.normalize_time_step(frame)
     name = dataset.metadata.get("dataset_name")
     return compute_mode_curve(

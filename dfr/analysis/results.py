@@ -18,7 +18,15 @@ def _one_dimensional(name: str, value, dtype=None) -> np.ndarray:
 
 @dataclass
 class ModeCurveResult:
-    """Mode counts measured over an ordered scale grid."""
+    """Mode counts measured over an ordered scale grid.
+
+    ``scales`` is a strictly increasing positive 1D array. In low-level mode
+    counting APIs these values are world-coordinate density scales; plotting
+    helpers may label them as normalized NND scales when the caller has already
+    normalized them. ``mode_counts`` is one non-negative integer per scale.
+    Optional ``frame`` and ``dataset_name`` fields preserve provenance for
+    plots, caches, and handoff files.
+    """
 
     scales: np.ndarray
     mode_counts: np.ndarray
@@ -38,6 +46,7 @@ class ModeCurveResult:
             raise ValueError("mode_counts must be non-negative.")
 
     def save_npz(self, path: str | Path) -> Path:
+        """Save this result as a compact ``.npz`` cache and return its path."""
         target = Path(path)
         target.parent.mkdir(parents=True, exist_ok=True)
         np.savez(
@@ -51,6 +60,7 @@ class ModeCurveResult:
 
     @classmethod
     def load_npz(cls, path: str | Path) -> "ModeCurveResult":
+        """Load a result previously written by :meth:`save_npz`."""
         with np.load(path) as data:
             frame = int(data["frame"])
             dataset_name = str(data["dataset_name"])
@@ -64,7 +74,15 @@ class ModeCurveResult:
 
 @dataclass
 class ScaleAnalysisResult:
-    """DRA values over scale and Gaussian model order for one frame."""
+    """DRA values over normalized scale and Gaussian model order for one frame.
+
+    ``normalized_scales`` is a strictly increasing positive NND-normalized
+    scale grid. ``scales`` converts it back to world-coordinate scale by
+    multiplying by ``mean_nnd``. ``component_counts`` and
+    ``model_order_percentages`` describe the model-order axis. ``dra`` is a
+    ``(len(normalized_scales), len(component_counts))`` surface and may contain
+    ``NaN`` cells while a resumable CUDA sweep is in progress.
+    """
 
     dataset_name: str
     time_step: int
@@ -144,6 +162,7 @@ class ScaleAnalysisResult:
         )
 
     def save_npz(self, path: str | Path) -> Path:
+        """Save this DRA surface as a compatibility-friendly ``.npz`` cache."""
         target = Path(path)
         target.parent.mkdir(parents=True, exist_ok=True)
         np.savez(
@@ -169,6 +188,11 @@ class ScaleAnalysisResult:
         dataset_name: Optional[str] = None,
         number_of_animals: Optional[int] = None,
     ) -> "ScaleAnalysisResult":
+        """Load a modern or legacy DRA surface cache.
+
+        Legacy caches may lack ``dataset_name`` or ``number_of_animals``; pass
+        those values explicitly when needed.
+        """
         with np.load(path) as data:
             stored_name = (
                 str(data["dataset_name"])
@@ -203,7 +227,13 @@ class ScaleAnalysisResult:
 
 @dataclass
 class ManifoldAnalysisResult:
-    """Generic fitted-parameter table for manifold analysis."""
+    """Generic fitted-parameter table for manifold analysis.
+
+    ``parameters`` has shape ``(frames, parameters)`` and aligns with
+    ``frame_ids``. ``parameter_names`` gives the column order. Optional
+    ``dataset_names`` must have one label per frame and is useful when
+    aggregating manifold fits across scenarios.
+    """
 
     parameter_names: tuple[str, ...]
     parameters: np.ndarray
@@ -231,6 +261,7 @@ class ManifoldAnalysisResult:
                 raise ValueError("dataset_names must align with frame_ids.")
 
     def save_npz(self, path: str | Path) -> Path:
+        """Save the parameter table as a portable ``.npz`` cache."""
         target = Path(path)
         target.parent.mkdir(parents=True, exist_ok=True)
         np.savez(
@@ -248,6 +279,7 @@ class ManifoldAnalysisResult:
 
     @classmethod
     def load_npz(cls, path: str | Path) -> "ManifoldAnalysisResult":
+        """Load a parameter table previously written by :meth:`save_npz`."""
         with np.load(path) as data:
             names = data["dataset_names"]
             return cls(

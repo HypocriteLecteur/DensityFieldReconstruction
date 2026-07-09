@@ -12,12 +12,15 @@ import torch
 def build_checkpoint(model) -> dict:
     """Capture the current model state as a serializable dict.
 
-    Args:
-        model: GaussianModel instance with _xyz, _radius, _weights,
-               optimizer, training config, and rasterizer attributes.
+    ``model`` is a GaussianModel-compatible instance with ``_xyz``,
+    ``_radius``, ``_weights``, optimizer state, training coefficients, and
+    rasterizer metadata. Parameters and gradients are cloned tensors so the
+    returned checkpoint is independent of subsequent optimizer steps.
 
-    Returns:
-        dict with all data needed to restore the model later.
+    Returns
+    -------
+    dict
+        All data needed by :func:`restore_model_from_checkpoint`.
     """
     checkpoint = {
         '_xyz': model._xyz.detach().clone(),
@@ -51,19 +54,23 @@ def build_checkpoint(model) -> dict:
 
 
 def write_checkpoints(training_history: list, path: str):
-    """Save the full training history to disk."""
+    """Save a full list of checkpoint dictionaries with ``torch.save``."""
     os.makedirs(os.path.dirname(path), exist_ok=True)
     torch.save(training_history, path)
 
 
 def save_history(metrics_history: list, path: str):
-    """Save metrics history to disk."""
+    """Save arbitrary metrics history with ``torch.save``."""
     os.makedirs(os.path.dirname(path), exist_ok=True)
     torch.save(metrics_history, path)
 
 
 def load_training_history(path: str, device='cuda') -> list:
-    """Load training history from a checkpoint file."""
+    """Load a checkpoint history onto ``device``.
+
+    ``weights_only=False`` is used because historical training histories store
+    optimizer state and Python containers, not only tensor weights.
+    """
     return torch.load(path, map_location=device, weights_only=False)
 
 
@@ -71,14 +78,11 @@ def restore_model_from_checkpoint(model_cls, training_history: list, iter: int,
                                   device='cuda'):
     """Restore a GaussianModel from a specific iteration in the training history.
 
-    Args:
-        model_cls: The GaussianModel class (or compatible subclass).
-        training_history: List of checkpoint dicts from build_checkpoint().
-        iter: Iteration index to restore.
-        device: Target device.
-
-    Returns:
-        A new GaussianModel instance with restored parameters and optimizer state.
+    ``training_history`` is the list produced by repeated
+    :func:`build_checkpoint` calls. The historical UI addresses iteration
+    ``iter`` as ``training_history[iter + 1]``; this function preserves that
+    convention. Rasterizers, parameters, gradients, training setup, and
+    optimizer state are restored onto ``device`` when possible.
     """
     from gaussian_rasterizer_simple_large import GaussianRasterizerSimpleLarge
 

@@ -11,7 +11,13 @@ from dfr.data.registry import default_project_root
 
 
 def add_managed_output_arguments(parser: argparse.ArgumentParser) -> None:
-    """Add the canonical project/output/run collision arguments to a parser."""
+    """Add canonical managed-analysis output arguments to a parser.
+
+    The added options are ``--project-root``, ``--output-root``, ``--run-id``,
+    and the mutually exclusive ``--resume``/``--overwrite-run`` policy flags.
+    Relative output roots are later resolved through :class:`OutputConfig`,
+    keeping CLI behavior consistent with package workflows.
+    """
     parser.add_argument(
         "--project-root", type=Path, default=default_project_root()
     )
@@ -30,7 +36,12 @@ def create_analysis_artifacts(
     entrypoint: str,
     device: str = "cuda",
 ) -> RunArtifacts:
-    """Create a managed analysis run from the shared parser arguments."""
+    """Create a managed analysis run from the shared parser arguments.
+
+    ``name`` becomes the human-readable run name, ``entrypoint`` is recorded in
+    the manifest metadata, and ``resolved_config`` is serialized into the run's
+    ``config.yaml``. The managed workflow is always ``analysis``.
+    """
     return RunArtifacts.create(
         OutputConfig(
             workflow="analysis",

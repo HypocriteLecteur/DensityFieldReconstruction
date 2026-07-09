@@ -18,6 +18,7 @@ FIT_MODELS = ("power", "power_interaction", "log_quadratic")
 
 
 def validate_normalized_scales(values) -> np.ndarray:
+    """Return a validated strictly increasing NND-normalized scale grid."""
     scales = np.asarray(values, dtype=np.float64)
     if (
         scales.ndim != 1
@@ -34,7 +35,12 @@ def validate_normalized_scales(values) -> np.ndarray:
 
 
 def mean_nearest_neighbour_distance(positions: np.ndarray) -> float:
-    """Return the mean distance from every point to its nearest other point."""
+    """Return the mean distance from every point to its nearest other point.
+
+    ``positions`` must be a world-coordinate ``(agents, 3)`` array with at
+    least two agents. The result is used to convert normalized DRA scales into
+    world-coordinate Gaussian radii.
+    """
     positions = np.asarray(positions)
     if positions.ndim != 2 or positions.shape[1] != 3:
         raise ValueError("positions must have shape (agents, 3).")
@@ -47,7 +53,12 @@ def mean_nearest_neighbour_distance(positions: np.ndarray) -> float:
 def model_orders(
     number_of_agents: int, steps: int = 10
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Return unique rounded component counts and requested percentages of N."""
+    """Return unique rounded component counts and requested percentages of N.
+
+    Small swarms sweep up to 30% of the agent count; larger swarms sweep up to
+    10%. Duplicate rounded component counts raise an error because they would
+    create ambiguous DRA surface columns.
+    """
     if number_of_agents < 2 or steps < 2:
         raise ValueError("number_of_agents and steps must both be at least 2.")
     maximum_fraction = 0.30 if number_of_agents < 100 else 0.10
@@ -73,7 +84,13 @@ def create_scale_analysis(
     voxel_res_fraction: float,
     model_order_steps: int = 10,
 ) -> ScaleAnalysisResult:
-    """Create an empty typed DRA surface from one point frame."""
+    """Create an empty typed DRA surface from one point frame.
+
+    ``normalized_scales`` are dimensionless multiples of the frame's mean NND.
+    ``voxel_res_fraction`` is multiplied by the frame extent to obtain the
+    world-coordinate voxel size during DRA evaluation. The returned surface is
+    filled with ``NaN`` values so CUDA sweeps can resume row by row.
+    """
     positions = np.asarray(positions, dtype=np.float32)
     scales = validate_normalized_scales(normalized_scales)
     component_counts, percentages = model_orders(len(positions), model_order_steps)
@@ -99,7 +116,14 @@ def compute_dra_sweep(
     voxel_res: np.float64,
     batch_size: int,
 ) -> np.ndarray:
-    """Evaluate several reduced mixtures in one shared voxel traversal."""
+    """Evaluate several reduced mixtures in one shared CUDA voxel traversal.
+
+    ``positions`` are world-coordinate ground-truth means. ``scale`` is their
+    isotropic Gaussian radius in world units. ``reduced_models`` contains
+    ``(means, weights, sigmas)`` tensors for each model order. ``bounds`` is a
+    ``(3, 2)`` world-coordinate voxel region and ``voxel_res`` is the voxel
+    spacing. The returned array contains one DRA value per reduced model.
+    """
     device = torch.device("cuda")
     number_of_animals = len(positions)
     gt_means = torch.as_tensor(positions, device=device, dtype=torch.float32)
@@ -158,7 +182,13 @@ def compute_scale_model_order_surface(
     batch_size: int = 200_000,
     row_callback: Optional[RowCallback] = None,
 ) -> ScaleAnalysisResult:
-    """Fill missing cells of a DRA result; optional callback handles persistence."""
+    """Fill missing cells of a DRA result; optional callback handles persistence.
+
+    CUDA is required. Existing finite ``result.dra`` cells are skipped so a
+    partially completed surface can resume. ``row_callback`` receives
+    ``(result, scale_index, timing)`` after each completed scale row and is the
+    intended hook for managed artifact writes.
+    """
     if not torch.cuda.is_available():
         raise RuntimeError("DRA surface computation requires CUDA.")
     positions = np.asarray(positions, dtype=np.float32)
@@ -223,7 +253,13 @@ def fit_design_matrix(
     normalized_order: np.ndarray,
     model_name: str,
 ) -> np.ndarray:
-    """Build features for log(1-DRA) from log scale and model order."""
+    """Build regression features for ``log(1 - DRA)``.
+
+    ``normalized_scale`` and ``normalized_order`` are broadcast-compatible
+    arrays of dimensionless values. ``model_name`` selects one of
+    ``FIT_MODELS`` and controls whether interaction/quadratic columns are
+    included.
+    """
     log_scale = np.log(np.asarray(normalized_scale))
     log_order = np.log(np.asarray(normalized_order))
     columns = [np.ones(log_scale.size), log_scale, log_order]
@@ -242,6 +278,7 @@ def fit_one_surface_model(
     dra: np.ndarray,
     model_name: str,
 ) -> dict:
+    """Fit one candidate DRA surface model and return coefficients/metrics."""
     design = fit_design_matrix(normalized_scale, normalized_order, model_name)
     dra = np.asarray(dra)
     log_error = np.log(np.maximum(1.0 - dra, 1e-8))
@@ -294,6 +331,13 @@ def fit_dra_surface(
     number_of_animals: int,
     dra: np.ndarray,
 ) -> dict:
+    """Fit all DRA candidate models for one complete surface.
+
+    Returns a dictionary with ``best_name``, normalized model orders, and one
+    candidate record per name in ``FIT_MODELS``. Candidate records include
+    coefficients, full-surface prediction, RMSE, R-squared, and row/column
+    cross-validated RMSE.
+    """
     normalized_orders = components / number_of_animals
     scale_grid, order_grid = np.meshgrid(
         normalized_scales, normalized_orders, indexing="ij"
@@ -316,6 +360,12 @@ def fit_dra_surface(
 
 @dataclass
 class DRAFrameSamples:
+    """Flattened DRA samples for cross-frame or cross-dataset fitting.
+
+    ``scale`` and ``order`` are normalized dimensionless coordinates and
+    ``dra`` contains matching flattened DRA values for one dataset frame.
+    """
+
     dataset: str
     time_step: int
     number_of_animals: int
@@ -370,6 +420,7 @@ def select_frames(start: int, stop: int, count: int, preferred: int) -> np.ndarr
 
 
 def concatenate_frames(frames: list[DRAFrameSamples]):
+    """Concatenate flattened ``(scale, order, dra)`` samples across frames."""
     if not frames:
         raise ValueError("At least one DRA frame is required.")
     return (
@@ -380,6 +431,7 @@ def concatenate_frames(frames: list[DRAFrameSamples]):
 
 
 def grouped_cv_rmse(frames: list[DRAFrameSamples], model_name: str) -> float:
+    """Compute leave-one-frame-out RMSE for a fitted DRA model family."""
     errors = []
     for held_index, held in enumerate(frames):
         training = [frame for index, frame in enumerate(frames) if index != held_index]
@@ -398,6 +450,7 @@ def grouped_cv_rmse(frames: list[DRAFrameSamples], model_name: str) -> float:
 def leave_one_dataset_out_rmse(
     frames: list[DRAFrameSamples], model_name: str
 ) -> float:
+    """Compute leave-one-dataset-out RMSE when at least two datasets exist."""
     errors = []
     datasets = sorted({frame.dataset for frame in frames})
     if len(datasets) < 2:
@@ -419,6 +472,7 @@ def leave_one_dataset_out_rmse(
 def fit_frames(
     frames: list[DRAFrameSamples], include_dataset_cv: bool = False
 ) -> dict:
+    """Fit DRA candidate models across flattened samples from many frames."""
     scale, order, dra = concatenate_frames(frames)
     candidates = {}
     for name in FIT_MODELS:
