@@ -1,4 +1,8 @@
 import dfr
+from dfr.data import load_dataset, resolve_dataset
+from dfr.evaluation import evaluate
+from dfr.plotting import plot_density_field_3d, plot_projected_gmm_density
+from dfr.reconstruction import reconstruct
 
 
 EXPECTED_PUBLIC_API = {
@@ -46,3 +50,19 @@ def test_top_level_package_docstring_documents_core_contract():
     assert "evaluate" in doc
     assert "world-coordinate" in doc
     assert "do not write artifacts" in doc
+
+
+def test_high_traffic_api_docstrings_document_contracts():
+    expectations = {
+        load_dataset: ("world-coordinate", "shape", "does not create output"),
+        resolve_dataset: ("scenario", "paths", "load_dataset"),
+        reconstruct: ("world-coordinate", "CUDA", "writes nothing"),
+        evaluate: ("world-coordinate", "writes nothing", "EvaluationRun"),
+        plot_density_field_3d: ("world-coordinate", "returns", "does not save"),
+        plot_projected_gmm_density: ("shape", "returns", "leaves saving"),
+    }
+
+    for function, snippets in expectations.items():
+        doc = function.__doc__ or ""
+        for snippet in snippets:
+            assert snippet in doc, f"{function.__name__} docstring is missing {snippet!r}"

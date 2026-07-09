@@ -14,7 +14,14 @@ from dfr.config import EvaluationConfig
 
 @dataclass(frozen=True, slots=True)
 class EvaluationSummary:
-    """Density masses and derived metrics for one or more frames."""
+    """Density-overlap masses and derived metrics for one or more frames.
+
+    Masses are non-negative voxel-integral values in the same density units as
+    :func:`dfr.evaluation.compute_density_overlap_masses`. Derived metrics are
+    dimensionless ratios: ``recall``, ``miss``, ``hallucination``, and
+    ``dmota``. Aggregate summaries are formed by summing masses first and then
+    recomputing the ratios.
+    """
 
     true_positive_mass: float
     false_positive_mass: float
@@ -58,6 +65,7 @@ class EvaluationSummary:
         ) / self.ground_truth_mass
 
     def to_dict(self) -> dict[str, float]:
+        """Return masses and derived metrics as JSON-safe floats."""
         return {
             "true_positive_mass": self.true_positive_mass,
             "false_positive_mass": self.false_positive_mass,
@@ -73,7 +81,12 @@ class EvaluationSummary:
 
 @dataclass(frozen=True, slots=True)
 class FrameEvaluation:
-    """Evaluation summary and grid provenance for one reconstructed frame."""
+    """Evaluation summary and grid provenance for one reconstructed frame.
+
+    ``bounds`` contains three world-coordinate ``(min, max)`` axis intervals
+    used to build the evaluation grid. ``voxel_resolution`` is the positive
+    world-coordinate grid spacing used for the overlap calculation.
+    """
 
     dataset_name: str
     frame: int
@@ -96,6 +109,7 @@ class FrameEvaluation:
             raise ValueError("voxel_resolution must be positive.")
 
     def to_dict(self) -> dict:
+        """Return frame metadata, bounds, resolution, and metric values."""
         return {
             "dataset": self.dataset_name,
             "frame": self.frame,
@@ -107,7 +121,11 @@ class FrameEvaluation:
 
 @dataclass(frozen=True, slots=True)
 class EvaluationRun:
-    """Typed evaluation of a reconstruction run."""
+    """Typed evaluation of a reconstruction run.
+
+    ``frames`` preserves per-frame metrics. ``artifacts`` is populated only
+    when evaluation was called with an explicit output config.
+    """
 
     frames: tuple[FrameEvaluation, ...]
     config: EvaluationConfig
@@ -119,6 +137,7 @@ class EvaluationRun:
 
     @property
     def summary(self) -> EvaluationSummary:
+        """Aggregate all frame masses, then recompute derived metrics."""
         return EvaluationSummary(
             true_positive_mass=sum(
                 frame.summary.true_positive_mass for frame in self.frames

@@ -19,7 +19,14 @@ def default_project_root() -> Path:
 
 
 class ScenarioRegistry:
-    """Resolve scenario names and dataset paths relative to an explicit root."""
+    """Resolve scenario names and dataset paths relative to an explicit root.
+
+    Registered scenarios live under ``<project_root>/scenarios/<name>/`` and
+    are identified by a ``config.yaml`` file. Relative paths inside registered
+    scenario configs are resolved from ``project_root`` for compatibility with
+    the original repository layout; standalone config files resolve relative
+    data paths beside the config file.
+    """
 
     def __init__(self, project_root: str | Path | None = None):
         self.project_root = (
@@ -42,7 +49,12 @@ class ScenarioRegistry:
         )
 
     def resolve_scenario(self, name: str) -> DatasetSpec:
-        """Resolve one registered scenario name to an absolute DatasetSpec."""
+        """Resolve one registered scenario name to an absolute DatasetSpec.
+
+        ``name`` must be a single directory segment, not a path. Unknown names
+        raise :class:`FileNotFoundError` with the currently available scenario
+        list to make dataset setup failures easier to diagnose.
+        """
         if not name or Path(name).name != name:
             raise ValueError(f"Scenario name must be a single directory name: {name!r}")
         config_path = self.scenarios_root / name / "config.yaml"
@@ -57,7 +69,12 @@ class ScenarioRegistry:
     def resolve_config(
         self, config_path: str | Path, scenario_name: str | None = None
     ) -> DatasetSpec:
-        """Resolve a YAML scenario config to its dataset source."""
+        """Resolve a YAML scenario config to its dataset source.
+
+        The config must be a YAML mapping containing a non-empty ``data_file``
+        string. The returned spec stores absolute paths and validates that the
+        dataset file exists before returning.
+        """
         path = self._resolve_input_path(config_path)
         if not path.is_file():
             raise FileNotFoundError(f"Scenario config does not exist: {path}")
@@ -92,7 +109,12 @@ class ScenarioRegistry:
         return spec
 
     def resolve(self, source: DatasetSource) -> DatasetSpec:
-        """Resolve a DatasetSpec, scenario name, YAML config, or data path."""
+        """Resolve a DatasetSpec, scenario name, YAML config, or data path.
+
+        Plain strings with no suffix and no directory separators are treated as
+        registered scenario names. YAML paths are treated as scenario configs;
+        all other path-like values are treated as dataset files.
+        """
         if isinstance(source, DatasetSpec):
             self._validate_data_path(source)
             return source
@@ -155,5 +177,10 @@ class ScenarioRegistry:
 def resolve_dataset(
     source: DatasetSource, *, project_root: str | Path | None = None
 ) -> DatasetSpec:
-    """Resolve a dataset source with a one-shot registry."""
+    """Resolve a scenario name, config path, data path, or spec in one call.
+
+    This is the lightweight functional entrypoint used by
+    :func:`dfr.load_dataset` and examples that need to inspect paths before
+    loading arrays.
+    """
     return ScenarioRegistry(project_root=project_root).resolve(source)

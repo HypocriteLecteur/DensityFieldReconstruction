@@ -7,8 +7,9 @@ on chat history.
 ## Status
 
 - **Current phase:** Phase 7 core documentation and public API is in progress.
-  The first slice documents the intended top-level API and high-traffic
-  package surfaces. Phase
+  The first slices document the intended top-level API, high-traffic package
+  surfaces, and the main public class/function contracts for data loading,
+  configuration, artifacts, reconstruction, evaluation, and plotting. Phase
   6 plotting decomposition is complete: the
   `experiments/dfr_plot.py` function catalog is frozen in
   `experiments/DFR_PLOT_CATALOG.md`; reusable camera-configuration,
@@ -364,15 +365,27 @@ importable, and every remaining experiment figure has a documented command.
   - Started with expanded module-level documentation for `dfr`, `dfr.data`,
     `dfr.analysis`, `dfr.reconstruction`, `dfr.evaluation`, `dfr.plotting`,
     `dfr.config`, `dfr.artifacts`, and `dfr.workflows`.
+  - Continued with expanded public class/function docstrings for
+    `dfr.data.base`, `dfr.data.loading`, `dfr.data.registry`, `dfr.data.spec`,
+    `dfr.config`, `dfr.artifacts`, `dfr.reconstruction.pipeline`,
+    `dfr.reconstruction.results`, `dfr.evaluation.pipeline`,
+    `dfr.evaluation.results`, and core plotting primitives.
 - [ ] Document units, coordinate systems, shapes/dtypes, device behavior,
   randomness, side effects, exceptions, and return contracts where relevant.
   - Started at the package boundary: top-level docs now define frame indices,
     world-coordinate position shapes, scale units, CUDA side effects, and
     no-implicit-artifact behavior.
+  - Continued across public functions/classes: documented dataset array shapes,
+    explicit camera pose order, managed output semantics, reconstruction CPU
+    result arrays, voxel-evaluation bounds/resolution, plotting return values,
+    and no-save behavior.
 - [ ] Export only the intended common API from `dfr/__init__.py`; keep advanced
   APIs accessible from their submodules.
   - Started: `tests/test_public_api.py` guards the current intended
     top-level `dfr.__all__` surface and package contract docstring.
+  - Added a high-traffic docstring contract guard for `load_dataset`,
+    `resolve_dataset`, `reconstruct`, `evaluate`, and representative plotting
+    APIs.
 - [ ] Add runnable examples and API reference generation or a lightweight
   `docs/` tree.
 - [ ] Add a script catalog table to the README and a module ownership map to
@@ -401,19 +414,19 @@ reading implementation or experiment source.
 
 The next agent should continue Phase 7:
 
-1. Continue from module-level documentation into public class/function
-   docstrings for the highest-traffic modules: `dfr.data.base`,
-   `dfr.data.loading`, `dfr.config`, `dfr.artifacts`,
-   `dfr.reconstruction.pipeline`, `dfr.evaluation.pipeline`, and plotting
-   primitives.
-2. Keep documenting units, coordinate systems, shapes/dtypes, device behavior,
+1. Continue remaining public documentation into lower-level camera/model/scale
+   modules and analysis result classes: `dfr.reconstruction.cameras`,
+   `dfr.reconstruction.observations`, `dfr.reconstruction.scenarios`,
+   `dfr.analysis.*`, `dfr.model_checkpoint`, and any public legacy adapters
+   that are still intentionally supported.
+2. Add runnable examples or a lightweight `docs/` tree for load -> analyze ->
+   reconstruct -> evaluate -> plot.
+3. Keep documenting units, coordinate systems, shapes/dtypes, device behavior,
    randomness, side effects, exceptions, and return contracts where they are
    currently implicit.
-3. Revisit `dfr/__init__.py` exports only if Phase 7 identifies public names
+4. Revisit `dfr/__init__.py` exports only if Phase 7 identifies public names
    that should move to subpackages; update `tests/test_public_api.py` in the
    same commit.
-4. Add runnable examples or a lightweight `docs/` tree for load -> analyze ->
-   reconstruct -> evaluate -> plot.
 5. Do not revive archive-only `experiments.dfr_plot` functions directly; move
    any revived figure to a named CLI or package API with tests.
 
@@ -590,6 +603,32 @@ The next agent should continue Phase 7:
 
 Add one newest-first entry per working session. Include commit(s), verification,
 known failures, and the exact next step.
+
+### 2026-07-09 - Phase 7 high-traffic public docstrings expanded
+
+- Expanded public class/function docstrings for the highest-traffic Phase 7
+  APIs: dataset protocol/loading/registry/specs, config dataclasses, managed
+  artifacts, reconstruction/evaluation pipelines and typed results, and core
+  plotting primitives.
+- Documented key contracts directly at call sites: world-coordinate data
+  shapes, frame-index semantics, explicit camera pose order, fixed/adaptive
+  reconstruction scales, CUDA requirements, CPU result arrays,
+  voxel-evaluation bounds/resolution, managed run resume/overwrite behavior,
+  plotting return values, and no-save/no-output side effects.
+- Extended `tests/test_public_api.py` with a high-traffic docstring contract
+  guard covering `load_dataset`, `resolve_dataset`, `reconstruct`, `evaluate`,
+  `plot_density_field_3d`, and `plot_projected_gmm_density`.
+- Verification: focused public/data/config/artifact/reconstruction/evaluation/
+  plotting tests passed with 82 tests; `compileall dfr experiments tests`
+  passed; `git diff --check` passed with Windows line-ending warnings only;
+  `pytest -m "not cuda"` passed with 167 tests and 7 deselected;
+  `pytest -m cuda` passed with 6 tests, 1 skipped rasterizer-extension test,
+  and 167 deselected.
+- Known limitation: lower-level camera/model/analysis modules and runnable docs
+  examples still need Phase 7 coverage.
+- Next step: continue Phase 7 with remaining lower-level public docstrings and
+  add a lightweight `docs/` tree or examples for load -> analyze -> reconstruct
+  -> evaluate -> plot.
 
 ### 2026-07-09 - Phase 7 public API documentation started
 

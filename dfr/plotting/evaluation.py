@@ -29,7 +29,8 @@ def plot_evaluation_summary(
 
     The input may be an aggregate :class:`EvaluationRun`, one
     :class:`FrameEvaluation`, or a bare :class:`EvaluationSummary`. The function
-    returns ``(Figure, Axes)`` and leaves saving to the caller.
+    returns ``(Figure, Axes)`` and leaves saving to the caller. ``metrics`` must
+    be chosen from ``recall``, ``miss``, ``hallucination``, and ``dmota``.
     """
     summary, default_title = _evaluation_summary_and_title(evaluation)
     metric_names = _metric_names(metrics)
@@ -81,7 +82,8 @@ def plot_evaluation_metric_series(
 
     The input may be an :class:`EvaluationRun` or an ordered sequence of
     :class:`FrameEvaluation` values. The function returns ``(Figure, Axes)`` and
-    leaves saving to the caller.
+    leaves saving to the caller. Frame IDs are plotted in their existing order;
+    callers should sort frames before plotting if chronological order matters.
     """
     frames = _evaluation_frames(evaluation)
     metric_names = _metric_names(metrics)

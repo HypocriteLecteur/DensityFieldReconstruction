@@ -11,8 +11,11 @@ from typing import Optional
 class DatasetSpec:
     """Resolved dataset source used by loading workflows.
 
-    Paths are stored as absolute paths so downstream code does not depend on
-    the process working directory.
+    ``data_path`` points at the concrete dataset file. ``config_path`` points at
+    the scenario YAML when the dataset came from a scenario/config, and
+    ``project_root`` records the root used for resolution. Paths are stored as
+    absolute paths so downstream code does not depend on the process working
+    directory.
     """
 
     name: str

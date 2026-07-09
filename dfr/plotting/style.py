@@ -25,7 +25,12 @@ ACADEMIC_STYLE = {
 
 
 def apply_academic_style(overrides: Mapping[str, Any] | None = None) -> None:
-    """Apply the publication-style defaults used by DFR figures."""
+    """Apply the publication-style defaults used by DFR figures.
+
+    This mutates Matplotlib ``rcParams`` process-wide. Pass ``overrides`` for a
+    small local adjustment before creating figures; callers that need isolated
+    styling should use Matplotlib's own context managers around this helper.
+    """
     style = dict(ACADEMIC_STYLE)
     if overrides is not None:
         style.update(overrides)
@@ -33,7 +38,11 @@ def apply_academic_style(overrides: Mapping[str, Any] | None = None) -> None:
 
 
 def style_3d_axis(ax: plt.Axes) -> None:
-    """Apply DFR's transparent-pane 3D axis styling in-place."""
+    """Apply DFR's transparent-pane 3D axis styling in-place.
+
+    ``ax`` must be a Matplotlib 3D axes object. The function only changes axis
+    panes/grid styling and returns ``None``.
+    """
     for axis in [ax.xaxis, ax.yaxis, ax.zaxis]:
         axis.pane.fill = False
         axis._axinfo["grid"].update(
@@ -46,7 +55,12 @@ def style_3d_axis(ax: plt.Axes) -> None:
 
 
 def set_3d_view(ax: plt.Axes, view: tuple[float, float] | tuple[float, float, float]) -> None:
-    """Set a 3D Matplotlib view, tolerating older Matplotlib without ``roll``."""
+    """Set a 3D Matplotlib view, tolerating older Matplotlib without ``roll``.
+
+    ``view`` is ``(elev, azim)`` or ``(elev, azim, roll)`` in degrees. Older
+    Matplotlib versions that do not support ``roll`` silently receive only
+    elevation and azimuth.
+    """
     if len(view) == 2:
         elev, azim = view
         roll = None
@@ -69,7 +83,11 @@ def prepare_3d_axis(
     view: tuple[float, float] | tuple[float, float, float] | None = None,
     axis_off: bool = False,
 ) -> None:
-    """Apply common 3D axis view and visibility settings."""
+    """Apply common 3D axis view and visibility settings.
+
+    This is a lightweight convenience wrapper used by plotting primitives. It
+    never creates figures, saves files, or changes global Matplotlib state.
+    """
     if view is not None:
         set_3d_view(ax, view)
     if axis_off:
@@ -83,7 +101,12 @@ def apply_figure_layout(
     rect: tuple[float, float, float, float] | None = None,
     adjust: Mapping[str, Any] | None = None,
 ) -> None:
-    """Apply a consistent tight-layout or subplot-adjust operation."""
+    """Apply a consistent tight-layout or subplot-adjust operation.
+
+    When ``adjust`` is supplied, it is passed to ``figure.subplots_adjust``.
+    Otherwise ``figure.tight_layout`` is called with optional ``pad`` and
+    ``rect``. The helper mutates layout in-place and returns ``None``.
+    """
     if adjust is not None:
         figure.subplots_adjust(**dict(adjust))
         return
@@ -111,7 +134,8 @@ def save_figure(
     Managed workflows should still prefer ``RunArtifacts.save_figure`` when
     they need overwrite protection and manifest-backed provenance. This helper
     is for reusable plotting primitives, compatibility wrappers, and
-    experiment-local figure exports.
+    experiment-local figure exports. Parent directories are created by default
+    and the resolved target :class:`pathlib.Path` is returned.
     """
     target = Path(path)
     if create_parent:

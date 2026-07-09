@@ -10,11 +10,21 @@ import numpy as np
 
 @runtime_checkable
 class Dataset(Protocol):
-    """Protocol shared by analysis and reconstruction workflows.
+    """Minimum in-memory dataset contract used by DFR workflows.
 
-    Required position arrays have shape ``(frames, agents, 3)``. Optional
-    velocity arrays use the same shape. Loaders may NaN-pad absent agents;
-    ``positions_at_time_step`` returns only valid rows.
+    Implementations expose trajectories as world-coordinate arrays shaped
+    ``(frames, agents, 3)``. Optional velocity arrays use the same shape and
+    optional timestamps use shape ``(frames,)``. Loaders may NaN-pad absent or
+    invalid agents in the raw trajectory arrays; callers that need a clean
+    frame should use :meth:`positions_at_time_step`, which returns only valid
+    rows shaped ``(valid_agents, 3)``.
+
+    ``time_step`` arguments are integer frame indices. Negative indices follow
+    Python sequence semantics through :meth:`normalize_time_step`; out-of-range
+    indices should raise :class:`IndexError`. Metadata is intentionally a loose
+    mapping so loaders can preserve source-specific provenance, but common
+    keys populated by :func:`dfr.load_dataset` include ``dataset_name``,
+    ``scenario_config``, and ``project_root``.
     """
 
     @property

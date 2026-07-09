@@ -36,7 +36,13 @@ def render_density_shells(
     max_density: Optional[float] = None,
     layers: Optional[Sequence[dict]] = None,
 ) -> None:
-    """Render a 3D density field as nested semi-transparent scatter shells."""
+    """Render a 3D density field as nested semi-transparent scatter shells.
+
+    ``density_3d`` must have shape ``(nx, ny, nz)`` and ``x_ticks``,
+    ``y_ticks``, and ``z_ticks`` must match those axes. The helper draws on the
+    supplied 3D axes and returns ``None``; figure creation and saving are left
+    to higher-level plot functions.
+    """
     density = _density(density_3d)
     x_axis, y_axis, z_axis = _ticks(x_ticks, y_ticks, z_ticks, density.shape)
     maximum = float(np.max(density)) if max_density is None else float(max_density)
@@ -78,7 +84,12 @@ def render_agent_positions(
     alpha: float = 1.0,
     z_sort_pos: float = -1e9,
 ):
-    """Overlay 3D agent positions on top of density shells."""
+    """Overlay 3D agent positions on top of density shells.
+
+    ``positions`` must be shaped ``(agents, 3)`` in world coordinates. The
+    returned Matplotlib scatter collection has a depth-order override so agents
+    remain visible over translucent density shells.
+    """
     points = _positions(positions)
     collection = ax.scatter(
         points[:, 0],
@@ -110,7 +121,12 @@ def render_gmm_wireframes(
     z_sort_pos: float = -5e8,
     sphere_res: int = 20,
 ) -> list:
-    """Draw isotropic GMM components as depth-ordered wireframe spheres."""
+    """Draw isotropic GMM components as depth-ordered wireframe spheres.
+
+    ``means`` is ``(components, 3)`` in world coordinates. ``sigmas`` and
+    ``weights`` contain one value per component; sigmas must be positive and
+    weights non-negative. The returned list contains the wireframe artists.
+    """
     means_array, sigmas_array, weights_array = _gmm_components(means, sigmas, weights)
     if sphere_res < 4:
         raise ValueError("sphere_res must be at least 4.")
@@ -155,7 +171,11 @@ def render_gmm_means(
     alpha: float = 0.85,
     z_sort_pos: float = -6e8,
 ):
-    """Overlay GMM mean positions, sorted in front of wireframes."""
+    """Overlay GMM mean positions, sorted in front of wireframes.
+
+    ``means`` may be empty but must otherwise have shape ``(components, 3)``.
+    The returned scatter collection is depth-ordered ahead of wireframes.
+    """
     means_array = _positions(means, allow_empty=True)
     collection = ax.scatter(
         means_array[:, 0],
@@ -183,7 +203,12 @@ def render_density_field_3d(
     max_density: Optional[float] = None,
     layers: Optional[Sequence[dict]] = None,
 ) -> None:
-    """Render a GT-style density field: density shells plus agent overlay."""
+    """Render a GT-style density field: density shells plus agent overlay.
+
+    This is an axes-level renderer for ground-truth density visualization. It
+    expects world-coordinate tick arrays and agent positions, draws in-place,
+    and does not create or save figures.
+    """
     density = _density(density_3d)
     x_axis, y_axis, z_axis = _ticks(x_ticks, y_ticks, z_ticks, density.shape)
     points = _positions(positions)
@@ -214,7 +239,12 @@ def render_reconstructed_gmm_3d(
     max_density: Optional[float] = None,
     gmm_colour: str = "#4169e1",
 ) -> None:
-    """Render density shells plus reconstructed isotropic GMM wireframes."""
+    """Render density shells plus reconstructed isotropic GMM wireframes.
+
+    This axes-level renderer overlays reconstructed isotropic GMM components on
+    a 3D density field. Inputs use the same shapes as
+    :func:`render_density_shells` and :func:`render_gmm_wireframes`.
+    """
     density = _density(density_3d)
     x_axis, y_axis, z_axis = _ticks(x_ticks, y_ticks, z_ticks, density.shape)
     points = _positions(positions)
@@ -248,7 +278,13 @@ def render_frame_reconstruction_gmm_3d(
     gmm_colour: str = "#4169e1",
     show_positions: bool = True,
 ) -> dict[str, object]:
-    """Render a typed reconstructed frame as GMM wireframes and optional agents."""
+    """Render a typed reconstructed frame as GMM wireframes and optional agents.
+
+    The frame arrays are consumed directly from
+    :class:`dfr.reconstruction.FrameReconstruction`. The returned dictionary
+    contains the created ``wireframes``, ``means``, and optional ``positions``
+    artists for downstream legend or styling adjustments.
+    """
     if not isinstance(frame, FrameReconstruction):
         raise TypeError("frame must be a FrameReconstruction.")
     wireframes = render_gmm_wireframes(
@@ -281,7 +317,13 @@ def plot_frame_reconstruction_gmm_3d(
     title: Optional[str] = None,
     gmm_colour: str = "#4169e1",
 ):
-    """Plot a :class:`dfr.reconstruction.FrameReconstruction` GMM in 3D."""
+    """Plot a :class:`dfr.reconstruction.FrameReconstruction` GMM in 3D.
+
+    A new 3D figure is created unless ``ax`` is supplied. The function returns
+    ``(Figure, Axes, artists)`` and performs no saving; use
+    :func:`dfr.plotting.save_figure` or ``RunArtifacts.save_figure`` for
+    persistence.
+    """
     if not isinstance(frame, FrameReconstruction):
         raise TypeError("frame must be a FrameReconstruction.")
     if ax is None:
@@ -325,7 +367,13 @@ def plot_density_field_3d(
     axis_off: bool = True,
     layers: Optional[Sequence[dict]] = None,
 ):
-    """Plot one 3D density field with an optional scale/mode annotation."""
+    """Plot one 3D density field with an optional scale/mode annotation.
+
+    ``density_3d`` and tick arrays define a world-coordinate grid. ``positions``
+    must be ``(agents, 3)``. If both ``normalized_scale`` and ``mode_count`` are
+    provided, the annotation is written in normalized nearest-neighbour units.
+    The function returns ``(Figure, Axes)`` and does not save.
+    """
     density = _density(density_3d)
     x_axis, y_axis, z_axis = _ticks(x_ticks, y_ticks, z_ticks, density.shape)
     points = _positions(positions)
@@ -368,7 +416,13 @@ def plot_multiscale_density_fields(
     view: Optional[tuple[float, float, float]] = (33, -117, 0),
     figsize: tuple[float, float] = (10, 10),
 ) -> list[tuple[plt.Figure, plt.Axes]]:
-    """Plot one 3D density figure for each selected scale."""
+    """Plot one 3D density figure for each selected scale.
+
+    Each ``density_data`` item must provide ``density``, ``x_ticks``,
+    ``y_ticks``, and ``z_ticks``. ``normalized_scales`` and ``mode_counts`` must
+    have matching lengths. The return value is one ``(Figure, Axes)`` pair per
+    scale, in input order.
+    """
     scales = np.asarray(normalized_scales, dtype=float)
     counts = np.asarray(mode_counts, dtype=int).reshape(-1)
     data = list(density_data)

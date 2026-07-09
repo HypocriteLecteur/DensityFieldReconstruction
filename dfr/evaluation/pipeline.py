@@ -40,10 +40,28 @@ def evaluate(
 ) -> EvaluationRun:
     """Evaluate reconstructed densities against point-density ground truth.
 
-    ``reconstruction`` may be an in-memory :class:`ReconstructionRun` or its
-    managed run directory. Saved reconstruction arrays contain the source
-    positions, so ``ground_truth`` is optional; pass a dataset to explicitly
-    reload the requested frames. No files are written unless ``output`` is set.
+    Parameters
+    ----------
+    reconstruction:
+        In-memory :class:`dfr.reconstruction.ReconstructionRun` or path to a
+        managed reconstruction run directory containing ``manifest.json`` and
+        saved ``data/**/reconstruction.npz`` arrays.
+    ground_truth:
+        Optional dataset used to reload frame positions. When omitted, saved or
+        in-memory reconstruction positions are treated as the reference points.
+    config:
+        Voxel resolution, bounds, batch size, and device controls. Bounds are
+        world-coordinate ``(min, max)`` pairs per axis.
+    output:
+        Optional :class:`dfr.artifacts.OutputConfig` with
+        ``workflow="evaluation"``. When omitted, evaluation writes nothing.
+
+    Returns
+    -------
+    dfr.evaluation.EvaluationRun
+        Per-frame overlap masses and derived metrics. If ``output`` is set,
+        per-frame metrics and aggregate ``summary.json`` are saved under the
+        managed run's ``metrics/`` directory.
     """
     selected_config = config or EvaluationConfig()
     if output is not None and output.workflow != "evaluation":

@@ -33,7 +33,9 @@ def plot_mode_count_curve(
 
     ``normalized_scales`` may be either a scale array or a
     :class:`dfr.analysis.ModeCurveResult`. The function returns the created
-    ``(Figure, Axes)`` and never saves by itself.
+    ``(Figure, Axes)`` and never saves by itself. Scale values are normalized
+    by nearest-neighbour distance, must be positive and strictly increasing,
+    and ``mode_counts`` must contain one finite count per scale.
     """
     if isinstance(normalized_scales, ModeCurveResult):
         if mode_counts is not None:
@@ -183,7 +185,9 @@ def plot_dra_scale_model_order_surface(
     ``normalized_scales`` may be either a normalized-scale array or a
     :class:`dfr.analysis.ScaleAnalysisResult`. Passing a result object lets
     callers avoid unpacking arrays and preserves the same Figure/Axes return
-    contract as the array-based API.
+    contract as the array-based API. ``dra`` must be shaped
+    ``(len(normalized_scales), len(component_counts))``; component counts are
+    converted to percentages of ``number_of_animals`` for the y-axis.
     """
     if isinstance(normalized_scales, ScaleAnalysisResult):
         if (
@@ -284,7 +288,13 @@ def plot_dra_surface_grid(
     *,
     columns: int = 2,
 ):
-    """Plot a grid of DRA surfaces from typed results or legacy result tuples."""
+    """Plot a grid of DRA surfaces from typed results or legacy result tuples.
+
+    ``results`` maps dataset labels to :class:`ScaleAnalysisResult` objects or
+    pre-refactor tuples. ``fits`` must provide a matching entry per dataset
+    with ``best_name`` and candidate prediction arrays. The function returns
+    ``(Figure, list[Axes])`` and does not save.
+    """
     if not results:
         raise ValueError("results must contain at least one DRA surface.")
     if columns < 1:

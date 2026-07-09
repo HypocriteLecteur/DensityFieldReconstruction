@@ -80,7 +80,13 @@ def _slugify(value: str) -> str:
 
 
 def to_serializable(value: Any) -> Any:
-    """Convert common config/result values to JSON/YAML-safe Python values."""
+    """Convert common config/result values to JSON/YAML-safe Python values.
+
+    Supported inputs include primitives, paths, datetimes, enums, NumPy scalars
+    and arrays, PyTorch tensors/devices, dataclasses, mappings, sequences, and
+    objects exposing ``to_dict``. Unsupported objects raise :class:`TypeError`
+    so callers do not accidentally persist opaque Python state.
+    """
     if value is None or isinstance(value, (str, int, float, bool)):
         return value
     if isinstance(value, Path):
@@ -117,8 +123,11 @@ def to_serializable(value: Any) -> Any:
 class OutputConfig:
     """Configuration for one managed run directory.
 
-    Relative roots are resolved from ``project_root`` (or the source checkout
-    root), never from the process working directory.
+    ``workflow`` and ``run_id`` must be single path-safe segments. Relative
+    roots are resolved from ``project_root`` (or the source checkout root),
+    never from the process working directory. ``resume`` reuses an existing run
+    with matching resolved configuration; ``overwrite`` replaces an existing
+    run directory. The two modes are mutually exclusive.
     """
 
     workflow: str
@@ -195,7 +204,14 @@ class OutputConfig:
 
 @dataclass(slots=True)
 class RunArtifacts:
-    """Paths and persistence operations for one DFR run."""
+    """Managed artifact writer for one resolved DFR run.
+
+    Instances are created with :meth:`create`, which materializes
+    ``config.yaml``, ``manifest.json``, and the canonical category directories:
+    ``data``, ``checkpoints``, ``metrics``, ``figures``, ``logs``, and
+    ``cache``. All save helpers take paths relative to one category and reject
+    absolute paths or traversal outside that category.
+    """
 
     output: OutputConfig
     run_id: str
@@ -213,7 +229,14 @@ class RunArtifacts:
         git_commit: Optional[str] = None,
         now: Optional[datetime] = None,
     ) -> "RunArtifacts":
-        """Create or resume a managed run and write its provenance files."""
+        """Create or resume a managed run and write provenance files.
+
+        ``resolved_config`` is serialized into ``config.yaml``. ``metadata`` is
+        stored in ``manifest.json`` together with package and Git provenance
+        when available. When ``output.resume`` is true, the existing
+        ``config.yaml`` must match the new resolved config after ignoring the
+        transient resume/overwrite flags.
+        """
         instant = now or _utc_now()
         run_id = output.resolved_run_id(instant)
         root = output.resolved_root
@@ -327,6 +350,7 @@ class RunArtifacts:
         category: str = "data",
         overwrite: bool = False,
     ) -> Path:
+        """Serialize ``value`` as formatted JSON inside an artifact category."""
         target = self._prepare_target(category, relative_path, overwrite)
         _atomic_json(target, to_serializable(value))
         return target
@@ -339,6 +363,7 @@ class RunArtifacts:
         overwrite: bool = False,
         **arrays: Any,
     ) -> Path:
+        """Atomically save NumPy-compatible arrays as ``.npz`` data."""
         target = self._prepare_target(category, relative_path, overwrite)
         temporary = target.with_name(f".{target.name}.tmp")
         with temporary.open("wb") as stream:
@@ -353,6 +378,7 @@ class RunArtifacts:
         *,
         overwrite: bool = False,
     ) -> Path:
+        """Atomically save a PyTorch checkpoint under ``checkpoints/``."""
         target = self._prepare_target("checkpoints", relative_path, overwrite)
         temporary = target.with_name(f".{target.name}.tmp")
         torch.save(value, temporary)
@@ -367,6 +393,11 @@ class RunArtifacts:
         overwrite: bool = False,
         **savefig_kwargs: Any,
     ) -> Path:
+        """Save a Matplotlib-like figure under ``figures/``.
+
+        The figure object must provide ``savefig``. Managed overwrite checks and
+        category/path-traversal validation are applied before saving.
+        """
         target = self._prepare_target("figures", relative_path, overwrite)
         temporary = target.with_name(f".{target.stem}.tmp{target.suffix}")
         figure.savefig(temporary, **savefig_kwargs)

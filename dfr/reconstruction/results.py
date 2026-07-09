@@ -15,7 +15,14 @@ from dfr.data.base import Dataset
 
 @dataclass(frozen=True, slots=True)
 class ReconstructionRequest:
-    """Fully resolved controls for one dataset reconstruction run."""
+    """Fully resolved controls for one dataset reconstruction run.
+
+    This object is created by :func:`dfr.reconstruct` after frame selection and
+    default parameter resolution. It is serializable for provenance except for
+    the dataset object itself, which is represented by metadata in
+    :meth:`to_dict`. ``scale`` and ``frame_scales`` are world-coordinate units;
+    ``None`` requests adaptive scale selection for each frame.
+    """
 
     dataset: Dataset
     frames: tuple[int, ...]
@@ -100,7 +107,16 @@ class ReconstructionRequest:
 
 @dataclass
 class FrameReconstruction:
-    """CPU arrays and metrics produced by reconstructing one dataset frame."""
+    """CPU arrays and metrics produced by reconstructing one dataset frame.
+
+    ``positions`` and ``means`` are world-coordinate arrays shaped
+    ``(agents, 3)`` and ``(gaussians, 3)``. ``radii`` and ``weights`` are stored
+    as ``(gaussians, 1)`` float arrays. ``camera_poses`` has shape
+    ``(cameras, 7)`` in ``(x, y, z, qx, qy, qz, qw)`` order; ``projections`` is
+    one ``(visible_agents, 2)`` image-plane array per camera. All arrays are
+    detached from CUDA tensors before construction so downstream analysis and
+    plotting can run on CPU.
+    """
 
     dataset_name: str
     frame: int
@@ -149,6 +165,7 @@ class FrameReconstruction:
         return len(self.means)
 
     def summary(self) -> dict[str, Any]:
+        """Return scalar metadata suitable for metrics JSON files."""
         return {
             "dataset": self.dataset_name,
             "frame": self.frame,
@@ -165,7 +182,12 @@ class FrameReconstruction:
 
 @dataclass(frozen=True, slots=True)
 class ReconstructionRun:
-    """Typed collection of reconstructed frames and optional managed artifacts."""
+    """Typed collection of reconstructed frames and optional managed artifacts.
+
+    ``frames`` preserves the exact order requested in
+    :class:`ReconstructionRequest`. ``artifacts`` is ``None`` for in-memory
+    calls and populated only when the caller passed an ``OutputConfig``.
+    """
 
     request: ReconstructionRequest
     frames: tuple[FrameReconstruction, ...]

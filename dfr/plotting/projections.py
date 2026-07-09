@@ -18,7 +18,13 @@ def transparent_colormap(
     name: str = "dfr_transparent",
     samples: int = 256,
 ) -> LinearSegmentedColormap:
-    """Return a transparent-to-color colormap for image-plane densities."""
+    """Return a transparent-to-color colormap for image-plane densities.
+
+    ``color`` may be RGB or RGBA in Matplotlib-normalized ``0..1`` units.
+    The first color is fully transparent white and the final color is the
+    requested color, making the map useful for overlaying projected density on
+    otherwise blank image-plane axes.
+    """
     if samples < 2:
         raise ValueError("samples must be at least 2.")
     top = np.asarray(color, dtype=float)
@@ -42,7 +48,13 @@ def plot_projection_points(
     point_size: float = 10,
     alpha: float = 0.65,
 ):
-    """Plot 2D projected points on image-plane axes."""
+    """Plot 2D projected points on image-plane axes.
+
+    ``points`` must have shape ``(points, 2)`` in pixel coordinates
+    ``(x, y)``. ``image_shape`` is ``(height, width)`` and controls axis limits
+    with the origin at the upper-left image corner. The function returns
+    ``(Figure, Axes)`` and never saves or displays the figure.
+    """
     points = _points(points)
     height, width = _image_shape(image_shape)
     if ax is None:
@@ -75,7 +87,13 @@ def plot_density_image(
     line_alpha: float = 0.5,
     line_width: float = 0.3,
 ):
-    """Plot an image-plane density as transparent filled contours."""
+    """Plot an image-plane density as transparent filled contours.
+
+    ``density`` must be shaped ``(height, width)``. Values are interpreted as
+    non-negative image-plane density; finite positive maxima produce geometric
+    contour levels from ``density_cutoff * max`` to ``max``. Empty or zero
+    densities still return formatted image-plane axes.
+    """
     image = _density(density)
     height, width = _image_shape(image_shape or image.shape)
     if image.shape != (height, width):
@@ -125,7 +143,13 @@ def plot_projected_gmm_density(
     ax=None,
     cmap=None,
 ):
-    """Plot projected 2D GMM density with one-sigma covariance ellipses."""
+    """Plot projected 2D GMM density with one-sigma covariance ellipses.
+
+    ``means_2d`` is shaped ``(components, 2)``, ``covariances_2d`` is shaped
+    ``(components, 2, 2)``, and ``weights`` contains one value per component.
+    Ellipse opacity is scaled by relative component weight. The function
+    returns ``(Figure, Axes)`` and leaves saving to the caller.
+    """
     means = _points(means_2d)
     covariances = _covariances(covariances_2d, len(means))
     weights = _weights(weights, len(means))

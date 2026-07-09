@@ -14,11 +14,32 @@ def load_dataset(
     project_root: str | Path | None = None,
     verbose: bool = False,
 ) -> DatasetInterface:
-    """Load a scenario name, YAML config, explicit data path, or DatasetSpec.
+    """Load one dataset source through the stable package facade.
 
-    The returned object satisfies :class:`dfr.data.Dataset`. Existing callers
-    may continue using :class:`dfr.dataset_io.DatasetFactory` directly while
-    they migrate.
+    Parameters
+    ----------
+    source:
+        Registered scenario name, YAML scenario config, explicit dataset file,
+        or already resolved :class:`dfr.data.DatasetSpec`.
+    project_root:
+        Root used to resolve scenario names and relative paths. When omitted,
+        the installed source checkout root is used rather than the process
+        working directory.
+    verbose:
+        Forwarded to the legacy :class:`dfr.dataset_io.DatasetFactory`.
+
+    Returns
+    -------
+    dfr.dataset_io.DatasetInterface
+        A dataset satisfying :class:`dfr.data.Dataset`. Trajectories are
+        world-coordinate arrays with shape ``(frames, agents, 3)`` and the
+        dataset metadata records the resolved name, scenario config, and
+        project root.
+
+    Notes
+    -----
+    Loading is read-only. This function does not create output directories or
+    write managed artifacts.
     """
     spec = resolve_dataset(source, project_root=project_root)
     dataset = DatasetFactory(verbose=verbose).get_dataset(spec.data_path)

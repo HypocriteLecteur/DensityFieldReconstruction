@@ -28,7 +28,13 @@ from dfr.simulation_config import SimulationConfig
 
 
 def default_training_params(iterations: int = 100) -> TrainingParams:
-    """Return the established one-frame optimization defaults."""
+    """Return the established one-frame optimization defaults.
+
+    ``iterations`` becomes ``TrainingParams.lr_max_steps`` and must be
+    positive. The remaining coefficients match the pre-refactor experiment
+    defaults so new workflow calls reproduce the same training schedule unless
+    callers supply an explicit :class:`TrainingParams`.
+    """
     if iterations < 1:
         raise ValueError("iterations must be positive.")
     return TrainingParams(
@@ -46,7 +52,12 @@ def default_training_params(iterations: int = 100) -> TrainingParams:
 
 
 def default_reconstruction_params() -> ReconstructionParams:
-    """Return the established adaptive-scale and visual-hull defaults."""
+    """Return the established adaptive-scale and visual-hull defaults.
+
+    These defaults target ten density modes and use the legacy visual-hull grid
+    controls. Values are intentionally conservative for compatibility with the
+    original one-frame experiment scripts.
+    """
     return ReconstructionParams(
         targetd_num_mode=10,
         voxel_scale=0.5,
@@ -74,10 +85,36 @@ def reconstruct(
 ) -> ReconstructionRun:
     """Reconstruct selected frames and optionally persist one managed run.
 
-    The loaded dataset must retain a scenario YAML path in its metadata unless
-    ``scenario_config`` is supplied. The current numerical backend requires
-    CUDA. Results are always returned as CPU arrays; no files are written when
-    ``output`` is omitted.
+    Parameters
+    ----------
+    dataset:
+        Loaded :class:`dfr.data.Dataset`; frame positions are read through
+        ``positions_at_time_step`` as world-coordinate ``(agents, 3)`` arrays.
+    frames:
+        Frame selector accepted by :func:`dfr.data.select_frame_indices`.
+    cameras:
+        Camera layout and device settings. The current backend requires CUDA.
+    scale, frame_scales:
+        Optional fixed reconstruction scale(s) in world-coordinate units.
+        Omit both to use adaptive scale selection. The two options are mutually
+        exclusive.
+    output:
+        Optional :class:`dfr.artifacts.OutputConfig` with
+        ``workflow="reconstruction"``. When omitted, the workflow is
+        computation-only and writes nothing.
+
+    Returns
+    -------
+    dfr.reconstruction.ReconstructionRun
+        Typed per-frame reconstruction arrays on CPU plus optional managed
+        artifact paths.
+
+    Raises
+    ------
+    RuntimeError
+        If CUDA is unavailable.
+    FileNotFoundError
+        If the scenario YAML required for camera calibration cannot be found.
     """
     selected_frames = select_frame_indices(dataset, frames)
     selected_cameras = cameras

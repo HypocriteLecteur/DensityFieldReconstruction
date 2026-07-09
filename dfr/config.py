@@ -31,7 +31,13 @@ RUN_CONFIG_SCHEMA_VERSION = 1
 
 @dataclass
 class TrainingParams:
-    """Hyperparameters for Gaussian-mixture optimization."""
+    """Learning-rate and regularization controls for GMM optimization.
+
+    These values are passed through to the reconstruction backend unchanged.
+    Learning-rate fields ending in ``_c`` are the initial coefficients used by
+    the legacy schedule, ``*_final_c`` fields are final schedule coefficients,
+    and ``lr_max_steps`` is the per-frame optimization iteration count.
+    """
 
     xyz_lr_c: float
     xyz_lr_final_c: float
@@ -54,7 +60,13 @@ class TrainingParams:
 
 @dataclass
 class ReconstructionParams:
-    """Parameters for scale selection and visual-hull reconstruction."""
+    """Adaptive-scale and visual-hull controls for reconstruction.
+
+    ``targetd_num_mode`` is the historical field name used by existing config
+    files; :attr:`target_mode_count` provides the corrected spelling. Voxel
+    fields are expressed in world-coordinate units and cap the intermediate
+    visual-hull grid used to initialize Gaussian components.
+    """
 
     # Keep the historic misspelling for compatibility with existing callers.
     targetd_num_mode: int
@@ -81,7 +93,16 @@ class ReconstructionParams:
 
 @dataclass(frozen=True, slots=True)
 class CameraConfig:
-    """User-facing camera layout for reconstruction workflows."""
+    """Camera layout consumed by reconstruction workflows.
+
+    ``layout="encircling"`` derives camera poses around the selected frame from
+    the scenario camera settings and the point-cloud extent. ``padding`` is a
+    positive world-coordinate margin around that extent. ``layout="explicit"``
+    requires one pose per camera, each shaped ``(x, y, z, qx, qy, qz, qw)`` in
+    world coordinates with quaternion orientation. The current reconstruction
+    backend expects ``device="cuda"`` and validates CUDA availability when the
+    workflow runs.
+    """
 
     count: int = 2
     layout: str = "encircling"
@@ -124,6 +145,11 @@ class CameraConfig:
         is_3d: bool = False,
         device: str = "cuda",
     ) -> "CameraConfig":
+        """Create an automatically aimed orbit/encircling camera layout.
+
+        The returned config contains no concrete poses; they are derived later
+        from the dataset frame and scenario camera calibration.
+        """
         return cls(
             count=count,
             layout="encircling",
@@ -139,6 +165,12 @@ class CameraConfig:
         *,
         device: str = "cuda",
     ) -> "CameraConfig":
+        """Create a fixed-pose camera layout.
+
+        ``poses`` must contain one seven-value pose per camera in
+        ``(x, y, z, qx, qy, qz, qw)`` order. Values are normalized to immutable
+        tuples so the config can be serialized and safely reused.
+        """
         normalized = tuple(tuple(pose) for pose in poses)
         return cls(
             count=len(normalized),
@@ -172,7 +204,13 @@ class CameraConfig:
 
 @dataclass(frozen=True, slots=True)
 class AnalysisConfig:
-    """Common frame/scale controls for dataset analyses."""
+    """Common frame, scale, seed, and device controls for analyses.
+
+    ``frames`` are integer dataset frame indices. ``scales`` are strictly
+    increasing positive floats; high-level analyses document whether they use
+    world-coordinate scale units or normalized nearest-neighbour-distance
+    units. ``seed`` controls stochastic analysis helpers where applicable.
+    """
 
     frames: Optional[tuple[int, ...]] = None
     scales: Optional[tuple[float, ...]] = None
@@ -221,7 +259,14 @@ class AnalysisConfig:
 
 @dataclass(frozen=True, slots=True)
 class EvaluationConfig:
-    """Shared voxelized density-evaluation controls."""
+    """Voxelized density-overlap evaluation controls.
+
+    ``voxel_resolution`` is a positive world-coordinate grid spacing.
+    ``bounds`` may explicitly provide three ``(min, max)`` world-coordinate
+    pairs; when omitted, evaluation bounds are derived from the ground-truth
+    positions and reconstruction scale. ``batch_size`` limits the number of
+    sampled voxels evaluated per backend call.
+    """
 
     voxel_resolution: float = 0.5
     batch_size: int = 500_000
@@ -264,7 +309,14 @@ class EvaluationConfig:
 
 @dataclass(frozen=True, slots=True)
 class RunConfig:
-    """Serializable composition of common DFR workflow settings."""
+    """Serializable composition of dataset, output, and workflow settings.
+
+    A ``RunConfig`` is the object normally persisted into managed run
+    ``config.yaml`` files. It may hold a registered dataset name or a resolved
+    :class:`dfr.data.DatasetSpec`; optional camera, analysis, training,
+    reconstruction, and evaluation sections are included only for workflows
+    that need them.
+    """
 
     dataset: DatasetSpec | str
     output: OutputConfig
