@@ -6,7 +6,8 @@ on chat history.
 
 ## Status
 
-- **Current phase:** Phase 6 plotting decomposition is in progress. The
+- **Current phase:** Phase 7 core documentation and public API can begin. Phase
+  6 plotting decomposition is complete: the
   `experiments/dfr_plot.py` function catalog is frozen in
   `experiments/DFR_PLOT_CATALOG.md`; reusable camera-configuration,
   trajectory-snapshot, 2D projection/GMM, mode-count curve, DRA
@@ -20,7 +21,10 @@ on chat history.
   publication figures formerly embedded in `experiments/dfr_plot.py`. The
   remaining public `dfr_plot.py` functions have a documented support policy:
   delegated wrappers are compatibility-supported, while all other public
-  functions are archive-only historical references until re-owned.
+  functions are archive-only historical references until re-owned. Supported
+  compatibility wrappers no longer create `figs/` outputs unless an explicit
+  output directory is supplied; physical deletion of `dfr_plot.py` is deferred
+  to Phase 8 compatibility cleanup.
 - **Stable baseline:** annotated tag `v0.1.0`, commit `7cde21e`.
 - **Version storage:** local Git repository only; do not push unless the owner
   explicitly changes this policy.
@@ -318,7 +322,8 @@ reconstruct -> evaluate, and scenario runners no longer duplicate the pipeline.
     no-implicit-save rule too: it returns Figure/Axes by default and saves only
     when an explicit `output_dir` is supplied. The trajectory compatibility
     wrapper `plot_single_scenario_new` follows the same explicit-save rule, as
-    do the Jackdaw2 2D GMM/projection wrappers.
+    do the Jackdaw2 2D GMM/projection, mode-count, multiscale-density, and DRA
+    surface wrappers.
 - [x] Split publication/table-specific figures into small, named experiment
   scripts rather than one replacement monolith.
   - Started with `experiments.plot_publication_time_efficiency`, which owns the
@@ -339,8 +344,13 @@ reconstruct -> evaluate, and scenario runners no longer duplicate the pipeline.
     density/multiscale/reconstruction-GMM, scale/mode/DRA, evaluation summary,
     evaluation metric series, style/layout, legacy-wrapper delegation, and the
     smoke-test matrix are covered under the Agg backend.
-- [ ] Remove `experiments/dfr_plot.py` only after callers and documented commands
-  migrate.
+- [x] Remove `experiments/dfr_plot.py` only after callers and documented
+  commands migrate.
+  - Resolved for Phase 6 by removing it from active command/API status rather
+    than deleting it immediately: direct execution remains disabled, all
+    supported wrappers are documented compatibility shims with explicit-save
+    behavior, archive-only functions are not supported callers, and physical
+    deletion is deferred to Phase 8 after compatibility wrappers are removed.
 
 **Exit criteria:** no active plotting module is a grab bag, reusable plots are
 importable, and every remaining experiment figure has a documented command.
@@ -379,21 +389,21 @@ reading implementation or experiment source.
 
 ## Immediate Next Actions
 
-The next agent should continue Phase 6:
+The next agent should begin Phase 7:
 
-1. Keep moving low-risk reusable plot primitives identified in
-   `experiments/DFR_PLOT_CATALOG.md` only when the figure has a clear typed
-   result object or a documented experiment-only CLI owner.
-2. Continue tightening supported compatibility wrappers so any remaining
-   `figs/` writes become explicit `output_dir` options or named experiment
-   commands with documented output behavior.
-3. For any archive-only `experiments/dfr_plot.py` function that becomes
-   scientifically active again, first move it to a named CLI or package API
-   with an explicit output contract and tests; do not add new callers to the
-   archive function directly.
-4. Add headless plotting smoke tests before migrating each high-value figure.
-5. Keep the Phase 4 supported/legacy classification in
-   `experiments/README.md` current when promoting another research study.
+1. Add module docstrings and public API docstrings for the highest-traffic
+   package surfaces first: `dfr.data`, `dfr.config`, `dfr.analysis`,
+   `dfr.reconstruction`, `dfr.evaluation`, `dfr.artifacts`, and
+   `dfr.plotting`.
+2. Document units, coordinate systems, shapes/dtypes, device behavior,
+   randomness, side effects, exceptions, and return contracts where they are
+   currently implicit.
+3. Tighten `dfr/__init__.py` exports around the intended common workflow API
+   while keeping advanced modules accessible through subpackages.
+4. Add runnable examples or a lightweight `docs/` tree for load -> analyze ->
+   reconstruct -> evaluate -> plot.
+5. Do not revive archive-only `experiments.dfr_plot` functions directly; move
+   any revived figure to a named CLI or package API with tests.
 
 ## Decisions
 
@@ -550,11 +560,51 @@ The next agent should continue Phase 6:
   reusable 2D projection/GMM rendering already lives in `dfr.plotting`, and
   the remaining legacy wrapper work is computation/loading rather than output
   path ownership.
+- **2026-07-09 - Final supported wrapper saving:** Keep
+  `plot_jackdaw2_mode_count_curve`, `plot_jackdaw2_multiscale_density`, and
+  `plot_jackdaw2_dra_scale_model_order_surface` as compatibility wrappers, but
+  require an explicit `output_dir` for figure writes. Reason: their reusable
+  rendering lives in `dfr.plotting`; the remaining legacy work is cache/CUDA
+  computation, which should not imply hidden `figs/` output.
+- **2026-07-09 - Phase 6 completion boundary:** Do not physically delete
+  `experiments/dfr_plot.py` during Phase 6. Treat it as a disabled direct CLI,
+  documented compatibility/archive module, and defer physical deletion to
+  Phase 8 after compatibility wrappers are removed. Reason: deleting it now
+  would erase reviewed historical functions and break explicit compatibility
+  imports, while leaving it as an active grab-bag has already been prevented by
+  policy, tests, and documentation.
 
 ## Handoff Log
 
 Add one newest-first entry per working session. Include commit(s), verification,
 known failures, and the exact next step.
+
+### 2026-07-09 - Phase 6 plotting decomposition completed
+
+- Changed the final supported `experiments.dfr_plot` wrappers with hidden
+  `figs/` writes:
+  `plot_jackdaw2_mode_count_curve`,
+  `plot_jackdaw2_multiscale_density`, and
+  `plot_jackdaw2_dra_scale_model_order_surface` now return figures/results by
+  default and save figures only when `output_dir` is supplied.
+- Updated `experiments/DFR_PLOT_CATALOG.md` and `experiments/README.md` so all
+  supported compatibility wrappers have documented explicit-save behavior.
+- Updated `tests/test_plot_catalog.py` to assert no supported wrapper region
+  keeps an active `figs/` save path.
+- Marked Phase 6 complete and moved the physical deletion of
+  `experiments/dfr_plot.py` to Phase 8 compatibility cleanup. Direct execution
+  remains disabled, supported wrappers are documented, and archive-only
+  functions must not receive new callers.
+- Verification: focused plotting/catalog tests passed with 26 tests;
+  `compileall dfr experiments tests` passed; `git diff --check` passed with
+  Windows line-ending warnings only; `pytest -m "not cuda"` passed with 164
+  tests and 7 deselected; `pytest -m cuda` passed with 6 tests, 1 skipped
+  rasterizer-extension test, and 164 deselected.
+- Known limitation: archive-only functions inside `experiments/dfr_plot.py`
+  still contain historical `figs/`, root PNG, and cache writes; they are not
+  active/supported commands and should be removed or revived through named
+  APIs in Phase 8 or a separately reviewed migration.
+- Next step: begin Phase 7 core documentation and public API work.
 
 ### 2026-07-09 - Phase 6 Jackdaw2 2D wrapper saves tightened
 

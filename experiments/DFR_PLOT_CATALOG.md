@@ -53,9 +53,9 @@ updated and the migration target has tests.
 | `plot_scale_space_curve` | 782-821 | None | Synthetic 1D curve | `figs/2d_gss_curve.png` | experiment-figure | Publication schematic; no package dependency needed. |
 | `_validate_nnd_bounds` | 822-832 | Internal helper | Nearest-neighbor scaling inputs | Raises validation errors | package-compute | Migrated wrapper: validation now delegates to `dfr.analysis.validate_nnd_bounds`. |
 | `_select_adaptive_density_scales` | 833-911 | Internal helper | Positions, reference scale, target levels | Scale list | package-compute | Migrated wrapper: adaptive scale selection now delegates to `dfr.analysis.select_adaptive_density_scales`. |
-| `plot_jackdaw2_mode_count_curve` | 912-1088 | Internal from multiscale density | Mode-count cache NPZ or recomputed CUDA mode counts | Cache NPZ, mode-count curve figure | package-compute | Migrated wrapper: curve rendering now delegates to `dfr.plotting.plot_mode_count_curve`; computation/cache remains legacy. |
-| `plot_jackdaw2_multiscale_density` | 1089-1254 | None | Density cache NPZ and mode-count cache | Cache NPZ, multiscale density figure | experiment-figure | Migrated wrapper: 3D density rendering now delegates to `dfr.plotting.plot_multiscale_density_fields`; cache/grid computation remains legacy. |
-| `plot_jackdaw2_dra_scale_model_order_surface` | 1255-1395 | None | `jackdaw2`, generated scale/model grid | DRA surface PNG, interactive plot | package-compute | Migrated wrapper: DRA surface rendering now delegates to `dfr.plotting.plot_dra_scale_model_order_surface`; computation/cache remains legacy. |
+| `plot_jackdaw2_mode_count_curve` | 912-1088 | Internal from multiscale density | Mode-count cache NPZ or recomputed CUDA mode counts | Optional mode-count curve under caller-supplied output dir | package-compute | Migrated wrapper: curve rendering now delegates to `dfr.plotting.plot_mode_count_curve`; computation/cache remains legacy; saving now requires explicit `output_dir`. |
+| `plot_jackdaw2_multiscale_density` | 1089-1254 | None | Density cache NPZ and mode-count cache | Optional multiscale density figures under caller-supplied output dir | experiment-figure | Migrated wrapper: 3D density rendering now delegates to `dfr.plotting.plot_multiscale_density_fields`; cache/grid computation remains legacy; saving now requires explicit `output_dir`. |
+| `plot_jackdaw2_dra_scale_model_order_surface` | 1255-1395 | None | `jackdaw2`, generated scale/model grid | Optional DRA surface PNG under caller-supplied output dir | package-compute | Migrated wrapper: DRA surface rendering now delegates to `dfr.plotting.plot_dra_scale_model_order_surface`; computation/cache remains legacy; saving now requires explicit `output_dir`. |
 | `visual_hull_diagram` | 1396-1431 | None | Named scenario/camera projection | No save currently | obsolete/manual | Review with visual-hull studies; likely publication schematic. |
 | `assumption_3_error` | 1432-1556 | None | Synthetic 2D surface | Root-level `<name>_error_*.png`, interactive plot | experiment-figure | Publication-specific; move to explicit script with managed figure output. |
 | `visual_hull_tau_vs_visual_hull_ghost` | 1557-1674 | None | Synthetic visual-hull geometry | `figs/VH_diagram.png`, interactive plot | experiment-figure | Publication schematic; isolate from package computation. |
@@ -115,7 +115,9 @@ Rules:
 
 These functions delegate meaningful rendering to `dfr.plotting` or to a small
 named experiment script, have characterization tests, and may remain until
-Phase 8 removes compatibility shims:
+Phase 8 removes compatibility shims. All supported wrappers return figures or
+figure/result tuples by default and save figures only when an explicit
+`output_dir` or `save_dir` is supplied:
 
 - `plot_single_scenario_new`
 - `plot_jackdaw2_2d_gmm`

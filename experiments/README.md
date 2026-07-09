@@ -62,10 +62,9 @@ or deleting any `dfr_plot.py` function. The migrated wrappers so far are
 `plot_jackdaw2_mode_count_curve`, plus
 `plot_jackdaw2_multiscale_density` and
 `plot_jackdaw2_dra_scale_model_order_surface`, whose rendering now lives in
-`dfr.plotting`. `plot_camera_configurations`, `plot_single_scenario_new`,
-`plot_jackdaw2_2d_gmm`, and `plot_jackdaw2_2d_observations` now save only when
-an explicit `output_dir` is supplied; other legacy wrappers may still write to
-`figs/` until their compatibility behavior is tightened.
+`dfr.plotting`. Supported `dfr_plot.py` compatibility wrappers now return
+figures by default and save only when an explicit `output_dir` or `save_dir` is
+supplied.
 The Table 2 capacity/tradeoff figures, time-efficiency publication table, and
 noise-robustness publication table have also been split into
 `plot_publication_table2.py`, `plot_publication_time_efficiency.py`, and

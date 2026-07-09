@@ -907,6 +907,8 @@ def plot_jackdaw2_mode_count_curve(
     nnd_bounds=(0.5, 1.5),
     n_slices: int = 4,
     slice_relative_positions=None,
+    output_dir=None,
+    formats=("png",),
 ):
     """Plot empirical mode count vs scale for jackdaw2 frame 2800.
 
@@ -918,6 +920,7 @@ def plot_jackdaw2_mode_count_curve(
     distance; it defaults to 0.7--1.5 x NND. ``n_slices`` controls the number
     of dashed slice guides. Optionally, ``slice_relative_positions`` specifies
     their positions as fractions of the logarithmic scale interval.
+    Files are written only when ``output_dir`` is supplied.
     """
     from scipy.spatial import cKDTree
     from dfr.mode_finding import mode_counting
@@ -991,7 +994,7 @@ def plot_jackdaw2_mode_count_curve(
         print(f"[jackdaw2] cached mode counts → {cache_path}")
 
     # ── Plot ──────────────────────────────────────────────────────────────
-    from dfr.plotting import plot_mode_count_curve
+    from dfr.plotting import plot_mode_count_curve, save_figure
 
     fig, _ = plot_mode_count_curve(
         normalized_scales,
@@ -1003,12 +1006,12 @@ def plot_jackdaw2_mode_count_curve(
         slice_relative_positions=slice_relative_positions,
         nnd_bounds=(lower, upper),
     )
-    out_dir = os.path.join(os.getcwd(), "figs")
-    os.makedirs(out_dir, exist_ok=True)
-    out_path = os.path.join(out_dir, "jackdaw2_mode_count_curve.png")
-    fig.savefig(out_path, transparent=True, bbox_inches="tight")
-    plt.close(fig)
-    print(f"Saved → {out_path}")
+    if output_dir is not None:
+        for fmt in formats:
+            out_path = os.path.join(os.fspath(output_dir), f"jackdaw2_mode_count_curve.{fmt}")
+            save_figure(fig, out_path, transparent=True, bbox_inches="tight")
+            print(f"Saved -> {out_path}")
+    return fig
 
 
 def plot_jackdaw2_multiscale_density(
@@ -1017,6 +1020,8 @@ def plot_jackdaw2_multiscale_density(
     n_scales: int = 30,
     n_slices: int = 4,
     slice_relative_positions=None,
+    output_dir=None,
+    formats=("png",),
 ):
     """Render 3D density fields at representative scales for jackdaw2 frame 2800.
 
@@ -1029,6 +1034,7 @@ def plot_jackdaw2_multiscale_density(
     sweep in ``nnd_bounds``. ``slice_relative_positions`` can instead place
     them explicitly within the logarithmic interval. Voxel grids are cached to
     ``results/dra_scale_model_order/``.
+    Files are written only when ``output_dir`` is supplied.
     """
     from scipy.spatial import cKDTree
 
@@ -1147,9 +1153,6 @@ def plot_jackdaw2_multiscale_density(
     # ── Render individual figures ─────────────────────────────────────────
     from dfr.plotting import plot_multiscale_density_fields, save_figure
 
-    out_dir = os.path.join(os.getcwd(), "figs")
-    os.makedirs(out_dir, exist_ok=True)
-
     figures = plot_multiscale_density_fields(
         density_data,
         positions,
@@ -1158,18 +1161,20 @@ def plot_jackdaw2_multiscale_density(
         view=(33, -117, 0),
     )
     for (fig, _), norm_scale in zip(figures, normalized_scales):
-        label = f"scale_{norm_scale:.3f}_nnd"
-        out_path = os.path.join(out_dir, f"jackdaw2_density_{label}.png")
-        save_figure(
-            fig,
-            out_path,
-            transparent=True,
-            bbox_inches="tight",
-            pad_inches=0,
-            dpi=300,
-        )
-        plt.close(fig)
-        print(f"Saved → {out_path}")
+        if output_dir is not None:
+            label = f"scale_{norm_scale:.3f}_nnd"
+            for fmt in formats:
+                out_path = os.path.join(os.fspath(output_dir), f"jackdaw2_density_{label}.{fmt}")
+                save_figure(
+                    fig,
+                    out_path,
+                    transparent=True,
+                    bbox_inches="tight",
+                    pad_inches=0,
+                    dpi=300,
+                )
+                print(f"Saved -> {out_path}")
+    return figures
 
 
 def plot_jackdaw2_dra_scale_model_order_surface(
@@ -1179,6 +1184,8 @@ def plot_jackdaw2_dra_scale_model_order_surface(
     voxel_res_fraction: float = 5e-3,
     batch_size: int = 200_000,
     show: bool = False,
+    output_dir=None,
+    formats=("png",),
 ):
     """Plot the DRA scale--model-order surface for jackdaw2 frame 2800.
 
@@ -1187,6 +1194,7 @@ def plot_jackdaw2_dra_scale_model_order_surface(
     is evaluated over the same model-order grid as
     ``experiments.plot_dra_scale_model_order``. Completed scale rows are cached
     so an interrupted CUDA sweep can be resumed.
+    Files are written only when ``output_dir`` is supplied.
     """
     from pathlib import Path
     from experiments.plot_dra_scale_model_order import (
@@ -1237,7 +1245,7 @@ def plot_jackdaw2_dra_scale_model_order_surface(
     fit = fit_dra_surface(normalized_scales, components, number_of_animals, dra)
     best_fit = fit["candidates"][fit["best_name"]]
 
-    from dfr.plotting import plot_dra_scale_model_order_surface
+    from dfr.plotting import plot_dra_scale_model_order_surface, save_figure
 
     fig, ax, surface = plot_dra_scale_model_order_surface(
         normalized_scales,
@@ -1254,18 +1262,19 @@ def plot_jackdaw2_dra_scale_model_order_surface(
     fig.colorbar(surface, ax=ax, shrink=0.72, pad=0.08, label="DRA")
     fig.tight_layout(rect=(0.10, 0.02, 0.98, 0.98), pad=1.5)
 
-    out_dir = Path(os.getcwd()) / "figs"
-    out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / "jackdaw2_frame_2800_dra_scale_model_order_surface.png"
-    fig.savefig(out_path, dpi=300, bbox_inches="tight", pad_inches=0.20)
-    print(
-        f"Saved -> {out_path} "
-        f"(mean NND={mean_nnd:.5g}, N={number_of_animals})"
-    )
+    if output_dir is not None:
+        for fmt in formats:
+            out_path = (
+                Path(output_dir)
+                / f"jackdaw2_frame_2800_dra_scale_model_order_surface.{fmt}"
+            )
+            save_figure(fig, out_path, dpi=300, bbox_inches="tight", pad_inches=0.20)
+            print(
+                f"Saved -> {out_path} "
+                f"(mean NND={mean_nnd:.5g}, N={number_of_animals})"
+            )
     if show:
         plt.show()
-    else:
-        plt.close(fig)
     return fig, ax, result, fit
 
 

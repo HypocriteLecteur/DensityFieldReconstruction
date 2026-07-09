@@ -38,8 +38,8 @@ def test_dfr_plot_support_policy_classifies_every_public_function():
     archive_section = document.split("### Archive-only public functions", 1)[1].split(
         "## Open questions for the owner", 1
     )[0]
-    supported = set(re.findall(r"`([A-Za-z0-9_]+)`", support_section))
-    archived = set(re.findall(r"`([A-Za-z0-9_]+)`", archive_section))
+    supported = set(re.findall(r"^- `([A-Za-z0-9_]+)`", support_section, re.MULTILINE))
+    archived = set(re.findall(r"^- `([A-Za-z0-9_]+)`", archive_section, re.MULTILINE))
 
     assert supported == {
         "plot_single_scenario_new",
@@ -127,7 +127,9 @@ def test_mode_count_curve_legacy_wrapper_uses_package_plotting():
     assert "select_adaptive_density_scales" in helper_region
     assert "plot_mode_count_curve" in wrapper
     assert "plt.subplots" not in wrapper
-    assert 'os.path.join(os.getcwd(), "figs")' in wrapper
+    assert "output_dir=None" in wrapper
+    assert "save_figure(" in wrapper
+    assert '"figs"' not in wrapper
 
 
 def test_multiscale_density_legacy_wrapper_uses_package_plotting():
@@ -141,7 +143,8 @@ def test_multiscale_density_legacy_wrapper_uses_package_plotting():
     assert "save_figure(" in wrapper
     assert "render_density_field_3d(" not in wrapper
     assert "plt.figure(" not in wrapper
-    assert 'os.path.join(os.getcwd(), "figs")' in wrapper
+    assert "output_dir=None" in wrapper
+    assert '"figs"' not in wrapper
 
 
 def test_dra_surface_legacy_wrapper_uses_package_plotting():
@@ -154,4 +157,6 @@ def test_dra_surface_legacy_wrapper_uses_package_plotting():
     assert "plot_dra_scale_model_order_surface" in wrapper
     assert "plot_surface(" not in wrapper
     assert "plot_wireframe(" not in wrapper
-    assert 'Path(os.getcwd()) / "figs"' in wrapper
+    assert "output_dir=None" in wrapper
+    assert "save_figure(" in wrapper
+    assert '"figs"' not in wrapper
