@@ -99,10 +99,18 @@ def test_2d_projection_legacy_wrappers_use_package_plotting():
 
     assert "plot_projected_gmm_density" in gmm_wrapper
     assert "transparent_colormap" in gmm_wrapper
+    assert "output_dir=None" in gmm_wrapper
+    assert "save_figure(" in gmm_wrapper
     assert "Ellipse(" not in gmm_wrapper
+    assert "fig.savefig(" not in gmm_wrapper
+    assert '"figs"' not in gmm_wrapper
     assert "plot_projection_points" in observation_wrapper
     assert "plot_density_image" in observation_wrapper
+    assert "output_dir=None" in observation_wrapper
+    assert "save_figure(" in observation_wrapper
     assert "PowerNorm(" not in observation_wrapper
+    assert ".savefig(" not in observation_wrapper
+    assert '"figs"' not in observation_wrapper
 
 
 def test_mode_count_curve_legacy_wrapper_uses_package_plotting():

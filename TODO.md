@@ -317,7 +317,8 @@ reconstruct -> evaluate, and scenario runners no longer duplicate the pipeline.
     `experiments.dfr_plot.plot_camera_configurations` now follows the
     no-implicit-save rule too: it returns Figure/Axes by default and saves only
     when an explicit `output_dir` is supplied. The trajectory compatibility
-    wrapper `plot_single_scenario_new` follows the same explicit-save rule.
+    wrapper `plot_single_scenario_new` follows the same explicit-save rule, as
+    do the Jackdaw2 2D GMM/projection wrappers.
 - [x] Split publication/table-specific figures into small, named experiment
   scripts rather than one replacement monolith.
   - Started with `experiments.plot_publication_time_efficiency`, which owns the
@@ -543,11 +544,41 @@ The next agent should continue Phase 6:
   but require an explicit `output_dir` for file writes. Reason: rendering
   already delegates to `dfr.plotting.plot_trajectory_snapshot`, so the wrapper
   should share the reusable plotting API's no-save default.
+- **2026-07-09 - Jackdaw2 2D wrapper saving:** Keep
+  `plot_jackdaw2_2d_gmm` and `plot_jackdaw2_2d_observations` as compatibility
+  wrappers, but require an explicit `output_dir` for file writes. Reason: the
+  reusable 2D projection/GMM rendering already lives in `dfr.plotting`, and
+  the remaining legacy wrapper work is computation/loading rather than output
+  path ownership.
 
 ## Handoff Log
 
 Add one newest-first entry per working session. Include commit(s), verification,
 known failures, and the exact next step.
+
+### 2026-07-09 - Phase 6 Jackdaw2 2D wrapper saves tightened
+
+- Changed `experiments.dfr_plot.plot_jackdaw2_2d_gmm` and
+  `plot_jackdaw2_2d_observations` from implicit `figs/scene_traj_*` writers to
+  explicit-save compatibility wrappers: they return generated figures by
+  default and save only when `output_dir` is supplied.
+- Kept rendering delegated to `dfr.plotting.plot_projected_gmm_density`,
+  `plot_projection_points`, `plot_density_image`, and `save_figure`.
+- Updated `experiments/DFR_PLOT_CATALOG.md`, `experiments/README.md`, and this
+  TODO with the new output behavior.
+- Updated `tests/test_plot_catalog.py` to assert the wrappers no longer have
+  active `figs/` defaults and use explicit `output_dir`/`save_figure`.
+- Verification: focused catalog/projection/smoke tests passed with 13 tests;
+  `compileall dfr experiments tests` passed; `git diff --check` passed with
+  Windows line-ending warnings only; `pytest -m "not cuda"` passed with 164
+  tests and 7 deselected; `pytest -m cuda` passed with 6 tests, 1 skipped
+  rasterizer-extension test, and 164 deselected.
+- Known limitation: supported mode-count, multiscale-density, and DRA-surface
+  wrappers still preserve historical `figs/` writes until tightened.
+- Next step: continue tightening supported compatibility wrappers with
+  remaining implicit `figs/` writes, likely `plot_jackdaw2_mode_count_curve`,
+  `plot_jackdaw2_multiscale_density`, or
+  `plot_jackdaw2_dra_scale_model_order_surface`.
 
 ### 2026-07-08 - Phase 6 trajectory wrapper save tightened
 

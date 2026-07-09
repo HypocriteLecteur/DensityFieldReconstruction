@@ -407,7 +407,7 @@ def plot_all_ground_truth_density_fields(
     return output_paths
 
 
-def plot_jackdaw2_2d_gmm(density_cutoff=1e-2, num_levels=8):
+def plot_jackdaw2_2d_gmm(density_cutoff=1e-2, num_levels=8, output_dir=None, formats=("png",)):
     """
     Project the MV-DFR reconstructed GMM into each camera view using the local
     affine approximation, evaluate the resulting 2D density on the image grid,
@@ -424,8 +424,11 @@ def plot_jackdaw2_2d_gmm(density_cutoff=1e-2, num_levels=8):
       - filled + line contours of the 2D GMM density (royalblue, transparent bg)
       - 1σ ellipses for each Gaussian component (royalblue)
       - projected mean positions (royalblue scatter)
+
+    Files are written only when ``output_dir`` is supplied.  The function
+    returns the generated figures in all cases.
     """
-    from dfr.plotting import plot_projected_gmm_density, transparent_colormap
+    from dfr.plotting import plot_projected_gmm_density, save_figure, transparent_colormap
 
     # ── Shared setup (same as plot_jackdaw2_density_field) ──────────────────
     name = 'jackdaw2'
@@ -461,6 +464,7 @@ def plot_jackdaw2_2d_gmm(density_cutoff=1e-2, num_levels=8):
     top = np.array([0.255, 0.412, 0.882, 1.0])   # opaque royalblue
     cmap_transp = transparent_colormap(top, name='transp_blue')
 
+    figures = []
     for i, cam in enumerate(cam_system.cameras):
         H_i, W_i = cam.state.H, cam.state.W
         device = means_w.device
@@ -572,14 +576,28 @@ def plot_jackdaw2_2d_gmm(density_cutoff=1e-2, num_levels=8):
             cmap=cmap_transp,
         )
 
-        # 1σ ellipses — black dashed, alpha ∝ weight
-        fig.savefig(f"figs/scene_traj_{name}_cam{i+1}_gmm2d.png",
-                    dpi=300, bbox_inches='tight', pad_inches=0, transparent=True)
-        plt.close(fig)
-        print(f"Camera {i+1}: saved 2D GMM projection")
+        if output_dir is not None:
+            for fmt in formats:
+                save_figure(
+                    fig,
+                    os.path.join(os.fspath(output_dir), f"scene_traj_{name}_cam{i+1}_gmm2d.{fmt}"),
+                    dpi=300,
+                    bbox_inches="tight",
+                    pad_inches=0,
+                    transparent=True,
+                )
+            plt.close(fig)
+            print(f"Camera {i+1}: saved 2D GMM projection")
+        figures.append(fig)
+    return figures
 
 
-def plot_jackdaw2_2d_observations(density_cutoff=1e-2, num_levels=8):
+def plot_jackdaw2_2d_observations(
+    density_cutoff=1e-2,
+    num_levels=8,
+    output_dir=None,
+    formats=("png",),
+):
     """
     Produce four clean, publication-ready figures showing the 2D observations
     for the jackdaw2 dataset (same time step as the 3D density plots).
@@ -600,9 +618,16 @@ def plot_jackdaw2_2d_observations(density_cutoff=1e-2, num_levels=8):
 
     The coarse-grained images use the reconstruction scale from gt_scales so
     the Gaussian-blob widths match the target resolution.
+    Files are written only when ``output_dir`` is supplied.  The function
+    returns the generated figures in all cases.
     """
     from dfr.camera_system import convolution_cupy_wrapper
-    from dfr.plotting import plot_density_image, plot_projection_points, transparent_colormap
+    from dfr.plotting import (
+        plot_density_image,
+        plot_projection_points,
+        save_figure,
+        transparent_colormap,
+    )
 
     name = 'jackdaw2'
     start_step, end_step, step_length = 2700, 3460, 20
@@ -644,6 +669,7 @@ def plot_jackdaw2_2d_observations(density_cutoff=1e-2, num_levels=8):
     cmap_transp = transparent_colormap(top, name='transp_blue')
 
     # --- Produce four separate, clean figures -------------------------------
+    figures = []
     for i in range(len(cam_system.cameras)):
         proj = point_sets[i]
         H_i, W_i = cam_system.cameras[i].state.H, cam_system.cameras[i].state.W
@@ -659,9 +685,17 @@ def plot_jackdaw2_2d_observations(density_cutoff=1e-2, num_levels=8):
             point_size=10,
             alpha=0.65,
         )
-        fig_s.savefig(f"figs/scene_traj_{name}_cam{i+1}_projections.png",
-                      dpi=300, bbox_inches='tight', pad_inches=0, transparent=True)
-        plt.close(fig_s)
+        if output_dir is not None:
+            for fmt in formats:
+                save_figure(
+                    fig_s,
+                    os.path.join(os.fspath(output_dir), f"scene_traj_{name}_cam{i+1}_projections.{fmt}"),
+                    dpi=300,
+                    bbox_inches="tight",
+                    pad_inches=0,
+                    transparent=True,
+                )
+            plt.close(fig_s)
 
         # ---- Figure B: filled contour plot of the 2D density ---------------
         fig_i, ax_i = plot_density_image(
@@ -671,9 +705,19 @@ def plot_jackdaw2_2d_observations(density_cutoff=1e-2, num_levels=8):
             num_levels=num_levels,
             cmap=cmap_transp,
         )
-        fig_i.savefig(f"figs/scene_traj_{name}_cam{i+1}_coarse.png",
-                      dpi=300, bbox_inches='tight', pad_inches=0, transparent=True)
-        plt.close(fig_i)
+        if output_dir is not None:
+            for fmt in formats:
+                save_figure(
+                    fig_i,
+                    os.path.join(os.fspath(output_dir), f"scene_traj_{name}_cam{i+1}_coarse.{fmt}"),
+                    dpi=300,
+                    bbox_inches="tight",
+                    pad_inches=0,
+                    transparent=True,
+                )
+            plt.close(fig_i)
+        figures.extend([fig_s, fig_i])
+    return figures
 
 
 def plot_single_scenario(run_params):
