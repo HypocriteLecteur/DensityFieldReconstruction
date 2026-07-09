@@ -1,4 +1,11 @@
-"""Small high-level workflow facades for common DFR tasks."""
+"""Small high-level workflow facades for common DFR tasks.
+
+The top-level :func:`dfr.analyze` function is implemented here.  It provides a
+compact entry point for common one-frame analyses while preserving lower-level
+functions under :mod:`dfr.analysis` for custom research pipelines.  Facades in
+this module perform argument normalization and validation only; they do not
+implicitly save artifacts or figures.
+"""
 
 from __future__ import annotations
 
@@ -30,6 +37,30 @@ def analyze(
     For ``kind="modes"``, scales are world-space density scales. For
     ``kind="dra"``, scales are multiples of mean nearest-neighbour distance
     and CUDA is required. This function does not save results implicitly.
+
+    Parameters
+    ----------
+    dataset:
+        Dataset satisfying :class:`dfr.data.Dataset`; positions are read as
+        ``(agents, 3)`` arrays in world-coordinate units.
+    kind:
+        ``"modes"`` for a mode-count curve or ``"dra"`` for a DRA
+        scale/model-order surface.
+    config:
+        Optional :class:`dfr.AnalysisConfig`.  If supplied, do not also pass
+        ``frames`` or ``scales`` directly.
+    frames:
+        One frame selector accepted by :func:`dfr.select_frame_indices`.
+        Currently this facade requires exactly one selected frame.
+    scales:
+        Positive scale values.  Interpretation depends on ``kind`` as noted
+        above.
+
+    Returns
+    -------
+    ModeCurveResult or ScaleAnalysisResult
+        A typed, serializable analysis result.  The caller owns persistence and
+        plotting.
     """
     if kind not in ("modes", "dra"):
         raise ValueError("kind must be either 'modes' or 'dra'.")

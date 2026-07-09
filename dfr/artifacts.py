@@ -1,4 +1,27 @@
-"""Unified run directories, manifests, and artifact persistence for DFR."""
+"""Unified run directories, manifests, and artifact persistence for DFR.
+
+Managed workflows write through :class:`RunArtifacts` so every saved run has a
+predictable layout, a resolved ``config.yaml``, and a versioned
+``manifest.json``.  Relative output roots are resolved from an explicit project
+root or the source checkout root, never from whatever the process working
+directory happens to be.
+
+The canonical run layout is::
+
+    outputs/<workflow>/<run-id>/
+      config.yaml
+      manifest.json
+      data/
+      checkpoints/
+      metrics/
+      figures/
+      logs/
+      cache/
+
+Library code should return data/results by default.  Use :class:`OutputConfig`
+and :class:`RunArtifacts` only when the caller has explicitly requested saved
+artifacts.
+"""
 
 from __future__ import annotations
 

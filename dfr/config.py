@@ -1,4 +1,21 @@
-"""Typed, serializable configuration contracts for DFR workflows."""
+"""Typed, serializable configuration contracts for DFR workflows.
+
+Configuration objects in this module are small dataclasses with validation and
+``to_dict``/``from_dict`` helpers.  They are designed to be saved in managed
+run configs, compared in tests, and passed directly into high-level workflow
+functions.
+
+Units and conventions
+---------------------
+- Frame IDs are integer dataset frame indices.
+- Analysis and reconstruction scales are positive floats in world-coordinate
+  units unless a lower-level analysis function explicitly documents normalized
+  nearest-neighbour-distance units.
+- Explicit camera poses are ``(x, y, z, qx, qy, qz, qw)`` values in world
+  coordinates plus quaternion orientation.
+- Device strings are passed through to the consuming workflow; CUDA-dependent
+  workflows validate availability when they run.
+"""
 
 from __future__ import annotations
 

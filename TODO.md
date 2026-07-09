@@ -6,7 +6,9 @@ on chat history.
 
 ## Status
 
-- **Current phase:** Phase 7 core documentation and public API can begin. Phase
+- **Current phase:** Phase 7 core documentation and public API is in progress.
+  The first slice documents the intended top-level API and high-traffic
+  package surfaces. Phase
   6 plotting decomposition is complete: the
   `experiments/dfr_plot.py` function catalog is frozen in
   `experiments/DFR_PLOT_CATALOG.md`; reusable camera-configuration,
@@ -359,10 +361,18 @@ importable, and every remaining experiment figure has a documented command.
 
 - [ ] Add module docstrings and complete public docstrings for data, camera,
   model, reconstruction, scale, mode, evaluation, plotting, and artifact APIs.
+  - Started with expanded module-level documentation for `dfr`, `dfr.data`,
+    `dfr.analysis`, `dfr.reconstruction`, `dfr.evaluation`, `dfr.plotting`,
+    `dfr.config`, `dfr.artifacts`, and `dfr.workflows`.
 - [ ] Document units, coordinate systems, shapes/dtypes, device behavior,
   randomness, side effects, exceptions, and return contracts where relevant.
+  - Started at the package boundary: top-level docs now define frame indices,
+    world-coordinate position shapes, scale units, CUDA side effects, and
+    no-implicit-artifact behavior.
 - [ ] Export only the intended common API from `dfr/__init__.py`; keep advanced
   APIs accessible from their submodules.
+  - Started: `tests/test_public_api.py` guards the current intended
+    top-level `dfr.__all__` surface and package contract docstring.
 - [ ] Add runnable examples and API reference generation or a lightweight
   `docs/` tree.
 - [ ] Add a script catalog table to the README and a module ownership map to
@@ -389,17 +399,19 @@ reading implementation or experiment source.
 
 ## Immediate Next Actions
 
-The next agent should begin Phase 7:
+The next agent should continue Phase 7:
 
-1. Add module docstrings and public API docstrings for the highest-traffic
-   package surfaces first: `dfr.data`, `dfr.config`, `dfr.analysis`,
-   `dfr.reconstruction`, `dfr.evaluation`, `dfr.artifacts`, and
-   `dfr.plotting`.
-2. Document units, coordinate systems, shapes/dtypes, device behavior,
+1. Continue from module-level documentation into public class/function
+   docstrings for the highest-traffic modules: `dfr.data.base`,
+   `dfr.data.loading`, `dfr.config`, `dfr.artifacts`,
+   `dfr.reconstruction.pipeline`, `dfr.evaluation.pipeline`, and plotting
+   primitives.
+2. Keep documenting units, coordinate systems, shapes/dtypes, device behavior,
    randomness, side effects, exceptions, and return contracts where they are
    currently implicit.
-3. Tighten `dfr/__init__.py` exports around the intended common workflow API
-   while keeping advanced modules accessible through subpackages.
+3. Revisit `dfr/__init__.py` exports only if Phase 7 identifies public names
+   that should move to subpackages; update `tests/test_public_api.py` in the
+   same commit.
 4. Add runnable examples or a lightweight `docs/` tree for load -> analyze ->
    reconstruct -> evaluate -> plot.
 5. Do not revive archive-only `experiments.dfr_plot` functions directly; move
@@ -578,6 +590,31 @@ The next agent should begin Phase 7:
 
 Add one newest-first entry per working session. Include commit(s), verification,
 known failures, and the exact next step.
+
+### 2026-07-09 - Phase 7 public API documentation started
+
+- Expanded the top-level `dfr` package docstring to document the intended
+  load -> analyze -> reconstruct -> evaluate API shape, dataset position
+  shapes, world-coordinate units, scale conventions, no-implicit-artifact
+  behavior, and CUDA expectations.
+- Expanded module docstrings for `dfr.data`, `dfr.analysis`,
+  `dfr.reconstruction`, `dfr.evaluation`, `dfr.plotting`, `dfr.config`,
+  `dfr.artifacts`, and `dfr.workflows`.
+- Expanded `dfr.workflows.analyze` with parameter/return documentation for the
+  common analysis facade.
+- Added `tests/test_public_api.py` to guard the intended top-level
+  `dfr.__all__` surface and core package contract documentation.
+- Verification: focused public API/import/config/artifact tests passed with 29
+  tests; `compileall dfr experiments tests` passed; `git diff --check` passed
+  with Windows line-ending warnings only; `pytest -m "not cuda"` passed with
+  166 tests and 7 deselected; `pytest -m cuda` passed with 6 tests, 1 skipped
+  rasterizer-extension test, and 166 deselected.
+- Known limitation: detailed public class/function docstrings still need to be
+  filled in across data loaders, configs, artifacts, reconstruction,
+  evaluation, and plotting primitives.
+- Next step: continue Phase 7 by documenting high-traffic classes/functions in
+  `dfr.data.base`, `dfr.data.loading`, `dfr.config`, `dfr.artifacts`,
+  `dfr.reconstruction.pipeline`, and `dfr.evaluation.pipeline`.
 
 ### 2026-07-09 - Phase 6 plotting decomposition completed
 

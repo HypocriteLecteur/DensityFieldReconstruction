@@ -1,4 +1,16 @@
-"""Density-overlap metrics, typed results, and evaluation workflow."""
+"""Density-overlap metrics, typed results, and evaluation workflow.
+
+Evaluation compares reconstructed Gaussian mixtures against ground-truth
+particle positions or density fields using voxelized density-overlap masses.
+The high-level :func:`evaluate` function returns an :class:`EvaluationRun`
+containing per-frame :class:`FrameEvaluation` records and an
+:class:`EvaluationSummary`.
+
+Voxel resolution and bounds are explicit through :class:`dfr.EvaluationConfig`.
+All distances and voxel sizes use dataset world-coordinate units.  CUDA is
+used when the selected device is CUDA; CPU evaluation is available for small
+tests and smoke fixtures.
+"""
 
 from dfr.evaluation.metrics import (
     automatic_evaluation_bounds,

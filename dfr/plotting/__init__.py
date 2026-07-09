@@ -1,7 +1,14 @@
 """Reusable plotting primitives for DFR workflows.
 
-Package plotting functions return Matplotlib figure/axes objects and avoid
-filesystem writes unless a caller explicitly saves the figure.
+Plotting functions in this package accept data arrays or typed result objects
+and return Matplotlib ``Figure``/``Axes`` objects.  They do not call
+``plt.show`` and do not write files.  Use :func:`save_figure` or
+``RunArtifacts.save_figure`` when a caller explicitly wants a figure on disk.
+
+The plotting API is intentionally data-first: experiment scripts should load or
+compute data, call these primitives, and handle output paths at the edge.  This
+keeps reusable rendering independent from legacy ``figs/`` directories and
+managed run artifacts.
 """
 
 from dfr.plotting.cameras import plot_camera_configurations

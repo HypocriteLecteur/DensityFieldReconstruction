@@ -1,4 +1,22 @@
-"""Reusable analysis APIs and typed result objects."""
+"""Reusable analysis APIs and typed result objects.
+
+This package contains computation-only analysis helpers.  Functions here
+return typed result objects such as :class:`ModeCurveResult` and
+:class:`ScaleAnalysisResult`; they do not save figures or artifacts unless a
+caller explicitly uses managed artifact helpers from :mod:`dfr.artifacts`.
+
+Scale conventions are function-specific:
+
+- mode-count curves usually consume world-space density scales;
+- DRA scale/model-order sweeps consume scales normalized by the frame's mean
+  nearest-neighbour distance unless the lower-level function documents
+  otherwise;
+- manifold helpers operate on cached or fitted mode-count parameter curves.
+
+CUDA is required for DRA surface computations and some mode-count paths that
+use the legacy mean-shift implementation.  Pure fitting, result loading, and
+configuration utilities are CPU-safe.
+"""
 
 from dfr.analysis.dra import (
     DRAFrameSamples,
