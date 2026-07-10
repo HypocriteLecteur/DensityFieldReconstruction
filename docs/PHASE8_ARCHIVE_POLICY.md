@@ -40,9 +40,14 @@ behavior.
 `density_field_reconstruction_copy/` and `experiments_legacy/` are backup
 copy candidates, not active package surfaces. They should be removed from
 `main` after one focused no-import/no-command guard confirms that supported
-code, tests, docs, and cataloged commands do not depend on them. Preserve
-their historical content through local Git history and `v0.1.0`, not by
-keeping duplicate trees in the working branch.
+code, tests, docs, and cataloged commands do not depend on them.
+
+These two trees are intentionally ignored and were never stored in Git, so
+`v0.1.0` cannot preserve their contents. Before their approved 2026-07-10
+removal, create and verify a dedicated local archive. The archive for this
+cleanup is
+`outputs/releases/DensityFieldReconstruction-phase8-legacy-copies-20260710.zip`
+(SHA-256 `B49E0856B468BB23C4A9D88948301E119AB8F137A724E8AAD8732E25611B84A9`).
 
 ## Generated artifact surfaces
 

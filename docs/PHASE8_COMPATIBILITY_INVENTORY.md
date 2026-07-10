@@ -102,15 +102,12 @@ managed-run replacement exists or the owner confirms the study is historical.
 
 ## Copied/backup directories
 
-The repository root still contains:
-
-- `density_field_reconstruction_copy/`
-- `experiments_legacy/`
-
-They appear to be backup/legacy copies rather than package imports. Phase 8
-should confirm they are not referenced by tests, package code, or documented
-commands before deleting them. Use Git history and the `v0.1.0` tag as the
-preservation mechanism rather than keeping duplicate source trees in `main`.
+`density_field_reconstruction_copy/` and `experiments_legacy/` were ignored,
+local-only backup trees rather than package imports. Phase 8 confirmed they
+had no active package, experiment, or example Python reference, created the
+verified archive named in `docs/PHASE8_ARCHIVE_POLICY.md`, and removed both on
+2026-07-10. They are now protected by a post-cleanup absence test instead of
+being kept in the active working tree.
 
 ## Recommended Phase 8 order
 

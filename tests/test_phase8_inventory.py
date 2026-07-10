@@ -82,5 +82,23 @@ def test_phase8_archive_policy_documents_deletion_rules():
         "`experiments_legacy/`",
         "`outputs/`",
         "one surface per commit",
+        "were never stored in Git",
     ):
         assert snippet in text
+
+
+def test_no_active_code_references_copied_backup_directories():
+    names = ("density_field_reconstruction_copy", "experiments_legacy")
+    offenders = []
+    for folder in ("dfr", "experiments", "examples"):
+        for path in (ROOT / folder).rglob("*.py"):
+            text = path.read_text(encoding="utf-8")
+            if any(name in text for name in names):
+                offenders.append(path.relative_to(ROOT).as_posix())
+
+    assert offenders == []
+
+
+def test_copied_backup_directories_are_absent_after_cleanup():
+    for name in ("density_field_reconstruction_copy", "experiments_legacy"):
+        assert not (ROOT / name).exists()

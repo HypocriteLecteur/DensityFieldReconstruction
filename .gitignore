@@ -11,9 +11,6 @@ camera-aero
 .pytest_cache
 *.npy
 *.npz
-/density_field_reconstruction_copy
-/experiments_legacy
-
 # Cache / pickle files
 *.pkl
 

@@ -425,11 +425,11 @@ reading implementation or experiment source.
     `experiments.plotting_utils` is imported only by `experiments.dfr_plot`.
 - [ ] Remove confirmed-dead copies and duplicated functions; use Git history
   rather than keeping backup files.
-  - Inventory identifies `density_field_reconstruction_copy/` and
-    `experiments_legacy/` as backup/legacy copy candidates that need a
-    deletion/archive decision. `docs/PHASE8_ARCHIVE_POLICY.md` now sets local
-    Git history plus `v0.1.0` as their preservation mechanism after a focused
-    no-import/no-command guard passes.
+  - Completed for `density_field_reconstruction_copy/` and
+    `experiments_legacy/`: they were ignored local-only backup copies, so a
+    verified local ZIP was created before their approved deletion. Remaining
+    duplicated-function cleanup is tracked by the `dfr_plot.py` archive
+    surface and later Phase 8 inventory slices.
 - [ ] Decide whether historical scripts belong in an archive branch, paper
   reproduction directory, or should remain at the stable tag only.
   - Inventory recommends deciding archive policy before deleting `dfr_plot.py`,
@@ -457,16 +457,13 @@ reading implementation or experiment source.
 
 The next agent should continue Phase 8 compatibility cleanup:
 
-1. Request approval, then remove the low-risk backup-copy candidates
-   `density_field_reconstruction_copy/` and `experiments_legacy/` in a
-   deletion-only commit after adding a focused no-import/no-command guard.
-2. Replace the `experiments.dfr_plot --list-functions` catalog path, then
+1. Replace the `experiments.dfr_plot --list-functions` catalog path, then
    remove `experiments/dfr_plot.py` and `experiments/plotting_utils.py` as one
    compatibility/archive surface if the resulting documentation boundary is
    adequate.
-3. Update `experiments/DFR_PLOT_CATALOG.md`, `experiments/README.md`,
+2. Update `experiments/DFR_PLOT_CATALOG.md`, `experiments/README.md`,
    `docs/MODULE_OWNERSHIP.md`, and tests in the same commit as any removal.
-4. Run focused catalog/inventory tests plus full CPU/CUDA tiers after every
+3. Run focused catalog/inventory tests plus full CPU/CUDA tiers after every
    deletion or compatibility-boundary change.
 
 ## Decisions
@@ -481,6 +478,11 @@ The next agent should continue Phase 8 compatibility cleanup:
   Reason: `main` should contain active, maintainable code rather than source
   copies or generated output, while the local stable tag remains a recoverable
   scientific reference.
+- **2026-07-10 - Ignored copied-source exception:**
+  `density_field_reconstruction_copy/` and `experiments_legacy/` were never
+  Git-tracked, so preserve them in a verified local ZIP before deletion rather
+  than relying on `v0.1.0`. Reason: the source ZIP for the stable tag does not
+  include ignored local-only paths.
 - **2026-07-06 - Output root:** use ignored `outputs/` for all generated
   artifacts. Reason: "results" is ambiguous and `outputs/` already has an ignore
   policy; per-run subdirectories retain the distinctions between data, metrics,
@@ -649,6 +651,26 @@ The next agent should continue Phase 8 compatibility cleanup:
 
 Add one newest-first entry per working session. Include commit(s), verification,
 known failures, and the exact next step.
+
+### 2026-07-10 - Phase 8 ignored backup-copy cleanup
+
+- Confirmed `density_field_reconstruction_copy/` and `experiments_legacy/`
+  are ignored, have no Git history, and are not referenced by active package,
+  experiment, or example Python code.
+- Created and verified the dedicated local archive
+  `outputs/releases/DensityFieldReconstruction-phase8-legacy-copies-20260710.zip`
+  and removed both backup directories; SHA-256:
+  `B49E0856B468BB23C4A9D88948301E119AB8F137A724E8AAD8732E25611B84A9`.
+- Added a guard against active source references and a post-cleanup absence
+  test for the two copied directories.
+- Verification: focused Phase 8 inventory/docs tests passed with 10 tests;
+  `compileall dfr experiments tests examples` passed; the local archive contains
+  41 copied-tree entries and both source directories are absent; `git diff
+  --check` passed with Windows line-ending warnings only; `pytest -m "not
+  cuda"` passed with 179 tests and 7 deselected; `pytest -m cuda` passed with
+  6 tests, 1 skipped rasterizer-extension test, and 179 deselected.
+- Next step: replace the `dfr_plot --list-functions` catalog path before
+  removing the remaining plotting archive surface.
 
 ### 2026-07-10 - Phase 8 archive policy documented
 
