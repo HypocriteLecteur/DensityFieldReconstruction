@@ -1,5 +1,6 @@
 import sys
 import os
+from typing import Sequence
 from tqdm import tqdm
 import matplotlib.gridspec as gridspec
 import matplotlib
@@ -14,7 +15,32 @@ import torch.nn.functional as F
 from dfr.mode_finding import find_scale_interval, mode_counting_pbc, mode_counting_modified_pbc, mode_counting, mode_counting_modified
 from dfr.mode_finding import analytic_solution
 from dfr.gaussian_mixture_reduction import GMR
+from dfr.analysis.cli import add_managed_output_arguments, create_analysis_artifacts
+from dfr.artifacts import RunArtifacts
 from scipy.optimize import curve_fit
+
+
+_ARTIFACTS: RunArtifacts | None = None
+
+
+def _save_current_figure(filename: str, **savefig_kwargs) -> None:
+    """Save the current figure through the configured managed analysis run."""
+    if _ARTIFACTS is None:
+        raise RuntimeError(
+            "Configure a managed output run through the power_law CLI before "
+            "running a figure-producing study."
+        )
+    _ARTIFACTS.save_figure(filename, plt.gcf(), **savefig_kwargs)
+
+
+def _figure_path(filename: str):
+    """Return a managed figure path for post-processing performed by a study."""
+    if _ARTIFACTS is None:
+        raise RuntimeError(
+            "Configure a managed output run through the power_law CLI before "
+            "running a figure-producing study."
+        )
+    return _ARTIFACTS.figures_dir / filename
 
 def analytic_solution_limit(x, d=2):
     if d == 2:
@@ -234,8 +260,8 @@ def verify_power_law_for_infinite_N():
                           np.mean(modes_all_2d, axis=0), np.std(modes_all_2d, axis=0), 
                           1/(4*np.sqrt(3)*np.pi)*test_scales**-2, '2D Periodic GRF')
     move_figure(fig, 2800, 100)
-    plt.savefig("figs/grf_modes_2d.png", bbox_inches='tight', dpi=300)
-    # plt.savefig("figs/grf_modes_2d_no_pbc.png", bbox_inches='tight', dpi=300)
+    _save_current_figure("grf_modes_2d.png", bbox_inches='tight', dpi=300)
+    # Alternate historical output intentionally omitted.
 
     grid_num = 300
 
@@ -265,8 +291,8 @@ def verify_power_law_for_infinite_N():
                         np.mean(modes_all_3d, axis=0), np.std(modes_all_3d, axis=0), 
                         (29/6/np.sqrt(6) - 1)/8/np.pi**2*test_scales**-3, '3D Periodic GRF')
     move_figure(fig, 2800, 100)
-    plt.savefig("figs/grf_modes_3d.png", bbox_inches='tight', dpi=300)
-    # plt.savefig("figs/grf_modes_3d_no_pbc.png", bbox_inches='tight', dpi=300)
+    _save_current_figure("grf_modes_3d.png", bbox_inches='tight', dpi=300)
+    # Alternate historical output intentionally omitted.
 
     plt.show()
 
@@ -485,7 +511,7 @@ def verify_convergence_for_finite_N():
     ax.grid(True, which='major', linestyle='--', alpha=0.3)
 
     plt.tight_layout()
-    plt.savefig("figs/converge_to_GRF_2d.png", bbox_inches='tight', dpi=300)
+    _save_current_figure("converge_to_GRF_2d.png", bbox_inches='tight', dpi=300)
 
     test_N, scale_range, num_modes, params = compute_scaling_law(FORCE_UPDATE, dim=3, pbc=True)
 
@@ -570,7 +596,7 @@ def verify_convergence_for_finite_N():
     ax.grid(True, which='major', linestyle='--', alpha=0.3)
 
     plt.tight_layout()
-    plt.savefig("figs/converge_to_GRF_3d.png", bbox_inches='tight', dpi=300)
+    _save_current_figure("converge_to_GRF_3d.png", bbox_inches='tight', dpi=300)
 
     plt.show()
 
@@ -826,7 +852,7 @@ def finding_power_law_for_finite_N():
             ax.tick_params(labelbottom=True)
 
     plt.tight_layout()
-    plt.savefig("figs/k_and_x0_fit.png", bbox_inches='tight', dpi=300)
+    _save_current_figure("k_and_x0_fit.png", bbox_inches='tight', dpi=300)
 
 
     test_N, scale_range, num_modes, params = compute_scaling_law(FORCE_UPDATE, dim=2, pbc=False)
@@ -1244,7 +1270,7 @@ def discovery_of_dimensional_crossover():
     ax.set_box_aspect((1, 1, 0.8))
     ax.set_position([0, 0, 1, 1])
 
-    plt.savefig("figs/dimensional_crossover.png", dpi=300)
+    _save_current_figure("dimensional_crossover.png", dpi=300)
     # plt.show()
 
     import cv2
@@ -1291,10 +1317,11 @@ def discovery_of_dimensional_crossover():
         cv2.waitKey(0)
         cv2.destroyAllWindows()
 
-    img = cv2.imread('figs/dimensional_crossover.png')
+    figure_path = _figure_path("dimensional_crossover.png")
+    img = cv2.imread(str(figure_path))
     cropped = crop_by_percentage(img, (0.15, 0.9, 0.95, 0))
     display_fixed_size(cropped)
-    cv2.imwrite('figs/dimensional_crossover.png', cropped)
+    cv2.imwrite(str(figure_path), cropped)
 
     # plt.rcParams.update({
     #     "font.family": "serif",  # Use serif fonts for academic feel
@@ -1337,7 +1364,7 @@ def discovery_of_dimensional_crossover():
     # ax.set_xlabel('Scale ($\sigma$)', fontsize=12)
     # ax.legend()
 
-    # plt.savefig("figs/dimensional_crossover_2.png", dpi=300)
+    # Alternate historical output intentionally omitted.
     # plt.show()
 
 def veriry_dimensional_crossover():
@@ -1591,7 +1618,9 @@ def veriry_dimensional_crossover():
             loc='upper center', ncol=3, frameon=False, fontsize=12, borderaxespad=2)
 
     plt.tight_layout(rect=[0, 0.05, 1, 0.95]) # Adjust layout to make room for legend/title
-    plt.savefig("figs/starling_dimensional_crossover.png", bbox_inches='tight', dpi=300)
+    _save_current_figure(
+        "starling_dimensional_crossover.png", bbox_inches='tight', dpi=300
+    )
     plt.show()
 
     # # def update(frame):
@@ -1634,7 +1663,9 @@ def veriry_dimensional_crossover():
     ax.set_xlabel('Scale ($\sigma$)', fontsize=12)
     ax.legend()
 
-    plt.savefig("figs/starling_dimensional_crossover_2.png", bbox_inches='tight', dpi=300)
+    _save_current_figure(
+        "starling_dimensional_crossover_2.png", bbox_inches='tight', dpi=300
+    )
     plt.show()
 
 # def exploring_quasi_crystal():
@@ -1792,7 +1823,7 @@ def veriry_dimensional_crossover():
 #     ax.set_xlabel('Scale ($\sigma$)', fontsize=12)
 #     ax.legend()
 
-#     plt.savefig("figs/starling_dimensional_crossover_2.png", bbox_inches='tight', dpi=300)
+#     # Historical alternate output intentionally omitted.
 #     plt.show()
 
 def calculate_gmm_covariance(means: torch.Tensor, weights: torch.Tensor, radius: torch.Tensor) -> torch.Tensor:
@@ -1931,7 +1962,8 @@ def finding_effective_volume():
 
     print(np.abs(blurred_volume - exact_volume) / exact_volume)
 
-if __name__ == "__main__":
+def main(argv: Sequence[str] | None = None) -> int:
+    """Run one explicit power-law study with managed figure artifacts."""
     import argparse
 
     parser = argparse.ArgumentParser(
@@ -1948,7 +1980,17 @@ if __name__ == "__main__":
             "effective-volume",
         ),
     )
-    selected = parser.parse_args().experiment
+    add_managed_output_arguments(parser)
+    args = parser.parse_args(argv)
+    selected = args.experiment
+
+    global _ARTIFACTS
+    _ARTIFACTS = create_analysis_artifacts(
+        args,
+        name=f"power-law-{selected}",
+        resolved_config={"experiment": selected},
+        entrypoint="experiments.power_law",
+    )
     {
         "infinite-limit": verify_power_law_for_infinite_N,
         "finite-convergence": verify_convergence_for_finite_N,
@@ -1957,3 +1999,9 @@ if __name__ == "__main__":
         "verify-crossover": veriry_dimensional_crossover,
         "effective-volume": finding_effective_volume,
     }[selected]()
+    print(f"Outputs: {_ARTIFACTS.run_dir}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

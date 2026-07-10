@@ -290,8 +290,9 @@ python -m experiments.fit_dra_multiframe --datasets jackdaw2 --frames-per-datase
 These analyses are CUDA-intensive and cache intermediate `.npz` data so a run
 can resume. The parameter-manifold, mechanistic, synthetic, and validation
 analyses now expose explicit managed CLIs. `power_law.py` remains a legacy
-study collection and requires a named experiment subcommand; see
-`experiments/README.md` before running it.
+study collection and requires a named experiment subcommand, but its figures
+now write through a managed analysis run; see `experiments/README.md` before
+running it.
 
 Reusable DRA computation and fitting now live under `dfr.analysis`, including
 `ScaleAnalysisResult`, `create_scale_analysis`,
@@ -655,7 +656,7 @@ execution.
 | `plot_publication_noise_robustness.py` | Explicit publication figure CLI for the hard-coded noise-robustness table formerly embedded in `dfr_plot.py`. |
 | `plot_publication_table2.py` | Explicit publication figure CLI for the hard-coded Table 2 capacity/tradeoff figures formerly embedded in `dfr_plot.py`. |
 | `plot_publication_time_efficiency.py` | Explicit publication figure CLI for the hard-coded training-time scaling table formerly embedded in `dfr_plot.py`. |
-| `power_law.py` | Legacy exploratory mode-count scaling studies; requires an explicit experiment subcommand. |
+| `power_law.py` | Legacy exploratory mode-count scaling studies; requires an explicit experiment subcommand and writes figures through managed analysis artifacts. |
 | `rasterizer_optimize.py` | Benchmark/inspect custom rasterizer performance. |
 | `reconstruction_scale_determination.py` | Legacy reconstruction-scale studies; requires an explicit experiment subcommand. |
 | `reconstruct_one_frame.py` | Thin one-frame wrapper over `dfr.reconstruct`, with managed config, checkpoint, arrays, and metrics. |

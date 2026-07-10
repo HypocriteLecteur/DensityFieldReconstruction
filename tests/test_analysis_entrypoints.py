@@ -100,6 +100,16 @@ def test_legacy_analysis_modules_require_explicit_dispatch():
     assert 'parser.add_argument(\n        "experiment"' in scale
 
 
+def test_power_law_uses_managed_figure_artifacts():
+    experiments = Path(__file__).resolve().parents[1] / "experiments"
+    source = (experiments / "power_law.py").read_text(encoding="utf-8")
+
+    assert "add_managed_output_arguments(parser)" in source
+    assert "create_analysis_artifacts(" in source
+    assert "_ARTIFACTS.save_figure(" in source
+    assert '"figs/' not in source
+
+
 def test_shared_analysis_cli_arguments_enforce_collision_policy():
     parser = argparse.ArgumentParser()
     add_managed_output_arguments(parser)

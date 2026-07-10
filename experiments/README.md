@@ -45,9 +45,11 @@ study merely because the file was executed. A subcommand is required:
 - `python -m experiments.power_law --help`
 - `python -m experiments.reconstruction_scale_determination --help`
 
-They may still write legacy `figs/` or scenario cache locations and are not a
-supported output contract. Use them only to reproduce an identified historical
-study, then migrate that study separately if it remains scientifically active.
+They may still read legacy scenario caches or logs and are not a supported
+scientific API. `power_law.py` now writes its explicit study figures through a
+managed analysis run; use the remaining legacy commands only to reproduce an
+identified historical study, then migrate that study separately if it remains
+scientifically active.
 
 ## Deferred plotting decomposition
 

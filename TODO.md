@@ -445,11 +445,12 @@ reading implementation or experiment source.
   - The policy treats `figs/` and `results/` as generated/historical artifacts
     and requires their removal in a separate commit after active producers are
     retired or redirected to `outputs/`.
-  - The post-plot-archive scan identifies `power_law` as the only literal
-    `figs/` writer, the two manifold scripts as managed-CLI-overridden
-    `Path("figs")` fallbacks, and `fit_dra_multiframe.seed_existing_cache` as
-    the explicit `results/` cache bridge. Scenario-log references are listed
-    by module in `docs/PHASE8_COMPATIBILITY_INVENTORY.md`.
+  - The post-plot-archive scan identified `power_law` as the only literal
+    `figs/` writer; it now writes managed analysis artifacts. The two manifold
+    scripts retain managed-CLI-overridden `Path("figs")` fallbacks, and
+    `fit_dra_multiframe.seed_existing_cache` is the explicit `results/` cache
+    bridge. Scenario-log references are listed by module in
+    `docs/PHASE8_COMPATIBILITY_INVENTORY.md`.
 - [ ] Run CPU tests, CUDA tests, representative analyses, and end-to-end
   reconstruction/evaluation.
 - [ ] Review docs from a clean clone and verify output paths are reproducible.
@@ -460,8 +461,8 @@ reading implementation or experiment source.
 
 The next agent should continue Phase 8 generated-output cleanup:
 
-1. Inventory the remaining `figs/` producers in explicit-dispatch studies and
-   importable helper paths, then migrate or retire one producer at a time.
+1. Remove the two manifold scripts' importable `Path("figs")` fallback, then
+   verify that their managed CLIs remain their only figure-writing path.
 2. Audit `results/` cache seeding and remaining `scenarios/*/logs/` readers;
    retain only documented historical readers or redirect active paths to
    managed `outputs/` runs.
@@ -674,6 +675,23 @@ known failures, and the exact next step.
   with Windows line-ending warnings only.
 - Next step: classify `power_law`'s explicit-dispatch figure paths and migrate
   or retire that one `figs/` producer as the next output-boundary slice.
+
+### 2026-07-10 - Phase 8 power-law figures migrated
+
+- Added managed output arguments and analysis-run artifacts to the explicit
+  `power_law` study CLI. Its nine historical figure writes now save through the
+  artifact manager, including the post-save OpenCV crop path.
+- Removed literal `figs/` paths from the script and documented that the two
+  manifold fallback paths are now the remaining `figs/` cleanup surface.
+- Added a static contract test for managed figure artifacts.
+- Verification: `python -m experiments.power_law --help` passed; focused
+  analysis-entrypoint/inventory/docs tests passed with 21 tests; `compileall
+  dfr experiments tests examples` passed; `git diff --check` passed with
+  Windows line-ending warnings only; `pytest -m "not cuda"` passed with 175
+  tests and 7 deselected; `pytest -m cuda` passed with 6 tests, 1 skipped
+  rasterizer-extension test, and 175 deselected.
+- Next step: remove the importable `Path("figs")` fallback from the two
+  manifold scripts without changing their managed CLI figures.
 
 ### 2026-07-10 - Phase 8 legacy plot archive removed
 
