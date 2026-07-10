@@ -445,11 +445,10 @@ reading implementation or experiment source.
   - The policy treats `figs/` and `results/` as generated/historical artifacts
     and requires their removal in a separate commit after active producers are
     retired or redirected to `outputs/`.
-  - The post-plot-archive scan identified `power_law` as the only literal
-    `figs/` writer; it now writes managed analysis artifacts. The two manifold
-    scripts retain managed-CLI-overridden `Path("figs")` fallbacks, and
-    `fit_dra_multiframe.seed_existing_cache` is the explicit `results/` cache
-    bridge. Scenario-log references are listed by module in
+  - No active `figs/` producer remains: `power_law` writes managed analysis
+    artifacts, and the two manifold scripts no longer have a `Path("figs")`
+    fallback. `fit_dra_multiframe.seed_existing_cache` is the next explicit
+    `results/` cache bridge; scenario-log references are listed by module in
     `docs/PHASE8_COMPATIBILITY_INVENTORY.md`.
 - [ ] Run CPU tests, CUDA tests, representative analyses, and end-to-end
   reconstruction/evaluation.
@@ -461,8 +460,8 @@ reading implementation or experiment source.
 
 The next agent should continue Phase 8 generated-output cleanup:
 
-1. Remove the two manifold scripts' importable `Path("figs")` fallback, then
-   verify that their managed CLIs remain their only figure-writing path.
+1. Audit `fit_dra_multiframe.seed_existing_cache` and redirect or retire its
+   legacy `results/` cache bridge without breaking resumable managed DRA runs.
 2. Audit `results/` cache seeding and remaining `scenarios/*/logs/` readers;
    retain only documented historical readers or redirect active paths to
    managed `outputs/` runs.
@@ -692,6 +691,22 @@ known failures, and the exact next step.
   rasterizer-extension test, and 175 deselected.
 - Next step: remove the importable `Path("figs")` fallback from the two
   manifold scripts without changing their managed CLI figures.
+
+### 2026-07-10 - Phase 8 manifold figure fallbacks removed
+
+- Removed the import-time `Path("figs")` fallback from both manifold scripts.
+  Figure-producing helpers now require the existing managed CLI artifact setup
+  instead of silently saving to a legacy directory.
+- Added a static contract ensuring both scripts keep their managed figure root
+  and cannot reintroduce the fallback.
+- Verification: both manifold `--help` commands passed; focused
+  analysis-entrypoint/inventory/docs tests passed with 22 tests; `compileall
+  dfr experiments tests examples` passed; no `Path("figs")` or literal
+  `figs/` fallback remains in either manifold script; `pytest -m "not cuda"`
+  passed with 176 tests and 7 deselected; `pytest -m cuda` passed with 6 tests,
+  1 skipped rasterizer-extension test, and 176 deselected.
+- Next step: audit the remaining `fit_dra_multiframe` legacy `results/` cache
+  bridge.
 
 ### 2026-07-10 - Phase 8 legacy plot archive removed
 

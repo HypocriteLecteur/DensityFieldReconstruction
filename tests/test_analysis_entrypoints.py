@@ -110,6 +110,17 @@ def test_power_law_uses_managed_figure_artifacts():
     assert '"figs/' not in source
 
 
+def test_parameter_manifold_scripts_do_not_fall_back_to_legacy_figures():
+    experiments = Path(__file__).resolve().parents[1] / "experiments"
+    for filename in ("parameter_manifold.py", "parameter_manifold_2pl.py"):
+        source = (experiments / filename).read_text(encoding="utf-8")
+
+        assert '_FIGURE_DIR: Path | None = None' in source
+        assert "def _figure_path(" in source
+        assert "_FIGURE_DIR = artifacts.figures_dir" in source
+        assert 'Path("figs")' not in source
+
+
 def test_shared_analysis_cli_arguments_enforce_collision_policy():
     parser = argparse.ArgumentParser()
     add_managed_output_arguments(parser)

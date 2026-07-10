@@ -67,18 +67,17 @@ reader/writer classification before migration or deletion.
 
 Active supported compatibility wrappers no longer default to `figs/`; they
 save only when a caller supplies an explicit directory. Remaining `figs/`
-writers are concentrated in:
+There are no remaining active `figs/` producers:
 
-- importable plotting helper functions inside `experiments.parameter_manifold`
-  and `experiments.parameter_manifold_2pl`, whose `_FIGURE_DIR = Path("figs")`
-  fallback is replaced with managed artifacts inside their CLI `main()` paths.
-
-`experiments.power_law` was the only literal `figs/` writer. It was migrated on
-2026-07-10: its explicit study CLI now creates managed analysis artifacts and
-saves figures under `outputs/analysis/<run-id>/figures/`.
+- `experiments.power_law` was the only literal writer and now creates managed
+  analysis artifacts under `outputs/analysis/<run-id>/figures/`;
+- `experiments.parameter_manifold` and `experiments.parameter_manifold_2pl`
+  no longer use `Path("figs")` as an import-time fallback. Their
+  figure-producing helpers require the managed CLI to set the artifact figure
+  directory.
 
 Phase 8 should not delete `figs/` in the same commit as code removal. First
-remove or archive producers, then separately decide whether committed/generated
+separately inspect historical content, then decide whether committed/generated
 figures are preserved only at `v0.1.0`, archived, or deleted.
 
 ### `results/`

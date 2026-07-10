@@ -52,11 +52,21 @@ from dfr.plotting import apply_academic_style, apply_figure_layout, save_figure
 model_centered_3pl = centered_3pl_excess  # compatibility for research imports
 compute_avg_nn_dist = median_nearest_neighbour_distance
 PARAM_NAMES = list(PARAMETER_NAMES)
-_FIGURE_DIR = Path("figs")
+_FIGURE_DIR: Path | None = None
+
+
+def _figure_path(filename: str) -> Path:
+    """Return the managed figure path configured by the CLI."""
+    if _FIGURE_DIR is None:
+        raise RuntimeError(
+            "Run parameter_manifold through its managed CLI before calling a "
+            "figure-producing helper."
+        )
+    return _FIGURE_DIR / filename
 
 
 def _save_figure(filename: str, *, dpi: int = 300) -> Path:
-    target = _FIGURE_DIR / filename
+    target = _figure_path(filename)
     return save_figure(plt.gcf(), target, bbox_inches="tight", dpi=dpi)
 
 
@@ -441,7 +451,7 @@ def plot_pca_scree(pca_model, scaler):
     _finish_layout()
     _save_figure("manifold_pca_scree.png")
     plt.show()
-    print(f"  -> Saved {_FIGURE_DIR / 'manifold_pca_scree.png'}")
+    print(f"  -> Saved {_figure_path('manifold_pca_scree.png')}")
 
 
 def plot_embeddings(embeddings, names, N_array, labels):
@@ -497,7 +507,7 @@ def plot_embeddings(embeddings, names, N_array, labels):
     _finish_layout()
     _save_figure("manifold_embeddings.png")
     plt.show()
-    print(f"  -> Saved {_FIGURE_DIR / 'manifold_embeddings.png'}")
+    print(f"  -> Saved {_figure_path('manifold_embeddings.png')}")
 
 
 def plot_parameter_space(all_params, all_names):
@@ -533,7 +543,7 @@ def plot_parameter_space(all_params, all_names):
     _finish_layout()
     _save_figure("manifold_parameter_space.png")
     plt.show()
-    print(f"  -> Saved {_FIGURE_DIR / 'manifold_parameter_space.png'}")
+    print(f"  -> Saved {_figure_path('manifold_parameter_space.png')}")
 
 
 def plot_cluster_curves(all_params, all_N, all_names, labels):
@@ -586,7 +596,7 @@ def plot_cluster_curves(all_params, all_N, all_names, labels):
     _finish_layout()
     _save_figure("manifold_cluster_curves.png")
     plt.show()
-    print(f"  -> Saved {_FIGURE_DIR / 'manifold_cluster_curves.png'}")
+    print(f"  -> Saved {_figure_path('manifold_cluster_curves.png')}")
 
 
 def plot_param_distributions(all_params, all_names, labels):
@@ -619,7 +629,7 @@ def plot_param_distributions(all_params, all_names, labels):
     _finish_layout()
     _save_figure("manifold_param_distributions.png")
     plt.show()
-    print(f"  -> Saved {_FIGURE_DIR / 'manifold_param_distributions.png'}")
+    print(f"  -> Saved {_figure_path('manifold_param_distributions.png')}")
 
 
 # ======================================================================
@@ -738,7 +748,7 @@ def plot_intrinsic_manifold(all_params, all_names, all_N, shape_fit, k_proj,
     _finish_layout()
     _save_figure("manifold_intrinsic.png")
     plt.show()
-    print(f"  -> Saved {_FIGURE_DIR / 'manifold_intrinsic.png'}")
+    print(f"  -> Saved {_figure_path('manifold_intrinsic.png')}")
 
 
 def plot_shape_curve_mode_curves(shape_fit, all_params, N_typical=300):
@@ -801,7 +811,7 @@ def plot_shape_curve_mode_curves(shape_fit, all_params, N_typical=300):
     _finish_layout()
     _save_figure("manifold_shape_mode_curves.png")
     plt.show()
-    print(f"  -> Saved {_FIGURE_DIR / 'manifold_shape_mode_curves.png'}")
+    print(f"  -> Saved {_figure_path('manifold_shape_mode_curves.png')}")
 
 
 # ======================================================================
@@ -872,7 +882,7 @@ def plot_temporal_trajectories(raw_data, all_params, all_names):
     _finish_layout()
     _save_figure("manifold_temporal.png")
     plt.show()
-    print(f"  -> Saved {_FIGURE_DIR / 'manifold_temporal.png'}")
+    print(f"  -> Saved {_figure_path('manifold_temporal.png')}")
 
 
 def plot_N_dependence(all_params, all_N, all_names, shape_fit):
@@ -911,7 +921,7 @@ def plot_N_dependence(all_params, all_N, all_names, shape_fit):
     _finish_layout()
     _save_figure("manifold_N_dependence.png")
     plt.show()
-    print(f"  -> Saved {_FIGURE_DIR / 'manifold_N_dependence.png'}")
+    print(f"  -> Saved {_figure_path('manifold_N_dependence.png')}")
 
     # Console: correlation coefficients
     print("\n  N-dependence (Pearson r):")

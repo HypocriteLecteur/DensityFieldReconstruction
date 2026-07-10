@@ -46,11 +46,21 @@ DATASET_COLORS = {
 SYN_COLORS = ['#e74c3c', '#f39c12', '#2ecc71', '#3498db', '#9b59b6',
               '#e67e22', '#1abc9c', '#9b59b6', '#34495e', '#95a5a6',
               '#d35400', '#c0392b']
-_FIGURE_DIR = Path("figs")
+_FIGURE_DIR: Path | None = None
+
+
+def _figure_path(filename: str) -> Path:
+    """Return the managed figure path configured by the CLI."""
+    if _FIGURE_DIR is None:
+        raise RuntimeError(
+            "Run parameter_manifold_2pl through its managed CLI before calling "
+            "a figure-producing helper."
+        )
+    return _FIGURE_DIR / filename
 
 
 def _save_figure(filename: str) -> Path:
-    target = _FIGURE_DIR / filename
+    target = _figure_path(filename)
     return save_figure(plt.gcf(), target, bbox_inches="tight", dpi=300)
 
 
@@ -157,7 +167,7 @@ def plot_manifold_2pl(all_params, all_N, all_names):
     _finish_layout()
     _save_figure("manifold_2pl.png")
     plt.show()
-    print(f"  -> Saved {_FIGURE_DIR / 'manifold_2pl.png'}")
+    print(f"  -> Saved {_figure_path('manifold_2pl.png')}")
 
 
 def plot_synthetic_overlay(all_params, all_names, cache_dir=None):
@@ -207,7 +217,7 @@ def plot_synthetic_overlay(all_params, all_names, cache_dir=None):
     _finish_layout()
     _save_figure("manifold_2pl_synthetic.png")
     plt.show()
-    print(f"  -> Saved {_FIGURE_DIR / 'manifold_2pl_synthetic.png'}")
+    print(f"  -> Saved {_figure_path('manifold_2pl_synthetic.png')}")
 
 
 def plot_temporal_2pl(raw_data):
@@ -267,7 +277,7 @@ def plot_temporal_2pl(raw_data):
     _finish_layout()
     _save_figure("manifold_2pl_temporal.png")
     plt.show()
-    print(f"  -> Saved {_FIGURE_DIR / 'manifold_2pl_temporal.png'}")
+    print(f"  -> Saved {_figure_path('manifold_2pl_temporal.png')}")
 
 
 def plot_N_dependence_2pl(all_params, all_N, all_names):
@@ -286,7 +296,7 @@ def plot_N_dependence_2pl(all_params, all_N, all_names):
     _finish_layout()
     _save_figure("manifold_2pl_N_dependence.png")
     plt.show()
-    print(f"  -> Saved {_FIGURE_DIR / 'manifold_2pl_N_dependence.png'}")
+    print(f"  -> Saved {_figure_path('manifold_2pl_N_dependence.png')}")
 
     print("\n  N-dependence (2PL, Pearson r):")
     for ds in datasets:
