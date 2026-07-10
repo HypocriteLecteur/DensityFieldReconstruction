@@ -6,8 +6,9 @@ on chat history.
 
 ## Status
 
-- **Current phase:** Phase 7 is complete; Phase 8 compatibility cleanup can
-  begin. Phase 7 documented the intended top-level API, high-traffic package
+- **Current phase:** Phase 8 compatibility cleanup is in progress. The first
+  inventory slice documents active/archive compatibility boundaries before any
+  deletion. Phase 7 documented the intended top-level API, high-traffic package
   surfaces, and the main public class/function contracts for data loading,
   configuration, artifacts, reconstruction, evaluation, plotting, camera
   systems, external observations, scenario runners, analysis helpers, and model
@@ -418,12 +419,24 @@ reading implementation or experiment source.
 ### Phase 8 - Cleanup and Release
 
 - [ ] Remove compatibility wrappers only after all active callers migrate.
+  - Started with `docs/PHASE8_COMPATIBILITY_INVENTORY.md` and static tests:
+    no active Python module imports `experiments.dfr_plot`, and
+    `experiments.plotting_utils` is imported only by `experiments.dfr_plot`.
 - [ ] Remove confirmed-dead copies and duplicated functions; use Git history
   rather than keeping backup files.
+  - Inventory identifies `density_field_reconstruction_copy/` and
+    `experiments_legacy/` as backup/legacy copy candidates that need a
+    deletion/archive decision.
 - [ ] Decide whether historical scripts belong in an archive branch, paper
   reproduction directory, or should remain at the stable tag only.
+  - Inventory recommends deciding archive policy before deleting `dfr_plot.py`,
+    `plotting_utils.py`, copied directories, or generated `figs/`/`results/`
+    content.
 - [ ] Confirm `figs/` and `results/` are no longer written by active code, then
   archive or remove them in a separately reviewed change.
+  - Inventory separates supported managed-output paths from legacy/archive
+    producers: `dfr_plot.py`, explicit-dispatch studies, legacy cache seeding,
+    and scenario-log consumers remain to be retired or archived.
 - [ ] Run CPU tests, CUDA tests, representative analyses, and end-to-end
   reconstruction/evaluation.
 - [ ] Review docs from a clean clone and verify output paths are reproducible.
@@ -432,17 +445,18 @@ reading implementation or experiment source.
 
 ## Immediate Next Actions
 
-The next agent should begin Phase 8 compatibility cleanup:
+The next agent should continue Phase 8 compatibility cleanup:
 
-1. Start with an inventory-only commit if needed: list active imports/callers of
-   `experiments.dfr_plot`, `experiments.plotting_utils`, legacy `figs/` and
-   `results/` producers, and confirmed-dead copied directories/files.
-2. Remove compatibility wrappers only after tests prove no active caller uses
-   them; preserve archive-only research behavior at the `v0.1.0` tag or in a
-   documented archive location rather than silently deleting scientific code.
-3. Confirm active code no longer writes to `figs/`, `results/`, or
-   `scenarios/*/logs/` unless the producer is explicitly classified as legacy.
-4. Run CPU/CUDA tiers after every deletion or compatibility-boundary change.
+1. Decide and document the archive policy for `experiments.dfr_plot`,
+   `experiments.plotting_utils`, `density_field_reconstruction_copy/`,
+   `experiments_legacy/`, and generated `figs/`/`results/` content.
+2. If the archive policy permits, start with a low-risk deletion candidate:
+   either backup copy directories with no imports, or the `plotting_utils.py`
+   / `dfr_plot.py` archive after replacing the `--list-functions` catalog path.
+3. Update `experiments/DFR_PLOT_CATALOG.md`, `experiments/README.md`,
+   `docs/MODULE_OWNERSHIP.md`, and tests in the same commit as any removal.
+4. Run focused catalog/inventory tests plus full CPU/CUDA tiers after every
+   deletion or compatibility-boundary change.
 
 ## Decisions
 
@@ -617,6 +631,27 @@ The next agent should begin Phase 8 compatibility cleanup:
 
 Add one newest-first entry per working session. Include commit(s), verification,
 known failures, and the exact next step.
+
+### 2026-07-10 - Phase 8 compatibility inventory started
+
+- Added `docs/PHASE8_COMPATIBILITY_INVENTORY.md`, documenting the first cleanup
+  inventory for `experiments.dfr_plot`, `experiments.plotting_utils`, legacy
+  `figs/`, `results/`, `scenarios/*/logs/` producers, and copied backup
+  directories.
+- Added `tests/test_phase8_inventory.py` with static guards that no active
+  Python module imports `experiments.dfr_plot` and that
+  `experiments.plotting_utils` remains isolated to `experiments.dfr_plot`.
+- Linked the Phase 8 inventory from `docs/README.md`.
+- Updated the Phase 8 checklist and Immediate Next Actions to continue with an
+  archive/deletion policy decision before removing wrappers or copied trees.
+- Verification: focused inventory/docs/catalog/entrypoint tests passed with 25
+  tests; `compileall dfr experiments tests examples` passed; `git diff
+  --check` passed with Windows line-ending warnings only; `pytest -m "not
+  cuda"` passed with 176 tests and 7 deselected; `pytest -m cuda` passed with
+  6 tests, 1 skipped rasterizer-extension test, and 176 deselected.
+- Next step: decide the archive policy for `dfr_plot.py`, `plotting_utils.py`,
+  backup copy directories, and generated legacy outputs; then remove one
+  low-risk surface at a time with tests.
 
 ### 2026-07-10 - Phase 7 completed
 
