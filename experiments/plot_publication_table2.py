@@ -1,6 +1,6 @@
 """Publication figures for Table 2 reconstruction metrics.
 
-This script is a Phase 6 split-out from ``experiments.dfr_plot``. It keeps the
+This script is a Phase 6 split-out from the retired legacy plot archive. It keeps the
 paper-specific hard-coded Table 2 metrics in a small explicit command instead
 of the legacy mixed plotting archive.
 

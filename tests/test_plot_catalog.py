@@ -1,179 +1,80 @@
-import ast
 import re
 from pathlib import Path
 
 from experiments.plot_catalog import legacy_function_names, main
 
 
-def test_dfr_plot_catalog_lists_every_top_level_function():
-    root = Path(__file__).resolve().parents[1]
-    source = root / "experiments" / "dfr_plot.py"
-    catalog = root / "experiments" / "DFR_PLOT_CATALOG.md"
+SUPPORTED_FUNCTIONS = {
+    "plot_single_scenario_new",
+    "plot_jackdaw2_2d_gmm",
+    "plot_jackdaw2_2d_observations",
+    "plot_jackdaw2_mode_count_curve",
+    "plot_jackdaw2_multiscale_density",
+    "plot_jackdaw2_dra_scale_model_order_surface",
+    "plot_camera_configurations",
+    "plot_table_2_results",
+    "plot_table_time_efficiency",
+    "plot_table_noise_robustness",
+}
 
-    tree = ast.parse(source.read_text(encoding="utf-8"))
-    functions = [
-        node.name for node in tree.body if isinstance(node, ast.FunctionDef)
-    ]
-    document = catalog.read_text(encoding="utf-8")
-
-    assert len(functions) == 36
-    for name in functions:
-        assert f"`{name}`" in document
-
-
-def test_standalone_catalog_lists_current_legacy_public_functions(capsys):
-    root = Path(__file__).resolve().parents[1]
-    source = root / "experiments" / "dfr_plot.py"
-    tree = ast.parse(source.read_text(encoding="utf-8"))
-    expected = sorted(
-        node.name
-        for node in tree.body
-        if isinstance(node, ast.FunctionDef) and not node.name.startswith("_")
-    )
-
-    assert list(legacy_function_names()) == expected
-    assert main(["--list-functions"]) == 0
-    assert capsys.readouterr().out.splitlines() == expected
+ARCHIVED_FUNCTIONS = {
+    "scale_estimation",
+    "plot_multiple_scenarios",
+    "plot_jackdaw2_density_field",
+    "plot_all_ground_truth_density_fields",
+    "plot_single_scenario",
+    "overview_scaling_law",
+    "plot_scale_space_curve",
+    "visual_hull_diagram",
+    "assumption_3_error",
+    "visual_hull_tau_vs_visual_hull_ghost",
+    "run_geometric_visual_hulls",
+    "plot_ratio_surface",
+    "dra_metrics",
+    "one_frame_parameter_search",
+    "one_frame_convergence",
+    "one_frame_dMOTA_factor_analysis",
+    "one_frame_dMOTA_factor_analysis_2",
+    "one_frame_dMOTA_noise",
+    "one_frame_dMOTA_3d_noise",
+    "plot_dra_and_loss",
+}
 
 
-def test_dfr_plot_support_policy_classifies_every_public_function():
-    root = Path(__file__).resolve().parents[1]
-    source = root / "experiments" / "dfr_plot.py"
-    catalog = root / "experiments" / "DFR_PLOT_CATALOG.md"
-
-    tree = ast.parse(source.read_text(encoding="utf-8"))
-    public_functions = {
-        node.name
-        for node in tree.body
-        if isinstance(node, ast.FunctionDef) and not node.name.startswith("_")
-    }
-    document = catalog.read_text(encoding="utf-8")
-
-    support_section = document.split("### Supported compatibility wrappers", 1)[
-        1
-    ].split("### Archive-only public functions", 1)[0]
-    archive_section = document.split("### Archive-only public functions", 1)[1].split(
+def _catalog_policy_sets():
+    path = Path(__file__).resolve().parents[1] / "experiments" / "DFR_PLOT_CATALOG.md"
+    text = path.read_text(encoding="utf-8")
+    support_section = text.split("### Supported compatibility wrappers", 1)[1].split(
+        "### Archive-only public functions", 1
+    )[0]
+    archive_section = text.split("### Archive-only public functions", 1)[1].split(
         "## Open questions for the owner", 1
     )[0]
-    supported = set(re.findall(r"^- `([A-Za-z0-9_]+)`", support_section, re.MULTILINE))
-    archived = set(re.findall(r"^- `([A-Za-z0-9_]+)`", archive_section, re.MULTILINE))
+    pattern = r"^- `([A-Za-z0-9_]+)`"
+    return (
+        set(re.findall(pattern, support_section, re.MULTILINE)),
+        set(re.findall(pattern, archive_section, re.MULTILINE)),
+    )
 
-    assert supported == {
-        "plot_single_scenario_new",
-        "plot_jackdaw2_2d_gmm",
-        "plot_jackdaw2_2d_observations",
-        "plot_jackdaw2_mode_count_curve",
-        "plot_jackdaw2_multiscale_density",
-        "plot_jackdaw2_dra_scale_model_order_surface",
-        "plot_camera_configurations",
-        "plot_table_2_results",
-        "plot_table_time_efficiency",
-        "plot_table_noise_robustness",
-    }
+
+def test_frozen_catalog_preserves_every_legacy_public_function():
+    names = set(legacy_function_names())
+
+    assert len(names) == 30
+    assert names == SUPPORTED_FUNCTIONS | ARCHIVED_FUNCTIONS
+
+
+def test_catalog_support_policy_remains_complete_and_disjoint():
+    supported, archived = _catalog_policy_sets()
+
+    assert supported == SUPPORTED_FUNCTIONS
+    assert archived == ARCHIVED_FUNCTIONS
     assert supported.isdisjoint(archived)
-    assert supported | archived == public_functions
+    assert supported | archived == set(legacy_function_names())
 
 
-def test_camera_configuration_legacy_wrapper_uses_package_plotting():
-    root = Path(__file__).resolve().parents[1]
-    source = (root / "experiments" / "dfr_plot.py").read_text(encoding="utf-8")
-    wrapper = source.split("def plot_camera_configurations", 1)[1].split(
-        "def plot_table_2_results", 1
-    )[0]
+def test_standalone_catalog_lists_frozen_legacy_public_functions(capsys):
+    expected = sorted(SUPPORTED_FUNCTIONS | ARCHIVED_FUNCTIONS)
 
-    assert "plot_camera_configurations as _plot_camera_configurations" in wrapper
-    assert "_plot_camera_configurations(" in wrapper
-    assert "output_dir=None" in wrapper
-    assert "save_figure(" in wrapper
-    assert 'os.path.join(os.getcwd(), "figs")' not in wrapper
-
-
-def test_trajectory_legacy_wrapper_uses_package_plotting():
-    root = Path(__file__).resolve().parents[1]
-    source = (root / "experiments" / "dfr_plot.py").read_text(encoding="utf-8")
-    wrapper = source.split("def plot_single_scenario_new", 1)[1].split(
-        "def plot_jackdaw2_density_field", 1
-    )[0]
-
-    assert "from dfr.plotting import plot_trajectory_snapshot" in wrapper
-    assert "plot_trajectory_snapshot(" in wrapper
-    assert "output_dir=None" in wrapper
-    assert "save_figure(" in wrapper
-    assert 'fig.savefig(f"figs/scene_traj_{name}.png"' not in wrapper
-    assert 'os.makedirs("figs"' not in wrapper
-    assert "logs" not in wrapper
-
-
-def test_2d_projection_legacy_wrappers_use_package_plotting():
-    root = Path(__file__).resolve().parents[1]
-    source = (root / "experiments" / "dfr_plot.py").read_text(encoding="utf-8")
-    gmm_wrapper = source.split("def plot_jackdaw2_2d_gmm", 1)[1].split(
-        "def plot_jackdaw2_2d_observations", 1
-    )[0]
-    observation_wrapper = source.split("def plot_jackdaw2_2d_observations", 1)[
-        1
-    ].split("def plot_single_scenario", 1)[0]
-
-    assert "plot_projected_gmm_density" in gmm_wrapper
-    assert "transparent_colormap" in gmm_wrapper
-    assert "output_dir=None" in gmm_wrapper
-    assert "save_figure(" in gmm_wrapper
-    assert "Ellipse(" not in gmm_wrapper
-    assert "fig.savefig(" not in gmm_wrapper
-    assert '"figs"' not in gmm_wrapper
-    assert "plot_projection_points" in observation_wrapper
-    assert "plot_density_image" in observation_wrapper
-    assert "output_dir=None" in observation_wrapper
-    assert "save_figure(" in observation_wrapper
-    assert "PowerNorm(" not in observation_wrapper
-    assert ".savefig(" not in observation_wrapper
-    assert '"figs"' not in observation_wrapper
-
-
-def test_mode_count_curve_legacy_wrapper_uses_package_plotting():
-    root = Path(__file__).resolve().parents[1]
-    source = (root / "experiments" / "dfr_plot.py").read_text(encoding="utf-8")
-    helper_region = source.split("def _validate_nnd_bounds", 1)[1].split(
-        "def plot_jackdaw2_mode_count_curve", 1
-    )[0]
-    wrapper = source.split("def plot_jackdaw2_mode_count_curve", 1)[1].split(
-        "def plot_jackdaw2_multiscale_density", 1
-    )[0]
-
-    assert "validate_nnd_bounds" in helper_region
-    assert "select_adaptive_density_scales" in helper_region
-    assert "plot_mode_count_curve" in wrapper
-    assert "plt.subplots" not in wrapper
-    assert "output_dir=None" in wrapper
-    assert "save_figure(" in wrapper
-    assert '"figs"' not in wrapper
-
-
-def test_multiscale_density_legacy_wrapper_uses_package_plotting():
-    root = Path(__file__).resolve().parents[1]
-    source = (root / "experiments" / "dfr_plot.py").read_text(encoding="utf-8")
-    wrapper = source.split("def plot_jackdaw2_multiscale_density", 1)[1].split(
-        "def plot_jackdaw2_dra_scale_model_order_surface", 1
-    )[0]
-
-    assert "plot_multiscale_density_fields" in wrapper
-    assert "save_figure(" in wrapper
-    assert "render_density_field_3d(" not in wrapper
-    assert "plt.figure(" not in wrapper
-    assert "output_dir=None" in wrapper
-    assert '"figs"' not in wrapper
-
-
-def test_dra_surface_legacy_wrapper_uses_package_plotting():
-    root = Path(__file__).resolve().parents[1]
-    source = (root / "experiments" / "dfr_plot.py").read_text(encoding="utf-8")
-    wrapper = source.split("def plot_jackdaw2_dra_scale_model_order_surface", 1)[
-        1
-    ].split("def visual_hull_diagram", 1)[0]
-
-    assert "plot_dra_scale_model_order_surface" in wrapper
-    assert "plot_surface(" not in wrapper
-    assert "plot_wireframe(" not in wrapper
-    assert "output_dir=None" in wrapper
-    assert "save_figure(" in wrapper
-    assert '"figs"' not in wrapper
+    assert main(["--list-functions"]) == 0
+    assert capsys.readouterr().out.splitlines() == expected

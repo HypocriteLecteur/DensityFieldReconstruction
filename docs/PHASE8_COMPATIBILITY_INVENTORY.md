@@ -9,29 +9,31 @@ or wrappers.
 
 ## Compatibility-wrapper import status
 
-Static scan result:
+Removal result:
 
+- `experiments/dfr_plot.py` and `experiments/plotting_utils.py` were removed
+  together on 2026-07-10.
 - No active Python module imports `experiments.dfr_plot`.
-- The supported executable interaction with the frozen `dfr_plot.py` catalog
-  is:
+- No active Python module imports `experiments.plotting_utils`.
+- The supported executable interaction with the frozen historical catalog is:
 
   ```powershell
   python -m experiments.plot_catalog --list-functions
   ```
 
-- Documentation/tests mention `experiments.dfr_plot` for policy and legacy
-  characterization checks only.
-- `experiments.plotting_utils` is imported only by `experiments.dfr_plot`.
+- The 30 public names and their support classifications remain in
+  `experiments/DFR_PLOT_CATALOG.md`; source-reading wrapper tests were replaced
+  by catalog and package/publication-owner checks.
 
-Implication: Phase 8 can remove or archive `dfr_plot.py` and
-`plotting_utils.py` by following `docs/PHASE8_ARCHIVE_POLICY.md`. Until then,
-new code must not add imports from either module.
+Implication: the historical implementation is preserved through local Git
+history and `v0.1.0`, while active code uses `dfr.plotting`, named publication
+scripts, and `experiments.plot_catalog`.
 
-## Supported `dfr_plot.py` compatibility wrappers
+## Former supported compatibility wrappers
 
-These wrappers remain characterized by tests and documented in
-`experiments/DFR_PLOT_CATALOG.md`. They are safe to remove only after the owner
-accepts the named package/script replacements as the migration path:
+These historical wrapper names remain documented in
+`experiments/DFR_PLOT_CATALOG.md`. Their replacement owners are the active
+interfaces:
 
 - `plot_single_scenario_new`
 - `plot_jackdaw2_2d_gmm`
@@ -44,15 +46,15 @@ accepts the named package/script replacements as the migration path:
 - `plot_table_time_efficiency`
 - `plot_table_noise_robustness`
 
-The replacement owners are `dfr.plotting` for reusable plotting primitives and
-the explicit publication figure scripts for hard-coded table figures.
+The reusable replacement owner is `dfr.plotting`; hard-coded table figures are
+owned by the explicit publication figure scripts.
 
-## Archive-only `dfr_plot.py` functions
+## Former archive-only functions
 
-The Phase 6 catalog classifies all other public functions in `dfr_plot.py` as
-archive-only historical references. They have no supported active caller. If
-one becomes scientifically active again, migrate it first to a named CLI or
-package API with tests and an explicit output contract.
+The Phase 6 catalog classifies all other public functions as archive-only
+historical references. They have no supported active caller. If one becomes
+scientifically active again, recover it from Git history first, then migrate it
+to a named CLI or package API with tests and an explicit output contract.
 
 ## Legacy output producers
 
@@ -62,7 +64,6 @@ Active supported compatibility wrappers no longer default to `figs/`; they
 save only when a caller supplies an explicit directory. Remaining `figs/`
 writers are concentrated in:
 
-- archive-only `experiments.dfr_plot` functions;
 - legacy explicit-dispatch studies such as `experiments.power_law`;
 - importable plotting helper functions inside `parameter_manifold.py` and
   `parameter_manifold_2pl.py` before `main()` resets their figure directory to
@@ -77,7 +78,6 @@ figures are preserved only at `v0.1.0`, archived, or deleted.
 New managed analysis writes go under `outputs/analysis/<run-id>/`. Remaining
 `results/` references are legacy cache readers/producers, notably:
 
-- `experiments.dfr_plot` mode/DRA cache paths;
 - `experiments.fit_dra_multiframe.seed_existing_cache`, which may copy a
   matching legacy single-frame cache into a managed run cache;
 - historical cache directories already present under `results/`.
@@ -112,12 +112,11 @@ being kept in the active working tree.
 
 ## Recommended Phase 8 order
 
-1. Add or keep static guards that prevent new active imports from
-   `experiments.dfr_plot` and `experiments.plotting_utils`.
-2. Apply `docs/PHASE8_ARCHIVE_POLICY.md` to `dfr_plot.py`,
-   `plotting_utils.py`, backup directories, and generated `figs/`/`results/`
-   content.
-3. Remove one compatibility/archive surface at a time, updating
+1. Keep static guards that ensure the retired plot modules remain absent and
+   cannot return as active imports.
+2. Apply `docs/PHASE8_ARCHIVE_POLICY.md` to remaining generated `figs/`/
+   `results/` content and scenario-log readers/producers.
+3. Remove one remaining compatibility/archive surface at a time, updating
    `experiments/DFR_PLOT_CATALOG.md`, `experiments/README.md`,
    `docs/MODULE_OWNERSHIP.md`, and `TODO.md` in the same commit.
 4. Run focused catalog/import tests plus the full CPU and CUDA tiers after each

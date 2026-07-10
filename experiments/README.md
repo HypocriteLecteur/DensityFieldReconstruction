@@ -51,39 +51,16 @@ study, then migrate that study separately if it remains scientifically active.
 
 ## Deferred plotting decomposition
 
-`dfr_plot.py` is a mixed 3,900-line publication/reconstruction plotting archive,
-not a supported analysis CLI. Direct execution no longer launches its former
-hard-coded animation. `python -m experiments.plot_catalog --list-functions`
-lists the retained public functions without importing the archive. The Phase 6
-function inventory is frozen in
-[`DFR_PLOT_CATALOG.md`](DFR_PLOT_CATALOG.md); update that catalog before moving
-or deleting any `dfr_plot.py` function. The migrated wrappers so far are
-`plot_camera_configurations`, `plot_single_scenario_new`,
-`plot_jackdaw2_2d_gmm`, `plot_jackdaw2_2d_observations`, and
-`plot_jackdaw2_mode_count_curve`, plus
-`plot_jackdaw2_multiscale_density` and
-`plot_jackdaw2_dra_scale_model_order_surface`, whose rendering now lives in
-`dfr.plotting`. Supported `dfr_plot.py` compatibility wrappers now return
-figures by default and save only when an explicit `output_dir` or `save_dir` is
-supplied.
-The Table 2 capacity/tradeoff figures, time-efficiency publication table, and
-noise-robustness publication table have also been split into
+The former mixed publication/reconstruction plotting archive was removed in
+Phase 8. `python -m experiments.plot_catalog --list-functions` lists its 30
+frozen public names without importing historical code; the full migration
+record remains in [`DFR_PLOT_CATALOG.md`](DFR_PLOT_CATALOG.md). Use
+`dfr.plotting` for reusable camera, trajectory, projection, mode-count, DRA,
+multiscale-density, and density/GMM plots. Use
 `plot_publication_table2.py`, `plot_publication_time_efficiency.py`, and
-`plot_publication_noise_robustness.py`; the legacy `plot_table_2_results`,
-`plot_table_time_efficiency`, and `plot_table_noise_robustness` wrappers
-delegate to those named scripts and save only when an explicit `save_dir` is
-supplied.
-
-The Phase 6 support review classifies only the delegated wrappers listed above
-as supported compatibility entry points. The other public functions retained in
-`dfr_plot.py` are archive-only historical references; do not add new callers to
-them unless the function is first moved to a named CLI or package API with an
-explicit output contract and tests.
-
-`plotting_utils.py` is a helper module rather than an entry point. Its
-style/layout compatibility helpers and 3D density/GMM renderers now delegate
-to `dfr.plotting`; voxel construction and density evaluation remain here until
-their owning computation paths are migrated.
+`plot_publication_noise_robustness.py` for their named hard-coded publication
+figures. Archive-only historical functions are available through local Git
+history and `v0.1.0`, not through an active experiment import.
 
 Supported analysis CLIs now route figure exports through
 `dfr.plotting.save_figure` or managed artifact helpers instead of direct

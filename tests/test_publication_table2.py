@@ -42,18 +42,7 @@ def test_table2_save_helper_writes_requested_formats(tmp_path):
     assert all(path.is_file() for path in saved)
 
 
-def test_table2_legacy_wrapper_delegates_to_named_script():
-    root = Path(__file__).resolve().parents[1]
-    source = (root / "experiments" / "dfr_plot.py").read_text(encoding="utf-8")
-    wrapper = source.split("def plot_table_2_results", 1)[1].split(
-        "def plot_table_time_efficiency", 1
-    )[0]
-    active_wrapper = wrapper.split("return fig1, fig2", 1)[0]
+def test_table2_named_script_has_no_legacy_plot_archive_dependency():
+    source = Path(table2.__file__).read_text(encoding="utf-8")
 
-    assert "plot_publication_table2" in active_wrapper
-    assert "plot_capacity_scaling()" in active_wrapper
-    assert "plot_recall_hallucination_tradeoff()" in active_wrapper
-    assert "save_dir is not None" in active_wrapper
-    assert "save_figure(" in active_wrapper
-    assert "if show:" in active_wrapper
-    assert 'os.path.join(os.getcwd(), "figs")' not in active_wrapper
+    assert "dfr_plot" not in source

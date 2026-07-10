@@ -17,10 +17,15 @@ task before deletion.
 
 ## Source archive surfaces
 
-### `experiments.dfr_plot` and `experiments.plotting_utils`
+### Retired legacy plot archive
 
-Treat `experiments.dfr_plot` and `experiments.plotting_utils` as archive
-surfaces during Phase 8:
+`experiments/dfr_plot.py` and `experiments/plotting_utils.py` were removed
+together on 2026-07-10. Their historical source is preserved in local Git
+history and `v0.1.0`; their 30 public names and replacement guidance remain in
+`experiments/DFR_PLOT_CATALOG.md` and are listed by
+`python -m experiments.plot_catalog --list-functions`.
+
+Before this removal, Phase 8 required that the archive surface:
 
 - do not add new imports from either module;
 - preserve the historical function list in `experiments/DFR_PLOT_CATALOG.md`;
@@ -31,9 +36,9 @@ surfaces during Phase 8:
 - remove the pair together unless an intermediate commit keeps
   `dfr_plot.py` working without `plotting_utils.py`.
 
-If an archive-only function becomes scientifically active again, migrate it
-first to a named package API or experiment CLI with tests and managed-output
-behavior.
+If an archive-only function becomes scientifically active again, recover it
+from Git history first, then migrate it to a named package API or experiment
+CLI with tests and managed-output behavior.
 
 ### Copied backup directories
 

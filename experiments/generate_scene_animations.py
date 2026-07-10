@@ -77,7 +77,7 @@ ELEV = 28                   # initial 3D view elevation (degrees)
 AZIM = -60                  # initial 3D view azimuth (degrees)
 MIN_ANIMATION_SECS = 2.5    # minimum animation duration — hold frames if needed
 
-# Density-field rendering parameters (mirror dfr_plot.plot_jackdaw2_density_field)
+# Density-field rendering parameters retained from a legacy density-rendering study.
 DENSITY_VOXEL_RES_FACTOR = 2.5e-2    # voxel size relative to spatial extent
 DENSITY_BATCH_SIZE = 50_000          # voxels per GPU batch during density eval
 DENSITY_LAYER_FRACTIONS = [0.10, 0.02, 0.002]   # thresholds as fraction of max density

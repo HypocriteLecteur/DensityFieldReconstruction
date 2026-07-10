@@ -28,8 +28,6 @@ def test_no_active_python_imports_dfr_plot_archive():
     offenders = []
     for path in _python_files():
         relative = path.relative_to(ROOT).as_posix()
-        if relative == "experiments/dfr_plot.py":
-            continue
         for module in _imports(path):
             if module in {"dfr_plot", "experiments.dfr_plot"}:
                 offenders.append(f"{relative}: {module}")
@@ -37,7 +35,7 @@ def test_no_active_python_imports_dfr_plot_archive():
     assert offenders == []
 
 
-def test_plotting_utils_is_only_used_by_dfr_plot_archive():
+def test_no_active_python_imports_plotting_utils_archive():
     offenders = []
     for path in _python_files():
         relative = path.relative_to(ROOT).as_posix()
@@ -45,7 +43,12 @@ def test_plotting_utils_is_only_used_by_dfr_plot_archive():
             if module in {"plotting_utils", "experiments.plotting_utils"}:
                 offenders.append(f"{relative}: {module}")
 
-    assert offenders == ["experiments/dfr_plot.py: experiments.plotting_utils"]
+    assert offenders == []
+
+
+def test_retired_plot_archive_files_are_absent():
+    for name in ("dfr_plot.py", "plotting_utils.py"):
+        assert not (ROOT / "experiments" / name).exists()
 
 
 def test_phase8_inventory_documents_cleanup_boundaries():
@@ -54,8 +57,9 @@ def test_phase8_inventory_documents_cleanup_boundaries():
     )
 
     for snippet in (
+        "`experiments/dfr_plot.py` and `experiments/plotting_utils.py` were removed",
         "No active Python module imports `experiments.dfr_plot`",
-        "`experiments.plotting_utils` is imported only by `experiments.dfr_plot`",
+        "No active Python module imports `experiments.plotting_utils`",
         "python -m experiments.plot_catalog --list-functions",
         "density_field_reconstruction_copy/",
         "experiments_legacy/",
@@ -77,8 +81,7 @@ def test_phase8_archive_policy_documents_deletion_rules():
         "local Git history",
         "`v0.1.0`",
         "Do not keep duplicate source trees",
-        "`experiments.dfr_plot`",
-        "`experiments.plotting_utils`",
+        "Retired legacy plot archive",
         "`density_field_reconstruction_copy/`",
         "`experiments_legacy/`",
         "`outputs/`",

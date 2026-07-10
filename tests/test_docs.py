@@ -38,7 +38,7 @@ def test_module_ownership_docs_cover_package_and_experiment_boundaries():
         "dfr.reconstruction",
         "dfr.evaluation",
         "dfr.plotting",
-        "experiments.dfr_plot",
+        "experiments.plot_catalog",
         "outputs/<workflow>/<run-id>/",
         "Do not add new producers",
     ):

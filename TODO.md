@@ -8,17 +8,18 @@ on chat history.
 
 - **Current phase:** Phase 8 compatibility cleanup is in progress. The
   compatibility inventory and archive policy now document active/archive
-  boundaries and deletion rules before any removal. A standalone
-  `experiments.plot_catalog` command now replaces the supported
-  `dfr_plot --list-functions` catalog interaction. Phase 7 documented the
-  intended top-level API, high-traffic package
+  boundaries and deletion rules. `experiments/dfr_plot.py` and
+  `experiments/plotting_utils.py` have been removed as one archive surface;
+  `experiments.plot_catalog` preserves the 30 historical public names without
+  importing legacy code. Phase 7 documented the intended top-level API,
+  high-traffic package
   surfaces, and the main public class/function contracts for data loading,
   configuration, artifacts, reconstruction, evaluation, plotting, camera
   systems, external observations, scenario runners, analysis helpers, and model
   checkpointing. The docs layer includes a checked CPU toy workflow, workflow
   examples, command-verification notes, and a module ownership map. Phase
   6 plotting decomposition is complete: the
-  `experiments/dfr_plot.py` function catalog is frozen in
+  historical plotting function catalog is frozen in
   `experiments/DFR_PLOT_CATALOG.md`; reusable camera-configuration,
   trajectory-snapshot, 2D projection/GMM, mode-count curve, DRA
   scale/model-order surface, multiscale density, 3D density/GMM rendering,
@@ -28,13 +29,10 @@ on chat history.
   publication/table split-outs, `experiments.plot_publication_table2`,
   `experiments.plot_publication_time_efficiency`, and
   `experiments.plot_publication_noise_robustness`, now own hard-coded
-  publication figures formerly embedded in `experiments/dfr_plot.py`. The
-  remaining public `dfr_plot.py` functions have a documented support policy:
-  delegated wrappers are compatibility-supported, while all other public
-  functions are archive-only historical references until re-owned. Supported
-  compatibility wrappers no longer create `figs/` outputs unless an explicit
-  output directory is supplied; physical deletion of `dfr_plot.py` is deferred
-  to Phase 8 compatibility cleanup.
+  publication figures formerly embedded in the retired plot archive. The
+  catalog preserves the former compatibility/archive classifications and their
+  named replacement owners. The next cleanup boundary is remaining legacy
+  generated-output producers under `figs/`, `results/`, and scenario logs.
 - **Stable baseline:** annotated tag `v0.1.0`, commit `7cde21e`.
 - **Version storage:** local Git repository only; do not push unless the owner
   explicitly changes this policy.
@@ -421,30 +419,28 @@ reading implementation or experiment source.
 
 ### Phase 8 - Cleanup and Release
 
-- [ ] Remove compatibility wrappers only after all active callers migrate.
-  - Started with `docs/PHASE8_COMPATIBILITY_INVENTORY.md` and static tests:
-    no active Python module imports `experiments.dfr_plot`, and
-    `experiments.plotting_utils` is imported only by `experiments.dfr_plot`.
+- [x] Remove compatibility wrappers only after all active callers migrate.
+  - Completed for `experiments/dfr_plot.py` and
+    `experiments/plotting_utils.py`: no active caller/import remained, the
+    frozen catalog moved to `experiments.plot_catalog`, and both tracked files
+    were removed together with post-cleanup absence/import guards.
 - [ ] Remove confirmed-dead copies and duplicated functions; use Git history
   rather than keeping backup files.
   - Completed for `density_field_reconstruction_copy/` and
     `experiments_legacy/`: they were ignored local-only backup copies, so a
     verified local ZIP was created before their approved deletion. Remaining
-    duplicated-function cleanup is tracked by the `dfr_plot.py` archive
-    surface and later Phase 8 inventory slices.
-- [ ] Decide whether historical scripts belong in an archive branch, paper
+    duplicated-function cleanup now continues with later Phase 8 inventory
+    slices.
+- [x] Decide whether historical scripts belong in an archive branch, paper
   reproduction directory, or should remain at the stable tag only.
-  - Inventory recommends deciding archive policy before deleting `dfr_plot.py`,
-    `plotting_utils.py`, copied directories, or generated `figs/`/`results/`
-    content.
   - The documented policy keeps local Git history and `v0.1.0` as the default
     archive, requires explicit owner direction for a separate archive branch
     or external generated-artifact backup, and requires one removal surface
     per commit.
 - [ ] Confirm `figs/` and `results/` are no longer written by active code, then
   archive or remove them in a separately reviewed change.
-  - Inventory separates supported managed-output paths from legacy/archive
-    producers: `dfr_plot.py`, explicit-dispatch studies, legacy cache seeding,
+  - Inventory separates supported managed-output paths from remaining
+    legacy/archive producers: explicit-dispatch studies, legacy cache seeding,
     and scenario-log consumers remain to be retired or archived.
   - The policy treats `figs/` and `results/` as generated/historical artifacts
     and requires their removal in a separate commit after active producers are
@@ -457,15 +453,17 @@ reading implementation or experiment source.
 
 ## Immediate Next Actions
 
-The next agent should continue Phase 8 compatibility cleanup:
+The next agent should continue Phase 8 generated-output cleanup:
 
-1. Remove `experiments/dfr_plot.py` and `experiments/plotting_utils.py` as one
-   compatibility/archive surface: the supported catalog command is now
-   `python -m experiments.plot_catalog --list-functions`.
-2. Update `experiments/DFR_PLOT_CATALOG.md`, `experiments/README.md`,
-   `docs/MODULE_OWNERSHIP.md`, and tests in the same commit as any removal.
-3. Run focused catalog/inventory tests plus full CPU/CUDA tiers after every
-   deletion or compatibility-boundary change.
+1. Inventory the remaining `figs/` producers in explicit-dispatch studies and
+   importable helper paths, then migrate or retire one producer at a time.
+2. Audit `results/` cache seeding and remaining `scenarios/*/logs/` readers;
+   retain only documented historical readers or redirect active paths to
+   managed `outputs/` runs.
+3. Update the inventory, archive policy, ownership docs, tests, and `TODO.md`
+   in the same commit as each removal or output-boundary change.
+4. Run focused guards plus full CPU/CUDA tiers after every deletion or
+   compatibility-boundary change.
 
 ## Decisions
 
@@ -484,6 +482,11 @@ The next agent should continue Phase 8 compatibility cleanup:
   Git-tracked, so preserve them in a verified local ZIP before deletion rather
   than relying on `v0.1.0`. Reason: the source ZIP for the stable tag does not
   include ignored local-only paths.
+- **2026-07-10 - Retired plot archive:** remove `experiments/dfr_plot.py` and
+  `experiments/plotting_utils.py` together after replacing their only supported
+  CLI interaction with `experiments.plot_catalog`. Reason: no active caller
+  remains, package/publication replacements are tested, and local Git history
+  plus the frozen catalog preserve the scientific migration record.
 - **2026-07-06 - Output root:** use ignored `outputs/` for all generated
   artifacts. Reason: "results" is ambiguous and `outputs/` already has an ignore
   policy; per-run subdirectories retain the distinctions between data, metrics,
@@ -652,6 +655,27 @@ The next agent should continue Phase 8 compatibility cleanup:
 
 Add one newest-first entry per working session. Include commit(s), verification,
 known failures, and the exact next step.
+
+### 2026-07-10 - Phase 8 legacy plot archive removed
+
+- Removed the tracked `experiments/dfr_plot.py` and
+  `experiments/plotting_utils.py` archive pair after the standalone catalog
+  command replaced their supported `--list-functions` interaction.
+- Replaced source-reading compatibility-wrapper tests with frozen-catalog,
+  package-owner, named-publication-script, no-import, and absence checks.
+- Updated package/experiment docs, output-producer inventory, ownership map,
+  and archive policy to point active users to `dfr.plotting`, publication
+  scripts, and `experiments.plot_catalog`; historical source remains in local
+  Git history and `v0.1.0`.
+- Verification: focused catalog/inventory/analysis-entrypoint/publication/docs
+  tests passed with 32 tests; `compileall dfr experiments tests examples`
+  passed; static import scan found no active archive imports and both retired
+  files are absent; `git diff --check` passed with Windows line-ending warnings
+  only; `pytest -m "not cuda"` passed with 173 tests and 7 deselected;
+  `pytest -m cuda` passed with 6 tests, 1 skipped rasterizer-extension test,
+  and 173 deselected.
+- Next step: inventory and migrate or retire remaining `figs/`, `results/`,
+  and scenario-log producers one independently reviewed surface at a time.
 
 ### 2026-07-10 - Phase 8 standalone plot catalog
 

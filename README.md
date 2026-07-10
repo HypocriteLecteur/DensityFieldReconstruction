@@ -628,9 +628,10 @@ Detailed support status, inputs, outputs, runtime expectations, and commands
 for every analysis-oriented entry point are maintained in
 [`experiments/README.md`](experiments/README.md). In particular, supported
 Phase 4 analyses use managed output, legacy power/scale studies require an
-explicit subcommand, and direct `dfr_plot.py` execution is disabled until its
-Phase 6 decomposition. Use `python -m experiments.plot_catalog --list-functions`
-to inspect the frozen legacy-plot catalog without importing `dfr_plot.py`.
+explicit subcommand. The historical plot archive was removed in Phase 8; use
+`python -m experiments.plot_catalog --list-functions` to inspect its frozen
+function catalog and use the named `dfr.plotting` or publication-script
+replacement for active work.
 
 Most scripts predate the target workflow API. "Configured in source" means the
 module has constants or an active function call that must be reviewed before
@@ -641,8 +642,7 @@ execution.
 | `common.py` | Compatibility adapters over package scenario/camera/evaluation services plus runner logging/noise helpers. |
 | `compute_metrics_from_pretrained.py` | Recompute density metrics from saved iteration checkpoints; configured in source. |
 | `dataset_viewer_test.py` | Interactive dataset/camera/scale viewer; performs work at import and is excluded from pytest. |
-| `dfr_plot.py` | Legacy 3,900-line publication/reconstruction plot collection; Phase 6 inventory is in `experiments/DFR_PLOT_CATALOG.md`, and camera/trajectory/2D projection/mode-count/DRA-surface/multiscale-density/density-GMM rendering now delegates to `dfr.plotting`. |
-| `plot_catalog.py` | Standalone CLI for listing public function names in the frozen `dfr_plot.py` catalog; it does not import legacy plotting code. |
+| `plot_catalog.py` | Standalone CLI for listing public function names from the frozen historical plot catalog; it does not import legacy plotting code. |
 | `fit_dra_multiframe.py` | CLI for multi-frame DRA/model-order fitting, caches, reports, and fit figures using shared save defaults. |
 | `generate_scene_animations.py` | Generate trajectory and ground-truth density MP4 animations; datasets configured in source. |
 | `inspect_3d_error.py` | Inspect and plot 3D reconstruction error from existing run data. |
@@ -655,7 +655,6 @@ execution.
 | `plot_publication_noise_robustness.py` | Explicit publication figure CLI for the hard-coded noise-robustness table formerly embedded in `dfr_plot.py`. |
 | `plot_publication_table2.py` | Explicit publication figure CLI for the hard-coded Table 2 capacity/tradeoff figures formerly embedded in `dfr_plot.py`. |
 | `plot_publication_time_efficiency.py` | Explicit publication figure CLI for the hard-coded training-time scaling table formerly embedded in `dfr_plot.py`. |
-| `plotting_utils.py` | Legacy plotting/math compatibility helpers used by DRA figures; style/layout and density/GMM rendering helpers delegate to `dfr.plotting`; not an entry point. |
 | `power_law.py` | Legacy exploratory mode-count scaling studies; requires an explicit experiment subcommand. |
 | `rasterizer_optimize.py` | Benchmark/inspect custom rasterizer performance. |
 | `reconstruction_scale_determination.py` | Legacy reconstruction-scale studies; requires an explicit experiment subcommand. |
