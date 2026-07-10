@@ -6,13 +6,13 @@ on chat history.
 
 ## Status
 
-- **Current phase:** Phase 7 core documentation and public API is in progress.
-  The first slices document the intended top-level API, high-traffic package
+- **Current phase:** Phase 7 is complete; Phase 8 compatibility cleanup can
+  begin. Phase 7 documented the intended top-level API, high-traffic package
   surfaces, and the main public class/function contracts for data loading,
   configuration, artifacts, reconstruction, evaluation, plotting, camera
   systems, external observations, scenario runners, analysis helpers, and model
-  checkpointing. The docs layer now includes a checked CPU toy workflow,
-  workflow examples, and a module ownership map. Phase
+  checkpointing. The docs layer includes a checked CPU toy workflow, workflow
+  examples, command-verification notes, and a module ownership map. Phase
   6 plotting decomposition is complete: the
   `experiments/dfr_plot.py` function catalog is frozen in
   `experiments/DFR_PLOT_CATALOG.md`; reusable camera-configuration,
@@ -363,7 +363,7 @@ importable, and every remaining experiment figure has a documented command.
 
 ### Phase 7 - Core Documentation and Public API
 
-- [ ] Add module docstrings and complete public docstrings for data, camera,
+- [x] Add module docstrings and complete public docstrings for data, camera,
   model, reconstruction, scale, mode, evaluation, plotting, and artifact APIs.
   - Started with expanded module-level documentation for `dfr`, `dfr.data`,
     `dfr.analysis`, `dfr.reconstruction`, `dfr.evaluation`, `dfr.plotting`,
@@ -378,7 +378,7 @@ importable, and every remaining experiment figure has a documented command.
     `dfr.analysis.cli`, `dfr.analysis.dra`, `dfr.analysis.manifold`,
     `dfr.analysis.modes`, `dfr.analysis.results`, `dfr.analysis.scales`, and
     `dfr.model_checkpoint`.
-- [ ] Document units, coordinate systems, shapes/dtypes, device behavior,
+- [x] Document units, coordinate systems, shapes/dtypes, device behavior,
   randomness, side effects, exceptions, and return contracts where relevant.
   - Started at the package boundary: top-level docs now define frame indices,
     world-coordinate position shapes, scale units, CUDA side effects, and
@@ -392,7 +392,7 @@ importable, and every remaining experiment figure has a documented command.
     scenario frame-selection and scale-cache semantics, normalized DRA scale
     grids, CUDA/resume behavior, manifold-fit inputs/outputs, and checkpoint
     restore conventions.
-- [ ] Export only the intended common API from `dfr/__init__.py`; keep advanced
+- [x] Export only the intended common API from `dfr/__init__.py`; keep advanced
   APIs accessible from their submodules.
   - Started: `tests/test_public_api.py` guards the current intended
     top-level `dfr.__all__` surface and package contract docstring.
@@ -405,9 +405,12 @@ importable, and every remaining experiment figure has a documented command.
   `docs/` tree.
 - [x] Add a script catalog table to the README and a module ownership map to
   developer docs.
-- [ ] Test README/example commands in a clean environment where practical.
+- [x] Test README/example commands in a clean environment where practical.
   - Added `examples/toy_workflow.py` and `tests/test_examples.py`, which run a
     CPU-safe load/analyze/plot example against a generated toy dataset.
+  - Reviewed safe command snippets on 2026-07-10: ran the toy workflow script,
+    supported `--help`/explicit-dispatch commands, and documented the remaining
+    CUDA/data-dependent commands in `docs/COMMAND_VERIFICATION.md`.
 
 **Exit criteria:** common tasks are discoverable from README/API docs without
 reading implementation or experiment source.
@@ -429,20 +432,17 @@ reading implementation or experiment source.
 
 ## Immediate Next Actions
 
-The next agent should continue Phase 7:
+The next agent should begin Phase 8 compatibility cleanup:
 
-1. Review remaining README/example command snippets for copy/paste accuracy;
-   run or mark CUDA/data-dependent commands where practical.
-2. Keep documenting units, coordinate systems, shapes/dtypes, device behavior,
-   randomness, side effects, exceptions, and return contracts where they are
-   still implicit in any remaining public legacy adapters.
-3. Revisit `dfr/__init__.py` exports only if Phase 7 identifies public names
-   that should move to subpackages; update `tests/test_public_api.py` in the
-   same commit.
-4. Do not revive archive-only `experiments.dfr_plot` functions directly; move
-   any revived figure to a named CLI or package API with tests.
-5. If the remaining docs review is satisfactory, mark Phase 7 complete and
-   move to Phase 8 compatibility cleanup.
+1. Start with an inventory-only commit if needed: list active imports/callers of
+   `experiments.dfr_plot`, `experiments.plotting_utils`, legacy `figs/` and
+   `results/` producers, and confirmed-dead copied directories/files.
+2. Remove compatibility wrappers only after tests prove no active caller uses
+   them; preserve archive-only research behavior at the `v0.1.0` tag or in a
+   documented archive location rather than silently deleting scientific code.
+3. Confirm active code no longer writes to `figs/`, `results/`, or
+   `scenarios/*/logs/` unless the producer is explicitly classified as legacy.
+4. Run CPU/CUDA tiers after every deletion or compatibility-boundary change.
 
 ## Decisions
 
@@ -617,6 +617,27 @@ The next agent should continue Phase 7:
 
 Add one newest-first entry per working session. Include commit(s), verification,
 known failures, and the exact next step.
+
+### 2026-07-10 - Phase 7 completed
+
+- Completed the remaining docs-command review: ran the checked CPU toy workflow
+  script plus low-risk `--help`/explicit-dispatch commands for supported
+  analysis CLIs, reconstruction CLI, publication table/figure commands,
+  legacy explicit-dispatch studies, `dfr_plot --list-functions`, and
+  specialized angle/flock/UE4 runner help paths.
+- Added `docs/COMMAND_VERIFICATION.md` and linked it from README/docs so the
+  repository records which commands were actually executed and which examples
+  remain intentionally CUDA/data/asset-dependent.
+- Updated `tests/test_docs.py` to guard the command-verification notes.
+- Marked all Phase 7 tasks complete and moved Immediate Next Actions to Phase
+  8 compatibility cleanup.
+- Verification: focused docs/examples/public/analysis tests passed with 19
+  tests; `compileall dfr experiments tests examples` passed; `git diff
+  --check` passed with Windows line-ending warnings only; `pytest -m "not
+  cuda"` passed with 173 tests and 7 deselected; `pytest -m cuda` passed with
+  6 tests, 1 skipped rasterizer-extension test, and 173 deselected.
+- Next step: begin Phase 8 with an inventory of active callers/imports for
+  compatibility wrappers and legacy output producers before deleting anything.
 
 ### 2026-07-09 - Phase 7 workflow docs and ownership map added
 

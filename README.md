@@ -37,6 +37,9 @@ scripts still resolve paths relative to the current working directory.
 - [`docs/MODULE_OWNERSHIP.md`](docs/MODULE_OWNERSHIP.md) maps responsibilities
   across `dfr/`, `experiments/`, and generated output roots so future refactors
   know where new helpers, scripts, and artifacts belong.
+- [`docs/COMMAND_VERIFICATION.md`](docs/COMMAND_VERIFICATION.md) records which
+  README/docs command snippets were run during Phase 7 and which examples are
+  intentionally CUDA/data-dependent.
 
 ## Supported environment
 
