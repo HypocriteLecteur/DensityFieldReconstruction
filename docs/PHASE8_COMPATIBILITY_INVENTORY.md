@@ -23,8 +23,8 @@ Static scan result:
 - `experiments.plotting_utils` is imported only by `experiments.dfr_plot`.
 
 Implication: Phase 8 can remove or archive `dfr_plot.py` and
-`plotting_utils.py` after deciding where the archive-only research functions
-should live. Until then, new code must not add imports from either module.
+`plotting_utils.py` by following `docs/PHASE8_ARCHIVE_POLICY.md`. Until then,
+new code must not add imports from either module.
 
 ## Supported `dfr_plot.py` compatibility wrappers
 
@@ -116,8 +116,9 @@ preservation mechanism rather than keeping duplicate source trees in `main`.
 
 1. Add or keep static guards that prevent new active imports from
    `experiments.dfr_plot` and `experiments.plotting_utils`.
-2. Decide the archive policy for `dfr_plot.py`, `plotting_utils.py`, backup
-   directories, and generated `figs/`/`results/` content.
+2. Apply `docs/PHASE8_ARCHIVE_POLICY.md` to `dfr_plot.py`,
+   `plotting_utils.py`, backup directories, and generated `figs/`/`results/`
+   content.
 3. Remove one compatibility/archive surface at a time, updating
    `experiments/DFR_PLOT_CATALOG.md`, `experiments/README.md`,
    `docs/MODULE_OWNERSHIP.md`, and `TODO.md` in the same commit.

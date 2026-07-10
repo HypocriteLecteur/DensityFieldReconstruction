@@ -62,5 +62,25 @@ def test_phase8_inventory_documents_cleanup_boundaries():
         "`results/`",
         "`scenarios/*/logs/`",
         "Do not add new scenario-log producers",
+        "docs/PHASE8_ARCHIVE_POLICY.md",
+    ):
+        assert snippet in text
+
+
+def test_phase8_archive_policy_documents_deletion_rules():
+    text = (ROOT / "docs" / "PHASE8_ARCHIVE_POLICY.md").read_text(
+        encoding="utf-8"
+    )
+
+    for snippet in (
+        "local Git history",
+        "`v0.1.0`",
+        "Do not keep duplicate source trees",
+        "`experiments.dfr_plot`",
+        "`experiments.plotting_utils`",
+        "`density_field_reconstruction_copy/`",
+        "`experiments_legacy/`",
+        "`outputs/`",
+        "one surface per commit",
     ):
         assert snippet in text

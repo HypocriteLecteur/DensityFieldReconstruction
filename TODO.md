@@ -6,9 +6,10 @@ on chat history.
 
 ## Status
 
-- **Current phase:** Phase 8 compatibility cleanup is in progress. The first
-  inventory slice documents active/archive compatibility boundaries before any
-  deletion. Phase 7 documented the intended top-level API, high-traffic package
+- **Current phase:** Phase 8 compatibility cleanup is in progress. The
+  compatibility inventory and archive policy now document active/archive
+  boundaries and deletion rules before any removal. Phase 7 documented the
+  intended top-level API, high-traffic package
   surfaces, and the main public class/function contracts for data loading,
   configuration, artifacts, reconstruction, evaluation, plotting, camera
   systems, external observations, scenario runners, analysis helpers, and model
@@ -426,17 +427,26 @@ reading implementation or experiment source.
   rather than keeping backup files.
   - Inventory identifies `density_field_reconstruction_copy/` and
     `experiments_legacy/` as backup/legacy copy candidates that need a
-    deletion/archive decision.
+    deletion/archive decision. `docs/PHASE8_ARCHIVE_POLICY.md` now sets local
+    Git history plus `v0.1.0` as their preservation mechanism after a focused
+    no-import/no-command guard passes.
 - [ ] Decide whether historical scripts belong in an archive branch, paper
   reproduction directory, or should remain at the stable tag only.
   - Inventory recommends deciding archive policy before deleting `dfr_plot.py`,
     `plotting_utils.py`, copied directories, or generated `figs/`/`results/`
     content.
+  - The documented policy keeps local Git history and `v0.1.0` as the default
+    archive, requires explicit owner direction for a separate archive branch
+    or external generated-artifact backup, and requires one removal surface
+    per commit.
 - [ ] Confirm `figs/` and `results/` are no longer written by active code, then
   archive or remove them in a separately reviewed change.
   - Inventory separates supported managed-output paths from legacy/archive
     producers: `dfr_plot.py`, explicit-dispatch studies, legacy cache seeding,
     and scenario-log consumers remain to be retired or archived.
+  - The policy treats `figs/` and `results/` as generated/historical artifacts
+    and requires their removal in a separate commit after active producers are
+    retired or redirected to `outputs/`.
 - [ ] Run CPU tests, CUDA tests, representative analyses, and end-to-end
   reconstruction/evaluation.
 - [ ] Review docs from a clean clone and verify output paths are reproducible.
@@ -447,12 +457,13 @@ reading implementation or experiment source.
 
 The next agent should continue Phase 8 compatibility cleanup:
 
-1. Decide and document the archive policy for `experiments.dfr_plot`,
-   `experiments.plotting_utils`, `density_field_reconstruction_copy/`,
-   `experiments_legacy/`, and generated `figs/`/`results/` content.
-2. If the archive policy permits, start with a low-risk deletion candidate:
-   either backup copy directories with no imports, or the `plotting_utils.py`
-   / `dfr_plot.py` archive after replacing the `--list-functions` catalog path.
+1. Request approval, then remove the low-risk backup-copy candidates
+   `density_field_reconstruction_copy/` and `experiments_legacy/` in a
+   deletion-only commit after adding a focused no-import/no-command guard.
+2. Replace the `experiments.dfr_plot --list-functions` catalog path, then
+   remove `experiments/dfr_plot.py` and `experiments/plotting_utils.py` as one
+   compatibility/archive surface if the resulting documentation boundary is
+   adequate.
 3. Update `experiments/DFR_PLOT_CATALOG.md`, `experiments/README.md`,
    `docs/MODULE_OWNERSHIP.md`, and tests in the same commit as any removal.
 4. Run focused catalog/inventory tests plus full CPU/CUDA tiers after every
@@ -463,6 +474,13 @@ The next agent should continue Phase 8 compatibility cleanup:
 - **2026-07-06 - Stable marker:** use annotated tag `v0.1.0` at `7cde21e`.
   Reason: package metadata already declares version 0.1.0 and no prior tags
   exist.
+- **2026-07-10 - Phase 8 archive policy:** use local Git history and the
+  `v0.1.0` tag as the default preservation mechanism for duplicate source,
+  archive-only plotting code, and generated historical artifacts; keep an
+  archive branch or external backup only with explicit owner direction.
+  Reason: `main` should contain active, maintainable code rather than source
+  copies or generated output, while the local stable tag remains a recoverable
+  scientific reference.
 - **2026-07-06 - Output root:** use ignored `outputs/` for all generated
   artifacts. Reason: "results" is ambiguous and `outputs/` already has an ignore
   policy; per-run subdirectories retain the distinctions between data, metrics,
@@ -631,6 +649,25 @@ The next agent should continue Phase 8 compatibility cleanup:
 
 Add one newest-first entry per working session. Include commit(s), verification,
 known failures, and the exact next step.
+
+### 2026-07-10 - Phase 8 archive policy documented
+
+- Added `docs/PHASE8_ARCHIVE_POLICY.md`, defining local Git history plus
+  `v0.1.0` as the standard archive, deletion boundaries for compatibility
+  plotting code, copied source directories, generated artifacts, and scenario
+  logs, and required one-surface-per-commit verification rules.
+- Linked the policy from `docs/README.md` and the Phase 8 inventory, and added
+  static coverage that the policy retains its essential cleanup rules.
+- Updated Phase 8 status, decisions, and next actions: removal of the two
+  copied backup trees is the next low-risk deletion, but requires explicit
+  approval before destructive filesystem work.
+- Verification: focused Phase 8 inventory/docs tests passed with 8 tests;
+  `compileall dfr experiments tests examples` passed; `git diff --check`
+  passed with Windows line-ending warnings only; `pytest -m "not cuda"`
+  passed with 177 tests and 7 deselected; `pytest -m cuda` passed with 6
+  tests, 1 skipped rasterizer-extension test, and 177 deselected.
+- Next step: after verification and commit, request approval for the
+  deletion-only backup-copy cleanup slice.
 
 ### 2026-07-10 - Phase 8 compatibility inventory started
 
