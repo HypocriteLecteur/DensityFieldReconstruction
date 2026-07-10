@@ -58,16 +58,22 @@ to a named CLI or package API with tests and an explicit output contract.
 
 ## Legacy output producers
 
+The following is the current literal-path static inventory after the retired
+plot archive was removed on 2026-07-10. It distinguishes path references from
+active supported writers; each remaining script still needs a separate
+reader/writer classification before migration or deletion.
+
 ### `figs/`
 
 Active supported compatibility wrappers no longer default to `figs/`; they
 save only when a caller supplies an explicit directory. Remaining `figs/`
 writers are concentrated in:
 
-- legacy explicit-dispatch studies such as `experiments.power_law`;
-- importable plotting helper functions inside `parameter_manifold.py` and
-  `parameter_manifold_2pl.py` before `main()` resets their figure directory to
-  managed artifacts.
+- `experiments.power_law`, an explicit-dispatch historical study with literal
+  `figs/` save/read paths;
+- importable plotting helper functions inside `experiments.parameter_manifold`
+  and `experiments.parameter_manifold_2pl`, whose `_FIGURE_DIR = Path("figs")`
+  fallback is replaced with managed artifacts inside their CLI `main()` paths.
 
 Phase 8 should not delete `figs/` in the same commit as code removal. First
 remove or archive producers, then separately decide whether committed/generated
@@ -79,7 +85,7 @@ New managed analysis writes go under `outputs/analysis/<run-id>/`. Remaining
 `results/` references are legacy cache readers/producers, notably:
 
 - `experiments.fit_dra_multiframe.seed_existing_cache`, which may copy a
-  matching legacy single-frame cache into a managed run cache;
+  matching legacy single-frame cache from `results/` into a managed run cache;
 - historical cache directories already present under `results/`.
 
 Phase 8 can remove `results/` only after all cache-seeding and archive-only
@@ -91,12 +97,17 @@ Primary migrated reconstruction paths use managed `outputs/reconstruction/`
 runs. Remaining scenario-log readers/writers are legacy consumers or
 specialized study paths:
 
-- baseline/metric helpers in `experiments.run_scenarios.py`;
-- angle-sweep baseline/profile/diagnostic paths;
-- flock visualization/baseline/metrics helpers;
-- UE4/flock historical visualization or metrics consumers;
-- `experiments.visualize.py`, `inspect_3d_error.py`, and
-  `run_post_processing.py`.
+- baseline/metric helpers in `experiments.run_scenarios`;
+- angle-sweep baseline/profile/diagnostic paths in
+  `experiments.run_scenarios_angle_sweep`;
+- flock visualization/baseline/metrics helpers and its optional cleanup path
+  in `experiments.run_scenarios_flock`;
+- `experiments.visualize`, `experiments.inspect_3d_error`,
+  `experiments.run_post_processing`, and
+  `experiments.reconstruction_scale_determination`;
+- historical search/evaluation readers in `experiments.search_learning_parameters`,
+  `experiments.search_regularization_parameters`, and
+  `experiments.compute_metrics_from_pretrained`.
 
 Do not add new scenario-log producers. Remove or archive readers only after a
 managed-run replacement exists or the owner confirms the study is historical.

@@ -445,6 +445,11 @@ reading implementation or experiment source.
   - The policy treats `figs/` and `results/` as generated/historical artifacts
     and requires their removal in a separate commit after active producers are
     retired or redirected to `outputs/`.
+  - The post-plot-archive scan identifies `power_law` as the only literal
+    `figs/` writer, the two manifold scripts as managed-CLI-overridden
+    `Path("figs")` fallbacks, and `fit_dra_multiframe.seed_existing_cache` as
+    the explicit `results/` cache bridge. Scenario-log references are listed
+    by module in `docs/PHASE8_COMPATIBILITY_INVENTORY.md`.
 - [ ] Run CPU tests, CUDA tests, representative analyses, and end-to-end
   reconstruction/evaluation.
 - [ ] Review docs from a clean clone and verify output paths are reproducible.
@@ -655,6 +660,20 @@ The next agent should continue Phase 8 generated-output cleanup:
 
 Add one newest-first entry per working session. Include commit(s), verification,
 known failures, and the exact next step.
+
+### 2026-07-10 - Phase 8 legacy-output inventory refined
+
+- Re-scanned literal legacy output references after retiring the plot archive.
+  The remaining `figs/` surface is `power_law` plus managed-CLI-overridden
+  manifold fallbacks; `fit_dra_multiframe.seed_existing_cache` is the explicit
+  `results/` bridge; scenario-log modules are now listed by name.
+- Added a documentation guard so the exact remaining output surfaces do not
+  disappear from the handoff inventory while individual scripts migrate.
+- Verification: focused Phase 8 inventory/docs tests passed with 12 tests;
+  `compileall dfr experiments tests examples` passed; `git diff --check` passed
+  with Windows line-ending warnings only.
+- Next step: classify `power_law`'s explicit-dispatch figure paths and migrate
+  or retire that one `figs/` producer as the next output-boundary slice.
 
 ### 2026-07-10 - Phase 8 legacy plot archive removed
 

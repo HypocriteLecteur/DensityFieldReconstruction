@@ -91,6 +91,26 @@ def test_phase8_archive_policy_documents_deletion_rules():
         assert snippet in text
 
 
+def test_phase8_inventory_documents_remaining_legacy_output_surfaces():
+    text = (ROOT / "docs" / "PHASE8_COMPATIBILITY_INVENTORY.md").read_text(
+        encoding="utf-8"
+    )
+
+    for snippet in (
+        "experiments.power_law",
+        "experiments.parameter_manifold",
+        "experiments.parameter_manifold_2pl",
+        "experiments.fit_dra_multiframe.seed_existing_cache",
+        "experiments.run_scenarios_angle_sweep",
+        "experiments.run_scenarios_flock",
+        "experiments.reconstruction_scale_determination",
+        "experiments.search_learning_parameters",
+        "experiments.search_regularization_parameters",
+        "experiments.compute_metrics_from_pretrained",
+    ):
+        assert snippet in text
+
+
 def test_no_active_code_references_copied_backup_directories():
     names = ("density_field_reconstruction_copy", "experiments_legacy")
     offenders = []
