@@ -53,8 +53,9 @@ study, then migrate that study separately if it remains scientifically active.
 
 `dfr_plot.py` is a mixed 3,900-line publication/reconstruction plotting archive,
 not a supported analysis CLI. Direct execution no longer launches its former
-hard-coded animation. `python -m experiments.dfr_plot --list-functions` lists
-the retained functions. The Phase 6 function inventory is frozen in
+hard-coded animation. `python -m experiments.plot_catalog --list-functions`
+lists the retained public functions without importing the archive. The Phase 6
+function inventory is frozen in
 [`DFR_PLOT_CATALOG.md`](DFR_PLOT_CATALOG.md); update that catalog before moving
 or deleting any `dfr_plot.py` function. The migrated wrappers so far are
 `plot_camera_configurations`, `plot_single_scenario_new`,

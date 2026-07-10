@@ -8,7 +8,9 @@ on chat history.
 
 - **Current phase:** Phase 8 compatibility cleanup is in progress. The
   compatibility inventory and archive policy now document active/archive
-  boundaries and deletion rules before any removal. Phase 7 documented the
+  boundaries and deletion rules before any removal. A standalone
+  `experiments.plot_catalog` command now replaces the supported
+  `dfr_plot --list-functions` catalog interaction. Phase 7 documented the
   intended top-level API, high-traffic package
   surfaces, and the main public class/function contracts for data loading,
   configuration, artifacts, reconstruction, evaluation, plotting, camera
@@ -457,10 +459,9 @@ reading implementation or experiment source.
 
 The next agent should continue Phase 8 compatibility cleanup:
 
-1. Replace the `experiments.dfr_plot --list-functions` catalog path, then
-   remove `experiments/dfr_plot.py` and `experiments/plotting_utils.py` as one
-   compatibility/archive surface if the resulting documentation boundary is
-   adequate.
+1. Remove `experiments/dfr_plot.py` and `experiments/plotting_utils.py` as one
+   compatibility/archive surface: the supported catalog command is now
+   `python -m experiments.plot_catalog --list-functions`.
 2. Update `experiments/DFR_PLOT_CATALOG.md`, `experiments/README.md`,
    `docs/MODULE_OWNERSHIP.md`, and tests in the same commit as any removal.
 3. Run focused catalog/inventory tests plus full CPU/CUDA tiers after every
@@ -651,6 +652,26 @@ The next agent should continue Phase 8 compatibility cleanup:
 
 Add one newest-first entry per working session. Include commit(s), verification,
 known failures, and the exact next step.
+
+### 2026-07-10 - Phase 8 standalone plot catalog
+
+- Added `experiments.plot_catalog`, a standard-library-only command that lists
+  the 30 frozen public `dfr_plot.py` function names from
+  `experiments/DFR_PLOT_CATALOG.md` without importing archive code.
+- Replaced the supported `python -m experiments.dfr_plot --list-functions`
+  command in the experiment guide, root README, command-verification record,
+  ownership map, and Phase 8 inventory.
+- Added catalog command characterization tests while `dfr_plot.py` still
+  exists, establishing the frozen names to preserve after removal.
+- Verification: `python -m experiments.plot_catalog --list-functions` and
+  `--show-path` passed; focused catalog/inventory/docs tests passed with 19
+  tests; `compileall dfr experiments tests examples` passed; `git diff --check`
+  passed with Windows line-ending warnings only; `pytest -m "not cuda"` passed
+  with 180 tests and 7 deselected; `pytest -m cuda` passed with 6 tests, 1
+  skipped rasterizer-extension test, and 180 deselected.
+- Next step: remove `dfr_plot.py` and `plotting_utils.py` as one documented
+  archive surface, then switch their source-reading characterization tests to
+  the frozen catalog and package/publication replacements.
 
 ### 2026-07-10 - Phase 8 ignored backup-copy cleanup
 

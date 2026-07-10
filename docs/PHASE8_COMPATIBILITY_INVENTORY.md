@@ -12,14 +12,15 @@ or wrappers.
 Static scan result:
 
 - No active Python module imports `experiments.dfr_plot`.
-- The only supported executable interaction with `dfr_plot.py` is:
+- The supported executable interaction with the frozen `dfr_plot.py` catalog
+  is:
 
   ```powershell
-  python -m experiments.dfr_plot --list-functions
+  python -m experiments.plot_catalog --list-functions
   ```
 
-- Documentation/tests mention `experiments.dfr_plot` for policy and catalog
-  checks only.
+- Documentation/tests mention `experiments.dfr_plot` for policy and legacy
+  characterization checks only.
 - `experiments.plotting_utils` is imported only by `experiments.dfr_plot`.
 
 Implication: Phase 8 can remove or archive `dfr_plot.py` and

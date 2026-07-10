@@ -8,8 +8,9 @@ updated and the migration target has tests.
 
 - Top-level functions: 36.
 - External Python callers found by static scan: none for public figure
-  functions. The module is currently a legacy archive invoked only by explicit
-  imports or by `python -m experiments.dfr_plot --list-functions`.
+  functions. The module is currently a legacy archive; inspect its preserved
+  public names with `python -m experiments.plot_catalog --list-functions`
+  without importing `dfr_plot.py`.
 - Common inputs: named scenario configs under `scenarios/`, legacy
   `reconstruction_scale.npz` caches, legacy scenario logs/checkpoints, and
   hard-coded publication constants.
@@ -101,6 +102,8 @@ or package owner.
 Rules:
 
 - New code should not add imports from `experiments.dfr_plot`.
+- `python -m experiments.plot_catalog --list-functions` is the supported
+  catalog command; it reads this frozen document without importing legacy code.
 - Supported compatibility wrappers exist only to keep historical explicit
   imports working while callers migrate to the named package or experiment
   entry point.

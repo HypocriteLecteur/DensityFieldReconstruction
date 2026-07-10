@@ -27,7 +27,7 @@ python -m experiments.synthetic_benchmark --help
 python -m experiments.validate_mode_counting --help
 python -m experiments.power_law --help
 python -m experiments.reconstruction_scale_determination --help
-python -m experiments.dfr_plot --list-functions
+python -m experiments.plot_catalog --list-functions
 python -m experiments.reconstruct_one_frame --help
 python -m experiments.run_scenarios_table_2 reconstruct --help
 python -m experiments.run_scenarios_table_3 reconstruct --help

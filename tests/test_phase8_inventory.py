@@ -56,6 +56,7 @@ def test_phase8_inventory_documents_cleanup_boundaries():
     for snippet in (
         "No active Python module imports `experiments.dfr_plot`",
         "`experiments.plotting_utils` is imported only by `experiments.dfr_plot`",
+        "python -m experiments.plot_catalog --list-functions",
         "density_field_reconstruction_copy/",
         "experiments_legacy/",
         "`figs/`",

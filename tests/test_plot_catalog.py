@@ -2,6 +2,8 @@ import ast
 import re
 from pathlib import Path
 
+from experiments.plot_catalog import legacy_function_names, main
+
 
 def test_dfr_plot_catalog_lists_every_top_level_function():
     root = Path(__file__).resolve().parents[1]
@@ -17,6 +19,21 @@ def test_dfr_plot_catalog_lists_every_top_level_function():
     assert len(functions) == 36
     for name in functions:
         assert f"`{name}`" in document
+
+
+def test_standalone_catalog_lists_current_legacy_public_functions(capsys):
+    root = Path(__file__).resolve().parents[1]
+    source = root / "experiments" / "dfr_plot.py"
+    tree = ast.parse(source.read_text(encoding="utf-8"))
+    expected = sorted(
+        node.name
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef) and not node.name.startswith("_")
+    )
+
+    assert list(legacy_function_names()) == expected
+    assert main(["--list-functions"]) == 0
+    assert capsys.readouterr().out.splitlines() == expected
 
 
 def test_dfr_plot_support_policy_classifies_every_public_function():
