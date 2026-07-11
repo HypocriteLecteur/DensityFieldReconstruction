@@ -1,7 +1,14 @@
 import argparse
 from pathlib import Path
 
+import numpy as np
+
 from dfr.analysis import add_managed_output_arguments
+from experiments.fit_dra_multiframe import (
+    MULTIFRAME_NORMALIZED_SCALES,
+    PREFERRED_FRAMES,
+    seed_existing_cache,
+)
 
 
 SUPPORTED_ANALYSIS_SCRIPTS = (
@@ -119,6 +126,35 @@ def test_parameter_manifold_scripts_do_not_fall_back_to_legacy_figures():
         assert "def _figure_path(" in source
         assert "_FIGURE_DIR = artifacts.figures_dir" in source
         assert 'Path("figs")' not in source
+
+
+def test_multiframe_legacy_cache_requires_an_explicit_root(tmp_path):
+    legacy_root = tmp_path / "historical-cache"
+    source = legacy_root / "dra_scale_model_order" / "jackdaw2_dra_scale_model_order.npz"
+    source.parent.mkdir(parents=True)
+    np.savez(source, normalized_scales=MULTIFRAME_NORMALIZED_SCALES)
+    frame_dir = tmp_path / "managed" / "frame"
+    frame_dir.mkdir(parents=True)
+    destination = frame_dir / source.name
+
+    seed_existing_cache(
+        "jackdaw2",
+        PREFERRED_FRAMES["jackdaw2"],
+        frame_dir,
+        False,
+        MULTIFRAME_NORMALIZED_SCALES,
+    )
+    assert not destination.exists()
+
+    seed_existing_cache(
+        "jackdaw2",
+        PREFERRED_FRAMES["jackdaw2"],
+        frame_dir,
+        False,
+        MULTIFRAME_NORMALIZED_SCALES,
+        legacy_root,
+    )
+    assert destination.is_file()
 
 
 def test_shared_analysis_cli_arguments_enforce_collision_policy():

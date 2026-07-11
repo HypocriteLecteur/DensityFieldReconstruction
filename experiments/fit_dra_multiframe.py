@@ -63,13 +63,17 @@ def seed_existing_cache(
     frame_dir: Path,
     force: bool,
     normalized_scales: np.ndarray,
+    legacy_cache_root: Path | None = None,
 ) -> None:
-    """Reuse a one-frame cache only when its normalized scale grid matches."""
-    if force or time_step != PREFERRED_FRAMES[dataset_name]:
+    """Optionally reuse one explicit legacy cache with a matching scale grid."""
+    if (
+        force
+        or legacy_cache_root is None
+        or time_step != PREFERRED_FRAMES[dataset_name]
+    ):
         return
-    project_root = Path(__file__).resolve().parents[1]
     source = (
-        project_root / "results"
+        legacy_cache_root
         / "dra_scale_model_order"
         / f"{dataset_name}_dra_scale_model_order.npz"
     )
@@ -335,6 +339,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--batch-size", type=int, default=200_000)
     parser.add_argument("--voxel-res-fraction", type=float, default=5e-3)
     parser.add_argument("--force", action="store_true")
+    parser.add_argument(
+        "--legacy-cache-root",
+        type=Path,
+        default=None,
+        help=(
+            "Optional explicit directory containing historical DRA caches. "
+            "When omitted, managed runs never read legacy cache locations."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -345,6 +358,9 @@ def main() -> None:
         sys.stdout.reconfigure(encoding="utf-8")
     args = parse_args()
     project_root = Path(__file__).resolve().parents[1]
+    legacy_cache_root = args.legacy_cache_root
+    if legacy_cache_root is not None and not legacy_cache_root.is_absolute():
+        legacy_cache_root = project_root / legacy_cache_root
     artifacts = RunArtifacts.create(
         OutputConfig(
             workflow="analysis",
@@ -395,6 +411,7 @@ def main() -> None:
                 frame_dir,
                 args.force,
                 MULTIFRAME_NORMALIZED_SCALES,
+                legacy_cache_root,
             )
             positions = dataset.positions_at_time_step(int(time_step))
             result = compute_frame_result(

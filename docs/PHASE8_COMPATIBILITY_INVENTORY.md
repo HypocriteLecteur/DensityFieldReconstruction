@@ -85,8 +85,10 @@ figures are preserved only at `v0.1.0`, archived, or deleted.
 New managed analysis writes go under `outputs/analysis/<run-id>/`. Remaining
 `results/` references are legacy cache readers/producers, notably:
 
-- `experiments.fit_dra_multiframe.seed_existing_cache`, which may copy a
-  matching legacy single-frame cache from `results/` into a managed run cache;
+- `experiments.fit_dra_multiframe.seed_existing_cache`, which no longer reads
+  `results/` by default. It accepts `--legacy-cache-root` only when a
+  researcher explicitly wants to copy a matching historical cache into a
+  managed run cache;
 - historical cache directories already present under `results/`.
 
 Phase 8 can remove `results/` only after all cache-seeding and archive-only

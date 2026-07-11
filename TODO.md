@@ -447,9 +447,9 @@ reading implementation or experiment source.
     retired or redirected to `outputs/`.
   - No active `figs/` producer remains: `power_law` writes managed analysis
     artifacts, and the two manifold scripts no longer have a `Path("figs")`
-    fallback. `fit_dra_multiframe.seed_existing_cache` is the next explicit
-    `results/` cache bridge; scenario-log references are listed by module in
-    `docs/PHASE8_COMPATIBILITY_INVENTORY.md`.
+    fallback. `fit_dra_multiframe.seed_existing_cache` now requires an
+    explicit cache root rather than reading `results/` by default; scenario-log
+    references are listed by module in `docs/PHASE8_COMPATIBILITY_INVENTORY.md`.
 - [ ] Run CPU tests, CUDA tests, representative analyses, and end-to-end
   reconstruction/evaluation.
 - [ ] Review docs from a clean clone and verify output paths are reproducible.
@@ -460,11 +460,10 @@ reading implementation or experiment source.
 
 The next agent should continue Phase 8 generated-output cleanup:
 
-1. Audit `fit_dra_multiframe.seed_existing_cache` and redirect or retire its
-   legacy `results/` cache bridge without breaking resumable managed DRA runs.
-2. Audit `results/` cache seeding and remaining `scenarios/*/logs/` readers;
-   retain only documented historical readers or redirect active paths to
-   managed `outputs/` runs.
+1. Review historical `results/` directory content for removal or external
+   archival now that active code no longer reads it by default.
+2. Audit remaining `scenarios/*/logs/` readers; retain only documented
+   historical readers or redirect active paths to managed `outputs/` runs.
 3. Update the inventory, archive policy, ownership docs, tests, and `TODO.md`
    in the same commit as each removal or output-boundary change.
 4. Run focused guards plus full CPU/CUDA tiers after every deletion or
@@ -707,6 +706,22 @@ known failures, and the exact next step.
   1 skipped rasterizer-extension test, and 176 deselected.
 - Next step: audit the remaining `fit_dra_multiframe` legacy `results/` cache
   bridge.
+
+### 2026-07-10 - Phase 8 legacy DRA cache opt-in
+
+- Changed `fit_dra_multiframe.seed_existing_cache` so managed runs never read
+  `results/` automatically. Researchers may supply `--legacy-cache-root` to
+  reuse one verified compatible historical cache explicitly.
+- Added a temporary-cache characterization test proving the default does not
+  copy a cache while the explicit root does.
+- Verification: `python -m experiments.fit_dra_multiframe --help` passed;
+  focused analysis-entrypoint/inventory/docs tests passed with 23 tests;
+  `compileall dfr experiments tests examples` passed; `git diff --check`
+  passed with Windows line-ending warnings only; `pytest -m "not cuda"` passed
+  with 177 tests and 7 deselected; `pytest -m cuda` passed with 6 tests, 1
+  skipped rasterizer-extension test, and 177 deselected.
+- Next step: inspect historical `results/` content and scenario-log readers,
+  then retire or archive one remaining artifact surface at a time.
 
 ### 2026-07-10 - Phase 8 legacy plot archive removed
 
