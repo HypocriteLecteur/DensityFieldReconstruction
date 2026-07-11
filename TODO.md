@@ -772,6 +772,23 @@ known failures, and the exact next step.
 - Next step: audit read-only scenario-log consumers and historical artifact
   directories for an archive/removal decision.
 
+### 2026-07-11 - Phase 8 ordinary scenario runner slimmed
+
+- Replaced the mixed ordinary scenario runner with a thin managed-only
+  `reconstruct` CLI over `ScenarioRunSpec`/`run_scenario`. Its historical
+  baseline, metrics, timing, and scenario-log helpers were removed from the
+  active tree and remain available through local Git history.
+- Added a regression guard that the ordinary runner has no legacy log helper
+  surface and retains managed scenario/output contracts.
+- Verification: `python -m experiments.run_scenarios --help` passed; focused
+  specialized-runner/inventory/docs tests passed with 23 tests; `compileall
+  experiments/run_scenarios.py tests/test_specialized_runners.py` passed;
+  `git diff --check` passed with Windows line-ending warnings only; `pytest -m
+  "not cuda"` passed with 180 tests and 7 deselected; `pytest -m cuda` passed
+  with 6 tests, 1 skipped rasterizer-extension test, and 180 deselected.
+- Next step: continue classifying the remaining explicitly dispatched
+  specialized scenario-log readers and historical artifact directories.
+
 ### 2026-07-10 - Phase 8 legacy plot archive removed
 
 - Removed the tracked `experiments/dfr_plot.py` and

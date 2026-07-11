@@ -164,11 +164,15 @@ def test_flock_runner_has_no_recursive_scenario_log_cleanup():
     assert "shutil.rmtree" not in source
 
 
-def test_unreachable_scenario_baseline_writers_are_archived():
-    with pytest.raises(RuntimeError, match="archived and disabled"):
-        scenario_runner.run_multi_scenarios_baseline()
-    with pytest.raises(RuntimeError, match="archived and disabled"):
-        scenario_runner.run_single_scenario_baseline({})
+def test_ordinary_scenario_runner_is_managed_only():
+    source = Path(scenario_runner.__file__).read_text(encoding="utf-8")
+
+    assert scenario_runner.create_parser().parse_args(["reconstruct"]).study == "reconstruct"
+    assert "run_multi_scenarios_baseline" not in source
+    assert "run_single_scenario_baseline" not in source
+    assert '"logs"' not in source
+    assert "ScenarioRunSpec(" in source
+    assert "OutputConfig(" in source
 
 
 def test_explicit_scenario_log_writers_are_archived():

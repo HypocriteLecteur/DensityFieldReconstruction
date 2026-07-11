@@ -100,8 +100,9 @@ Primary migrated reconstruction paths use managed `outputs/reconstruction/`
 runs. Remaining scenario-log readers/writers are legacy consumers or
 specialized study paths:
 
-- baseline/metric helpers in `experiments.run_scenarios`; its unreachable
-  baseline writer entry points were archived/disabled on 2026-07-11;
+- `experiments.run_scenarios` is now a thin managed-only reconstruction CLI;
+  its historical baseline/metric/timing scenario-log helpers were removed on
+  2026-07-11 and remain recoverable through local Git history;
 - angle-sweep baseline, training-convergence, and baseline-angle-sweep writers
   in `experiments.run_scenarios_angle_sweep` were archived/disabled on
   2026-07-11; profile, diagnostic, and read-only metric paths remain;
