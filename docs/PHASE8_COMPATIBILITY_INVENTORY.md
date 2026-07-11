@@ -103,8 +103,9 @@ specialized study paths:
 - baseline/metric helpers in `experiments.run_scenarios`;
 - angle-sweep baseline/profile/diagnostic paths in
   `experiments.run_scenarios_angle_sweep`;
-- flock visualization/baseline/metrics helpers and its optional cleanup path
-  in `experiments.run_scenarios_flock`;
+- flock visualization/baseline/metrics helpers in
+  `experiments.run_scenarios_flock`; its inactive recursive cleanup path was
+  removed on 2026-07-11;
 - `experiments.visualize`, `experiments.inspect_3d_error`,
   `experiments.run_post_processing`, and
   `experiments.reconstruction_scale_determination`;

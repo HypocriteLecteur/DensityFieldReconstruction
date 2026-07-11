@@ -150,3 +150,14 @@ def test_specialized_modules_do_not_install_root_file_loggers():
         source = (root / filename).read_text(encoding="utf-8")
         assert "logging.FileHandler" not in source
         assert "if __name__ == \"__main__\":" in source
+
+
+def test_flock_runner_has_no_recursive_scenario_log_cleanup():
+    source = (
+        Path(__file__).resolve().parents[1]
+        / "experiments"
+        / "run_scenarios_flock.py"
+    ).read_text(encoding="utf-8")
+
+    assert "CLEAN_LOGS" not in source
+    assert "shutil.rmtree" not in source

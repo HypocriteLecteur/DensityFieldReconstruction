@@ -723,6 +723,22 @@ known failures, and the exact next step.
 - Next step: inspect historical `results/` content and scenario-log readers,
   then retire or archive one remaining artifact surface at a time.
 
+### 2026-07-11 - Phase 8 flock log-cleanup path removed
+
+- Removed the inactive `CLEAN_LOGS` branches from the flock runner, including
+  their recursive deletion of scenario logs and metric files.
+- Kept historical log-reading visualization/baseline/metric helpers unchanged;
+  they remain listed for later migration or archival.
+- Added a static guard against reintroducing recursive scenario-log cleanup.
+- Verification: focused specialized-runner/inventory/docs tests passed with 21
+  tests; `compileall experiments/run_scenarios_flock.py
+  tests/test_specialized_runners.py` passed; `git diff --check` passed with
+  Windows line-ending warnings only; `pytest -m "not cuda"` passed with 178
+  tests and 7 deselected; `pytest -m cuda` passed with 6 tests, 1 skipped
+  rasterizer-extension test, and 178 deselected.
+- Next step: classify one historical flock log reader/writer or another
+  scenario-log surface without changing managed primary reconstruction.
+
 ### 2026-07-10 - Phase 8 legacy plot archive removed
 
 - Removed the tracked `experiments/dfr_plot.py` and

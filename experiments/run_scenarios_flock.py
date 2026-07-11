@@ -1,11 +1,9 @@
 import logging
 import os
 import argparse
-import shutil
 from dataclasses import dataclass
 from pathlib import Path
 from tqdm import tqdm
-import glob
 
 
 import cv2
@@ -44,7 +42,6 @@ import matplotlib.pyplot as plt
 logger = setup_logger(__name__)
 
 IS_LOGGING = True
-CLEAN_LOGS = False
 
 USE_DECOUPLED = False
 USE_GT_SCALE = True
@@ -321,18 +318,6 @@ def run_flock_scenario(inputs: FlockInputConfig):
     scenario_path = os.path.join(str(inputs.project_root), "scenarios", name)
     config_path = os.path.join(scenario_path, "config.yaml")
 
-    if CLEAN_LOGS:
-        if os.path.exists(os.path.join(scenario_path, "logs")):
-            shutil.rmtree(os.path.join(scenario_path, "logs"))
-        
-        files_to_delete = glob.glob(os.path.join(scenario_path, 'metrics_*.npz'))
-        for file_path in files_to_delete:
-            try:
-                os.remove(file_path)  # Deletes the file
-            except OSError as e:
-                print(f"Error deleting {file_path}: {e}")
-        return
-
     # Load the .mat file
     mat_data = scipy.io.loadmat(inputs.data_root / f"{name}.mat")
     trajectories = mat_data['xyzTensorValid']
@@ -537,18 +522,6 @@ def visualize_trained_model_interactive():
         end_step = len(trajectories) - 1  # Default to the last frame of data
 
     scenario_path = os.path.join(os.getcwd(), *["scenarios", name])
-
-    if CLEAN_LOGS:
-        if os.path.exists(os.path.join(scenario_path, "logs")):
-            shutil.rmtree(os.path.join(scenario_path, "logs"))
-        
-        files_to_delete = glob.glob(os.path.join(scenario_path, 'metrics_*.npz'))
-        for file_path in files_to_delete:
-            try:
-                os.remove(file_path)
-            except OSError as e:
-                print(f"Error deleting {file_path}: {e}")
-        return
 
     log_file_path = os.path.join(scenario_path, *["logs", log_name])
     if not os.path.exists(log_file_path):
