@@ -739,6 +739,23 @@ known failures, and the exact next step.
 - Next step: classify one historical flock log reader/writer or another
   scenario-log surface without changing managed primary reconstruction.
 
+### 2026-07-11 - Phase 8 ordinary baseline writer archived
+
+- Disabled the unreachable `run_scenarios` baseline writer entry points. They
+  now raise an explicit archival error instead of creating checkpoints or
+  statistics under scenario logs.
+- Added runtime coverage for both blocked entry points; the retained historical
+  implementation stays recoverable from local Git history pending later
+  physical deletion.
+- Verification: focused specialized-runner/inventory/docs tests passed with 22
+  tests; `compileall experiments/run_scenarios.py
+  tests/test_specialized_runners.py` passed; `git diff --check` passed with
+  Windows line-ending warnings only; `pytest -m "not cuda"` passed with 179
+  tests and 7 deselected; `pytest -m cuda` passed with 6 tests, 1 skipped
+  rasterizer-extension test, and 179 deselected.
+- Next step: classify the remaining explicitly dispatched flock and angle-sweep
+  log-writing studies.
+
 ### 2026-07-10 - Phase 8 legacy plot archive removed
 
 - Removed the tracked `experiments/dfr_plot.py` and

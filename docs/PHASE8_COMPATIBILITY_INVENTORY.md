@@ -100,7 +100,8 @@ Primary migrated reconstruction paths use managed `outputs/reconstruction/`
 runs. Remaining scenario-log readers/writers are legacy consumers or
 specialized study paths:
 
-- baseline/metric helpers in `experiments.run_scenarios`;
+- baseline/metric helpers in `experiments.run_scenarios`; its unreachable
+  baseline writer entry points were archived/disabled on 2026-07-11;
 - angle-sweep baseline/profile/diagnostic paths in
   `experiments.run_scenarios_angle_sweep`;
 - flock visualization/baseline/metrics helpers in

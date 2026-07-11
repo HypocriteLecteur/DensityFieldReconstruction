@@ -5,6 +5,7 @@ import pytest
 import experiments.run_scenarios_angle_sweep as angle_runner
 import experiments.run_scenarios_flock as flock_runner
 import experiments.run_scenarios_ue4 as ue4_runner
+import experiments.run_scenarios as scenario_runner
 
 
 def test_angle_ordinary_path_uses_shared_scenario_runner(monkeypatch, tmp_path):
@@ -161,3 +162,10 @@ def test_flock_runner_has_no_recursive_scenario_log_cleanup():
 
     assert "CLEAN_LOGS" not in source
     assert "shutil.rmtree" not in source
+
+
+def test_unreachable_scenario_baseline_writers_are_archived():
+    with pytest.raises(RuntimeError, match="archived and disabled"):
+        scenario_runner.run_multi_scenarios_baseline()
+    with pytest.raises(RuntimeError, match="archived and disabled"):
+        scenario_runner.run_single_scenario_baseline({})

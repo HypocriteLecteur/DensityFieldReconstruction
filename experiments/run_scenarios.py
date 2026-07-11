@@ -149,11 +149,22 @@ def run_single_scenario(run_params, *, output=None, seed=12345):
     return run
 
 
+def _raise_archived_baseline_writer() -> None:
+    """Block the retired scenario-log baseline writer entry points."""
+    raise RuntimeError(
+        "The historical scenario-log baseline writer is archived and disabled. "
+        "Use managed reconstruction/evaluation workflows instead; recover the "
+        "legacy implementation from local Git history only if the study is revived."
+    )
+
+
 def run_multi_scenarios_baseline():
+    _raise_archived_baseline_writer()
     for run_params in DATASET_RUNS:
         run_single_scenario_baseline(run_params)
 
 def run_single_scenario_baseline(run_params):
+    _raise_archived_baseline_writer()
     # 1. Parameter extraction and Logging Setup
     name = run_params['name']
     log_name = run_params['log_name']
