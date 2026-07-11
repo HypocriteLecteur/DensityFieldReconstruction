@@ -562,8 +562,9 @@ The next agent should continue Phase 8 generated-output cleanup:
 - **2026-07-06 - Supported analysis surface:** supported Phase 4 CLIs are the
   two DRA workflows, 3PL/2PL manifold workflows, mechanistic derivation,
   synthetic benchmark, and mode-count validation. `power_law.py` and
-  `reconstruction_scale_determination.py` preserve explicit legacy studies;
-  `dfr_plot.py` is deferred to Phase 6 and cannot launch an implicit figure.
+  `reconstruction_scale_determination.py` preserved an explicit legacy study
+  until it was retired in Phase 8; `dfr_plot.py` was also retired after its
+  catalog/replacements were established.
   Reason: a finite supported surface can have managed, tested contracts without
   pretending every exploratory notebook-like script is production workflow.
 - **2026-07-06 - Evaluation semantics:** preserve the existing voxelized
@@ -820,6 +821,21 @@ known failures, and the exact next step.
   skipped rasterizer-extension test, and 182 deselected.
 - Next step: review the reconstruction-scale and search/evaluation log
   consumers, then decide whether any merit a managed replacement.
+
+### 2026-07-11 - Phase 8 isolated unmanaged analysis retired
+
+- Removed the unimported historical reconstruction-scale, checkpoint-evaluation,
+  and learning/regularization search scripts. Their package-managed analysis,
+  evaluation, scenario-run, and configuration replacements are the active
+  supported paths.
+- Added absence guards for all four scripts and updated the experiment catalog.
+- Verification: focused analysis-entrypoint/inventory/docs tests passed with
+  25 tests; `compileall dfr experiments tests examples` passed; `git diff
+  --check` passed with Windows line-ending warnings only; `pytest -m "not cuda"`
+  passed with 183 tests and 7 deselected; `pytest -m cuda` passed with 6 tests,
+  1 skipped rasterizer-extension test, and 183 deselected.
+- Next step: review the remaining historical helper functions embedded in the
+  specialized runners for physical deletion or a dedicated archive boundary.
 
 ### 2026-07-10 - Phase 8 legacy plot archive removed
 

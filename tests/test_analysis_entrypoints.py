@@ -99,12 +99,8 @@ def test_analysis_catalog_documents_every_supported_entrypoint():
 def test_legacy_analysis_modules_require_explicit_dispatch():
     experiments = Path(__file__).resolve().parents[1] / "experiments"
     power_law = (experiments / "power_law.py").read_text(encoding="utf-8")
-    scale = (experiments / "reconstruction_scale_determination.py").read_text(
-        encoding="utf-8"
-    )
 
     assert 'parser.add_argument(\n        "experiment"' in power_law
-    assert 'parser.add_argument(\n        "experiment"' in scale
 
 
 def test_power_law_uses_managed_figure_artifacts():

@@ -641,7 +641,6 @@ execution.
 | Script | Purpose / behavior |
 |---|---|
 | `common.py` | Compatibility adapters over package scenario/camera/evaluation services plus runner logging/noise helpers. |
-| `compute_metrics_from_pretrained.py` | Recompute density metrics from saved iteration checkpoints; configured in source. |
 | `dataset_viewer_test.py` | Interactive dataset/camera/scale viewer; performs work at import and is excluded from pytest. |
 | `plot_catalog.py` | Standalone CLI for listing public function names from the frozen historical plot catalog; it does not import legacy plotting code. |
 | `fit_dra_multiframe.py` | CLI for multi-frame DRA/model-order fitting, caches, reports, and fit figures using shared save defaults. |
@@ -657,7 +656,6 @@ execution.
 | `plot_publication_time_efficiency.py` | Explicit publication figure CLI for the hard-coded training-time scaling table formerly embedded in `dfr_plot.py`. |
 | `power_law.py` | Legacy exploratory mode-count scaling studies; requires an explicit experiment subcommand and writes figures through managed analysis artifacts. |
 | `rasterizer_optimize.py` | Benchmark/inspect custom rasterizer performance. |
-| `reconstruction_scale_determination.py` | Legacy reconstruction-scale studies; requires an explicit experiment subcommand. |
 | `reconstruct_one_frame.py` | Thin one-frame wrapper over `dfr.reconstruct`, with managed config, checkpoint, arrays, and metrics. |
 | `run_scenarios.py` | Main multi-scenario runner; active reconstruction dispatches through `dfr.reconstruct`, while legacy baseline/metric helpers remain. |
 | `run_scenarios_angle_sweep.py` | Explicit-dispatch camera-angle/convergence studies; ordinary reconstruction is consolidated through `ScenarioRunSpec`. |
@@ -667,8 +665,6 @@ execution.
 | `run_scenarios_table_3.py` | Thin managed Table 3 (500-iteration camera-count) entry point. |
 | `run_scenarios_table_4.py` | Thin managed Table 4 projection-noise entry point. |
 | `run_scenarios_ue4.py` | Explicit UE4 workflow requiring three image roots; primary run uses `dfr.reconstruct_observations` and managed artifacts. |
-| `search_learning_parameters.py` | Resumable grid search for learning-rate settings; writes a root CSV. |
-| `search_regularization_parameters.py` | Resumable grid search for regularization settings; writes a root CSV. |
 | `synthetic_benchmark.py` | Managed CUDA CLI for synthetic point-process manifold benchmarks. |
 | `validate_mode_counting.py` | Managed CUDA validation CLI for separated synthetic Gaussian clusters using shared figure-save defaults. |
 | `__init__.py` | Marks `experiments` as a package; not an entry point. |

@@ -107,9 +107,10 @@ package exposes a typed external-observation workflow.
   and `investigate_initialization.py`.
 - Rendering/animation tools: `generate_scene_animations.py` and
   `rasterizer_optimize.py`.
-- Reconstruction/tuning workflows: `reconstruct_one_frame.py`,
-  `compute_metrics_from_pretrained.py`, `search_learning_parameters.py`,
-  `search_regularization_parameters.py`, and all `run_scenarios*.py` files.
+- Reconstruction workflows: `reconstruct_one_frame.py` and all
+  `run_scenarios*.py` files. Historical checkpoint evaluation and unmanaged
+  hyperparameter-search scripts were retired in Phase 8; use package
+  evaluation, managed scenario runs, and versioned configs instead.
 
 Those scripts belong to Phases 5 and 6 rather than the Phase 4 analysis API.
 Some predate managed artifacts; consult the root `README.md` catalog before

@@ -56,6 +56,16 @@ def test_isolated_scenario_log_diagnostics_are_absent():
         assert not (ROOT / "experiments" / name).exists()
 
 
+def test_isolated_unmanaged_analysis_scripts_are_absent():
+    for name in (
+        "reconstruction_scale_determination.py",
+        "search_learning_parameters.py",
+        "search_regularization_parameters.py",
+        "compute_metrics_from_pretrained.py",
+    ):
+        assert not (ROOT / "experiments" / name).exists()
+
+
 def test_phase8_inventory_documents_cleanup_boundaries():
     text = (ROOT / "docs" / "PHASE8_COMPATIBILITY_INVENTORY.md").read_text(
         encoding="utf-8"
@@ -108,10 +118,11 @@ def test_phase8_inventory_documents_remaining_legacy_output_surfaces():
         "experiments.fit_dra_multiframe.seed_existing_cache",
         "experiments.run_scenarios_angle_sweep",
         "experiments.run_scenarios_flock",
-        "experiments.reconstruction_scale_determination",
-        "experiments.search_learning_parameters",
-        "experiments.search_regularization_parameters",
-        "experiments.compute_metrics_from_pretrained",
+        "reconstruction_scale_determination",
+        "search_learning_parameters",
+        "search_regularization_parameters",
+        "compute_metrics_from_pretrained",
+        "were removed on 2026-07-11",
     ):
         assert snippet in text
 
