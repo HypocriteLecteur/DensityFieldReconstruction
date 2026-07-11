@@ -109,9 +109,10 @@ specialized study paths:
 - `experiments.run_scenarios_flock` now exposes only managed `run` at its CLI
   boundary; its visualization, baseline, metrics, and timing helpers are
   historical helpers only;
-- `experiments.visualize`, `experiments.inspect_3d_error`,
-  `experiments.run_post_processing`, and
-  `experiments.reconstruction_scale_determination`;
+- `experiments.reconstruction_scale_determination`; the isolated historical
+  `visualize`, `inspect_3d_error`, and `run_post_processing` scripts were
+  removed on 2026-07-11 because they had no active imports or managed-output
+  migration path;
 - historical search/evaluation readers in `experiments.search_learning_parameters`,
   `experiments.search_regularization_parameters`, and
   `experiments.compute_metrics_from_pretrained`.

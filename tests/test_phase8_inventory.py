@@ -51,6 +51,11 @@ def test_retired_plot_archive_files_are_absent():
         assert not (ROOT / "experiments" / name).exists()
 
 
+def test_isolated_scenario_log_diagnostics_are_absent():
+    for name in ("visualize.py", "inspect_3d_error.py", "run_post_processing.py"):
+        assert not (ROOT / "experiments" / name).exists()
+
+
 def test_phase8_inventory_documents_cleanup_boundaries():
     text = (ROOT / "docs" / "PHASE8_COMPATIBILITY_INVENTORY.md").read_text(
         encoding="utf-8"

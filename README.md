@@ -646,7 +646,6 @@ execution.
 | `plot_catalog.py` | Standalone CLI for listing public function names from the frozen historical plot catalog; it does not import legacy plotting code. |
 | `fit_dra_multiframe.py` | CLI for multi-frame DRA/model-order fitting, caches, reports, and fit figures using shared save defaults. |
 | `generate_scene_animations.py` | Generate trajectory and ground-truth density MP4 animations; datasets configured in source. |
-| `inspect_3d_error.py` | Inspect and plot 3D reconstruction error from existing run data. |
 | `inspect_scenarios.py` | Interactive scenario/camera inspection. |
 | `investigate_initialization.py` | Interactive investigation of GMM initialization behavior. |
 | `mechanistic_derivation.py` | Managed CUDA CLI for analytical mode-count scaling comparisons using shared save defaults. |
@@ -660,7 +659,6 @@ execution.
 | `rasterizer_optimize.py` | Benchmark/inspect custom rasterizer performance. |
 | `reconstruction_scale_determination.py` | Legacy reconstruction-scale studies; requires an explicit experiment subcommand. |
 | `reconstruct_one_frame.py` | Thin one-frame wrapper over `dfr.reconstruct`, with managed config, checkpoint, arrays, and metrics. |
-| `run_post_processing.py` | Post-process saved reconstruction runs and metrics; configured in source. |
 | `run_scenarios.py` | Main multi-scenario runner; active reconstruction dispatches through `dfr.reconstruct`, while legacy baseline/metric helpers remain. |
 | `run_scenarios_angle_sweep.py` | Explicit-dispatch camera-angle/convergence studies; ordinary reconstruction is consolidated through `ScenarioRunSpec`. |
 | `run_scenarios_flock.py` | Explicit external-detection flock workflow with required data/calibration paths; primary run uses `dfr.reconstruct_observations`. |
@@ -673,7 +671,6 @@ execution.
 | `search_regularization_parameters.py` | Resumable grid search for regularization settings; writes a root CSV. |
 | `synthetic_benchmark.py` | Managed CUDA CLI for synthetic point-process manifold benchmarks. |
 | `validate_mode_counting.py` | Managed CUDA validation CLI for separated synthetic Gaussian clusters using shared figure-save defaults. |
-| `visualize.py` | Open the interactive GMM viewer for saved checkpoints; configured in source. |
 | `__init__.py` | Marks `experiments` as a package; not an entry point. |
 
 ## Contributing and refactoring

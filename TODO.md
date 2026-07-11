@@ -806,6 +806,21 @@ known failures, and the exact next step.
 - Next step: decide whether the remaining read-only historical helpers should
   be moved to a dedicated archive package or removed from active source.
 
+### 2026-07-11 - Phase 8 isolated log diagnostics removed
+
+- Removed the unimported historical `visualize`, `inspect_3d_error`, and
+  `run_post_processing` scripts. They consumed scenario logs only and had no
+  managed-output migration path; their implementation remains in local Git
+  history.
+- Removed `run_post_processing`'s import-time root file logger with the script.
+- Verification: focused inventory/docs/specialized-runner tests passed with 25
+  tests; `compileall dfr experiments tests examples` passed; `git diff --check`
+  passed with Windows line-ending warnings only; `pytest -m "not cuda"` passed
+  with 182 tests and 7 deselected; `pytest -m cuda` passed with 6 tests, 1
+  skipped rasterizer-extension test, and 182 deselected.
+- Next step: review the reconstruction-scale and search/evaluation log
+  consumers, then decide whether any merit a managed replacement.
+
 ### 2026-07-10 - Phase 8 legacy plot archive removed
 
 - Removed the tracked `experiments/dfr_plot.py` and

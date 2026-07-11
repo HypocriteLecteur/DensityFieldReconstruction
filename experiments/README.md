@@ -104,9 +104,9 @@ detections and UE4 image detections remain legacy specializations until the
 package exposes a typed external-observation workflow.
 
 - Interactive diagnostics: `dataset_viewer_test.py`, `inspect_scenarios.py`,
-  `inspect_3d_error.py`, and `investigate_initialization.py`.
-- Rendering/animation tools: `generate_scene_animations.py`,
-  `rasterizer_optimize.py`, `run_post_processing.py`, and `visualize.py`.
+  and `investigate_initialization.py`.
+- Rendering/animation tools: `generate_scene_animations.py` and
+  `rasterizer_optimize.py`.
 - Reconstruction/tuning workflows: `reconstruct_one_frame.py`,
   `compute_metrics_from_pretrained.py`, `search_learning_parameters.py`,
   `search_regularization_parameters.py`, and all `run_scenarios*.py` files.
