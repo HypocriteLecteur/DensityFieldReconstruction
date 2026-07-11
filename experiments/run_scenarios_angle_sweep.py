@@ -1872,21 +1872,9 @@ def calculate_projection_median_nn_distance_single_scenario(run_params):
 
 def create_parser():
     parser = argparse.ArgumentParser(
-        description="Explicit entry points for camera-angle reconstruction studies."
+        description="Run managed camera-angle scenario reconstruction."
     )
-    parser.add_argument(
-        "study",
-        choices=(
-            "reconstruct",
-            "profile",
-            "voxel-coarsening",
-            "training-convergence",
-            "diagnose-convergence",
-            "baseline-angle-sweep",
-            "projection-nn",
-            "metrics",
-        ),
-    )
+    parser.add_argument("study", choices=("reconstruct",))
     parser.add_argument("--project-root", type=Path, default=Path.cwd())
     parser.add_argument("--dataset", choices=tuple(item['name'] for item in DATASET_RUNS))
     parser.add_argument("--seed", type=int, default=12345)
@@ -1896,29 +1884,14 @@ def create_parser():
 
 def main(argv=None):
     args = create_parser().parse_args(argv)
-    if args.study == "reconstruct":
-        selected = [
-            item for item in DATASET_RUNS
-            if args.dataset is None or item['name'] == args.dataset
-        ]
-        for params in selected:
-            run_single_scenario(
-                params, project_root=args.project_root, seed=args.seed
-            )
-    elif args.study == "profile":
-        profile_bottleneck()
-    elif args.study == "voxel-coarsening":
-        test_voxel_coarsening()
-    elif args.study == "training-convergence":
-        run_training_convergence()
-    elif args.study == "diagnose-convergence":
-        diagnose_slow_convergence()
-    elif args.study == "baseline-angle-sweep":
-        run_baseline_angle_sweep()
-    elif args.study == "projection-nn":
-        calculate_projection_median_nn_distance_multi_scenarios()
-    else:
-        compute_metrics_multi_scenarios()
+    selected = [
+        item for item in DATASET_RUNS
+        if args.dataset is None or item['name'] == args.dataset
+    ]
+    for params in selected:
+        run_single_scenario(
+            params, project_root=args.project_root, seed=args.seed
+        )
     if not args.no_display:
         plt.show()
     return 0

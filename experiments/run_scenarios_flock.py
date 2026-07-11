@@ -1009,14 +1009,10 @@ def compute_metrics_single_scenario(run_params):
 def create_parser():
     parser = argparse.ArgumentParser(
         description=(
-            "Explicit entry points for the external-detection flock study. "
-            "The run command currently requires the source paths configured "
-            "inside run_flock_scenario()."
+            "Run managed external-detection flock reconstruction."
         )
     )
-    parser.add_argument(
-        "study", choices=("run", "visualize", "baseline", "metrics", "timing")
-    )
+    parser.add_argument("study", choices=("run",))
     parser.add_argument("--project-root", type=Path, default=Path.cwd())
     parser.add_argument("--data-root", type=Path)
     parser.add_argument("--extrinsics-json", type=Path)
@@ -1047,14 +1043,6 @@ def main(argv=None):
                 project_root=args.project_root,
             )
         )
-    elif args.study == "visualize":
-        visualize_trained_model_interactive()
-    elif args.study == "baseline":
-        run_single_scenario_baseline()
-    elif args.study == "metrics":
-        compute_metrics_multi_scenarios()
-    else:
-        plot_time_multi_scenarios()
     if not args.no_display:
         plt.show()
     return 0

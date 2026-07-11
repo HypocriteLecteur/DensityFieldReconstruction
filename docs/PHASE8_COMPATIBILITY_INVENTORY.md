@@ -103,12 +103,12 @@ specialized study paths:
 - `experiments.run_scenarios` is now a thin managed-only reconstruction CLI;
   its historical baseline/metric/timing scenario-log helpers were removed on
   2026-07-11 and remain recoverable through local Git history;
-- angle-sweep baseline, training-convergence, and baseline-angle-sweep writers
-  in `experiments.run_scenarios_angle_sweep` were archived/disabled on
-  2026-07-11; profile, diagnostic, and read-only metric paths remain;
-- flock visualization and baseline writers in `experiments.run_scenarios_flock`
-  were archived/disabled on 2026-07-11; its inactive recursive cleanup path
-  was also removed, while metrics/timing readers remain;
+- `experiments.run_scenarios_angle_sweep` now exposes only managed
+  `reconstruct` at its CLI boundary; its baseline, profile, convergence,
+  diagnostic, projection, and metric studies are historical helpers only;
+- `experiments.run_scenarios_flock` now exposes only managed `run` at its CLI
+  boundary; its visualization, baseline, metrics, and timing helpers are
+  historical helpers only;
 - `experiments.visualize`, `experiments.inspect_3d_error`,
   `experiments.run_post_processing`, and
   `experiments.reconstruction_scale_determination`;

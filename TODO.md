@@ -789,6 +789,23 @@ known failures, and the exact next step.
 - Next step: continue classifying the remaining explicitly dispatched
   specialized scenario-log readers and historical artifact directories.
 
+### 2026-07-11 - Phase 8 specialized runner CLI boundaries tightened
+
+- Reduced the angle-sweep and flock CLIs to their managed primary actions only:
+  `reconstruct` and `run`, respectively. Historical studies remain inaccessible
+  from normal command execution while their package-level replacements mature.
+- Added parser and dispatch guards so metrics, timing, visualization, profile,
+  and baseline studies cannot regain an active CLI path accidentally.
+- Verification: both specialized CLI `--help` commands passed; focused
+  specialized-runner/inventory/docs tests passed with 24 tests; `compileall
+  experiments/run_scenarios_angle_sweep.py experiments/run_scenarios_flock.py
+  tests/test_specialized_runners.py` passed; `git diff --check` passed with
+  Windows line-ending warnings only; `pytest -m "not cuda"` passed with 181
+  tests and 7 deselected; `pytest -m cuda` passed with 6 tests, 1 skipped
+  rasterizer-extension test, and 181 deselected.
+- Next step: decide whether the remaining read-only historical helpers should
+  be moved to a dedicated archive package or removed from active source.
+
 ### 2026-07-10 - Phase 8 legacy plot archive removed
 
 - Removed the tracked `experiments/dfr_plot.py` and

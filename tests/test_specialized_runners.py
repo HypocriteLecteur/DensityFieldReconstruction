@@ -55,12 +55,16 @@ def test_angle_ordinary_legacy_body_was_removed():
 
 
 def test_specialized_runners_require_explicit_dispatch():
-    assert angle_runner.create_parser().parse_args(["profile"]).study == "profile"
-    assert flock_runner.create_parser().parse_args(["visualize"]).study == "visualize"
+    assert angle_runner.create_parser().parse_args(["reconstruct"]).study == "reconstruct"
+    assert flock_runner.create_parser().parse_args(["run"]).study == "run"
     with pytest.raises(SystemExit):
         angle_runner.create_parser().parse_args([])
     with pytest.raises(SystemExit):
         flock_runner.create_parser().parse_args([])
+    with pytest.raises(SystemExit):
+        angle_runner.create_parser().parse_args(["profile"])
+    with pytest.raises(SystemExit):
+        flock_runner.create_parser().parse_args(["visualize"])
     with pytest.raises(SystemExit):
         ue4_runner.create_parser().parse_args([])
 
@@ -186,3 +190,16 @@ def test_explicit_scenario_log_writers_are_archived():
     ):
         with pytest.raises(RuntimeError, match="archived and disabled"):
             writer() if writer is not angle_runner.run_single_scenario_baseline else writer({})
+
+
+def test_specialized_runner_clis_expose_only_managed_primary_paths():
+    for module, active_study in (
+        (angle_runner, "reconstruct"),
+        (flock_runner, "run"),
+    ):
+        source = Path(module.__file__).read_text(encoding="utf-8")
+        main = source.split("def main", 1)[1].split('if __name__ == "__main__"', 1)[0]
+
+        assert f'choices=("{active_study}",)' in source
+        assert "compute_metrics_multi_scenarios()" not in main
+        assert "plot_time_multi_scenarios()" not in main
