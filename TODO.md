@@ -756,6 +756,22 @@ known failures, and the exact next step.
 - Next step: classify the remaining explicitly dispatched flock and angle-sweep
   log-writing studies.
 
+### 2026-07-11 - Phase 8 explicit scenario-log writers archived
+
+- Archived/disabled the remaining explicit flock visualization/baseline and
+  angle-sweep baseline/convergence writer commands. Primary reconstruction
+  remains managed; historical metrics/timing/diagnostic readers remain intact.
+- Added runtime coverage proving each blocked entry point fails before writing
+  a scenario-log artifact.
+- Verification: focused specialized-runner/inventory/docs tests passed with 23
+  tests; `compileall experiments/run_scenarios_angle_sweep.py
+  experiments/run_scenarios_flock.py tests/test_specialized_runners.py` passed;
+  `git diff --check` passed with Windows line-ending warnings only; `pytest -m
+  "not cuda"` passed with 180 tests and 7 deselected; `pytest -m cuda` passed
+  with 6 tests, 1 skipped rasterizer-extension test, and 180 deselected.
+- Next step: audit read-only scenario-log consumers and historical artifact
+  directories for an archive/removal decision.
+
 ### 2026-07-10 - Phase 8 legacy plot archive removed
 
 - Removed the tracked `experiments/dfr_plot.py` and

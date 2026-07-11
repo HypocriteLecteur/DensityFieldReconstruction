@@ -143,11 +143,22 @@ def run_single_scenario(run_params, *, project_root=None, output=None, seed=1234
     )
 
 
+def _raise_archived_scenario_log_writer(study: str) -> None:
+    """Block a retired angle-sweep study that writes under scenario logs."""
+    raise RuntimeError(
+        f"The historical angle-sweep {study} study is archived and disabled "
+        "because it writes scenario-log artifacts. Use managed reconstruction/"
+        "evaluation workflows instead, or recover the study from local Git history."
+    )
+
+
 def run_multi_scenarios_baseline():
+    _raise_archived_scenario_log_writer("baseline")
     for run_params in DATASET_RUNS:
         run_single_scenario_baseline(run_params)
 
 def run_single_scenario_baseline(run_params):
+    _raise_archived_scenario_log_writer("baseline")
     # 1. Parameter extraction and Logging Setup
     name = run_params['name']
     log_name = run_params['log_name']
@@ -843,6 +854,7 @@ def test_voxel_coarsening():
 # =============================================================================
 
 def run_training_convergence():
+    _raise_archived_scenario_log_writer("training-convergence")
     """
     Track metrics *during* Adam optimisation across multiple timesteps and
     baseline angles (10°–90°, every 20°).  For each (angle, frame) pair,
@@ -1300,6 +1312,7 @@ def diagnose_slow_convergence():
     return frame_data
 
 def run_baseline_angle_sweep():
+    _raise_archived_scenario_log_writer("baseline-angle-sweep")
     """
     Investigate the effect of inter-camera baseline angle on reconstruction
     metrics, and whether poor performance at small angles is *inherent*

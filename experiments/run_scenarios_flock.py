@@ -499,7 +499,19 @@ def run_flock_scenario(inputs: FlockInputConfig):
     return run
 
 from matplotlib.widgets import Slider
+
+
+def _raise_archived_scenario_log_writer(study: str) -> None:
+    """Block a retired flock study that writes under scenario logs."""
+    raise RuntimeError(
+        f"The historical flock {study} study is archived and disabled because it "
+        "writes scenario-log artifacts. Use managed reconstruction/evaluation "
+        "workflows instead, or recover the study from local Git history."
+    )
+
+
 def visualize_trained_model_interactive():
+    _raise_archived_scenario_log_writer("visualization")
     # 1. Parameter extraction and Logging Setup
     path = r"E:\科研相关\博士相关\博士课题\项目\观鸟\鸟群数据传承\2023-2024鸟群-长沙-数据\ChangshaObservation2023\synchronized\Xianjiahu_20231121b_data50"
     name = RUN_PARAMS['name']
@@ -600,6 +612,7 @@ def visualize_trained_model_interactive():
     return time_slider, iter_slider
 
 def run_single_scenario_baseline():
+    _raise_archived_scenario_log_writer("baseline")
     # 1. Parameter extraction and Logging Setup
     name = RUN_PARAMS['name']
     log_name = RUN_PARAMS['log_name']

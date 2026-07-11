@@ -169,3 +169,16 @@ def test_unreachable_scenario_baseline_writers_are_archived():
         scenario_runner.run_multi_scenarios_baseline()
     with pytest.raises(RuntimeError, match="archived and disabled"):
         scenario_runner.run_single_scenario_baseline({})
+
+
+def test_explicit_scenario_log_writers_are_archived():
+    for writer in (
+        flock_runner.visualize_trained_model_interactive,
+        flock_runner.run_single_scenario_baseline,
+        angle_runner.run_multi_scenarios_baseline,
+        angle_runner.run_single_scenario_baseline,
+        angle_runner.run_training_convergence,
+        angle_runner.run_baseline_angle_sweep,
+    ):
+        with pytest.raises(RuntimeError, match="archived and disabled"):
+            writer() if writer is not angle_runner.run_single_scenario_baseline else writer({})

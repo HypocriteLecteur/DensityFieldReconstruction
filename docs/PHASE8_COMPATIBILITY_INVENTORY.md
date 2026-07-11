@@ -102,11 +102,12 @@ specialized study paths:
 
 - baseline/metric helpers in `experiments.run_scenarios`; its unreachable
   baseline writer entry points were archived/disabled on 2026-07-11;
-- angle-sweep baseline/profile/diagnostic paths in
-  `experiments.run_scenarios_angle_sweep`;
-- flock visualization/baseline/metrics helpers in
-  `experiments.run_scenarios_flock`; its inactive recursive cleanup path was
-  removed on 2026-07-11;
+- angle-sweep baseline, training-convergence, and baseline-angle-sweep writers
+  in `experiments.run_scenarios_angle_sweep` were archived/disabled on
+  2026-07-11; profile, diagnostic, and read-only metric paths remain;
+- flock visualization and baseline writers in `experiments.run_scenarios_flock`
+  were archived/disabled on 2026-07-11; its inactive recursive cleanup path
+  was also removed, while metrics/timing readers remain;
 - `experiments.visualize`, `experiments.inspect_3d_error`,
   `experiments.run_post_processing`, and
   `experiments.reconstruction_scale_determination`;
