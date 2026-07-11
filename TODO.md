@@ -506,8 +506,8 @@ The next agent should continue Phase 8 generated-output cleanup:
   this decision. Reason: local version maintenance is sufficient and avoids
   exporting source code and result files.
 - **2026-07-06 - Test discovery:** restrict pytest to `tests/`. Reason: default
-  discovery imported `experiments/dataset_viewer_test.py`, which performs heavy
-  interactive work during import and caused collection to hang.
+  discovery previously imported an interactive experiment module and caused
+  collection to hang; the module was retired in Phase 8.
 - **2026-07-06 - Metric devices:** honor the existing `device` argument in
   `compute_metrics_batched_torch` and support CPU execution. Reason: this makes
   metric behavior testable without changing the density/overlap equations used
@@ -836,6 +836,23 @@ known failures, and the exact next step.
   1 skipped rasterizer-extension test, and 183 deselected.
 - Next step: review the remaining historical helper functions embedded in the
   specialized runners for physical deletion or a dedicated archive boundary.
+
+### 2026-07-11 - Phase 8 isolated interactive diagnostics retired
+
+- Removed four unimported interactive/benchmark diagnostics: the dataset
+  viewer, scenario inspector, initialization viewer, and rasterizer benchmark.
+  `generate_scene_animations` remains active because it uses retained reusable
+  angle-sweep helpers.
+- Added absence coverage for the retired diagnostics and updated the script
+  catalogs/test-discovery note.
+- Verification: focused inventory/docs/specialized-runner tests passed with 27
+  tests; `compileall dfr experiments tests examples` and `git diff --check`
+  passed (with Windows line-ending warnings only); `pytest -m "not cuda"`
+  passed with 184 tests and 7 deselected; `pytest -m cuda` passed with 6 tests,
+  1 skipped rasterizer-extension test, and 184 deselected.
+- Next step: review historical helpers still embedded in specialized runner
+  modules, or move to Phase 8 release validation once no active output writer
+  remains.
 
 ### 2026-07-10 - Phase 8 legacy plot archive removed
 

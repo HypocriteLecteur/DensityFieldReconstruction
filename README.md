@@ -620,7 +620,7 @@ python -m pytest -m cuda
 ```
 
 Pytest only discovers files under `tests/`; it intentionally does not collect
-interactive files such as `experiments/dataset_viewer_test.py`. CUDA tests skip
+interactive modules. CUDA tests skip
 cleanly when the compiled extensions or a CUDA device are unavailable.
 
 ## Experiment script catalog
@@ -641,12 +641,9 @@ execution.
 | Script | Purpose / behavior |
 |---|---|
 | `common.py` | Compatibility adapters over package scenario/camera/evaluation services plus runner logging/noise helpers. |
-| `dataset_viewer_test.py` | Interactive dataset/camera/scale viewer; performs work at import and is excluded from pytest. |
 | `plot_catalog.py` | Standalone CLI for listing public function names from the frozen historical plot catalog; it does not import legacy plotting code. |
 | `fit_dra_multiframe.py` | CLI for multi-frame DRA/model-order fitting, caches, reports, and fit figures using shared save defaults. |
 | `generate_scene_animations.py` | Generate trajectory and ground-truth density MP4 animations; datasets configured in source. |
-| `inspect_scenarios.py` | Interactive scenario/camera inspection. |
-| `investigate_initialization.py` | Interactive investigation of GMM initialization behavior. |
 | `mechanistic_derivation.py` | Managed CUDA CLI for analytical mode-count scaling comparisons using shared save defaults. |
 | `parameter_manifold.py` | Managed 3PL fit/clustering/publication CLI using package manifold computation, style, and save defaults. |
 | `parameter_manifold_2pl.py` | Managed symmetric-2PL manifold and temporal/N-dependence CLI using package style and save defaults. |
@@ -655,7 +652,6 @@ execution.
 | `plot_publication_table2.py` | Explicit publication figure CLI for the hard-coded Table 2 capacity/tradeoff figures formerly embedded in `dfr_plot.py`. |
 | `plot_publication_time_efficiency.py` | Explicit publication figure CLI for the hard-coded training-time scaling table formerly embedded in `dfr_plot.py`. |
 | `power_law.py` | Legacy exploratory mode-count scaling studies; requires an explicit experiment subcommand and writes figures through managed analysis artifacts. |
-| `rasterizer_optimize.py` | Benchmark/inspect custom rasterizer performance. |
 | `reconstruct_one_frame.py` | Thin one-frame wrapper over `dfr.reconstruct`, with managed config, checkpoint, arrays, and metrics. |
 | `run_scenarios.py` | Main multi-scenario runner; active reconstruction dispatches through `dfr.reconstruct`, while legacy baseline/metric helpers remain. |
 | `run_scenarios_angle_sweep.py` | Explicit-dispatch camera-angle/convergence studies; ordinary reconstruction is consolidated through `ScenarioRunSpec`. |

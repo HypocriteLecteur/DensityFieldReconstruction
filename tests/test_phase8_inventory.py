@@ -66,6 +66,16 @@ def test_isolated_unmanaged_analysis_scripts_are_absent():
         assert not (ROOT / "experiments" / name).exists()
 
 
+def test_isolated_interactive_diagnostics_are_absent():
+    for name in (
+        "dataset_viewer_test.py",
+        "inspect_scenarios.py",
+        "investigate_initialization.py",
+        "rasterizer_optimize.py",
+    ):
+        assert not (ROOT / "experiments" / name).exists()
+
+
 def test_phase8_inventory_documents_cleanup_boundaries():
     text = (ROOT / "docs" / "PHASE8_COMPATIBILITY_INVENTORY.md").read_text(
         encoding="utf-8"

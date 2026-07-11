@@ -103,10 +103,7 @@ The ordinary angle reconstruction uses `ScenarioRunSpec`; measured flock
 detections and UE4 image detections remain legacy specializations until the
 package exposes a typed external-observation workflow.
 
-- Interactive diagnostics: `dataset_viewer_test.py`, `inspect_scenarios.py`,
-  and `investigate_initialization.py`.
-- Rendering/animation tools: `generate_scene_animations.py` and
-  `rasterizer_optimize.py`.
+- Rendering/animation tools: `generate_scene_animations.py`.
 - Reconstruction workflows: `reconstruct_one_frame.py` and all
   `run_scenarios*.py` files. Historical checkpoint evaluation and unmanaged
   hyperparameter-search scripts were retired in Phase 8; use package

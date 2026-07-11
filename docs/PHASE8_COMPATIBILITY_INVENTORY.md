@@ -114,6 +114,10 @@ specialized study paths:
   `search_learning_parameters`, `search_regularization_parameters`, and
   `compute_metrics_from_pretrained` scripts were removed on 2026-07-11 because
   they had no active imports or managed-output migration path.
+- the isolated `dataset_viewer_test`, `inspect_scenarios`,
+  `investigate_initialization`, and `rasterizer_optimize` diagnostics were
+  removed on 2026-07-11 for the same reason; `generate_scene_animations`
+  remains because it reuses supported angle-sweep helper functions.
 
 Do not add new scenario-log producers. Remove or archive readers only after a
 managed-run replacement exists or the owner confirms the study is historical.
