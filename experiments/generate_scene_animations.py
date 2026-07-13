@@ -11,16 +11,17 @@ Two animation types are produced per dataset:
    overlaid with agent positions and camera frustums.  Same style (axes, view
    angle, figsize) as the trajectory animations.
 
-Output:  experiments/animations/<dataset_name>.mp4
-         experiments/animations/<dataset_name>_density.mp4
+Output:  outputs/animations/<run-id>/figures/<dataset_name>.mp4
+         outputs/animations/<run-id>/figures/<dataset_name>_density.mp4
 
 Usage:
-    python experiments/generate_scene_animations.py           # all datasets
-    python experiments/generate_scene_animations.py jackdaw   # single dataset
+    python -m experiments.generate_scene_animations           # configured datasets
+    python -m experiments.generate_scene_animations jackdaw   # one dataset
 """
 
+import argparse
 import sys
-import os
+from pathlib import Path
 
 
 from typing import List, Optional
@@ -41,7 +42,9 @@ from dfr.dataset_io import DatasetFactory, DatasetInterface
 from dfr.camera_system import MultiCameraSystem
 from dfr.camera_state import CameraState
 from dfr.utils import generate_encircling_cameras
-from experiments.run_scenarios_angle_sweep import _build_grid, _precompute_gt_density
+from dfr.artifacts import OutputConfig, RunArtifacts
+from dfr.data.registry import default_project_root
+from dfr.evaluation import build_isotropic_density_grid, sample_isotropic_density_grid
 
 # ──────────────────────────────────────────────────────────────────────
 #  Configuration
@@ -66,7 +69,6 @@ DENSITY_FIELD_RUNS = [
 # (from experiments/run_scenarios.py DATASET_RUNS).  Needed for interpolation.
 _ORIG_STEP_LENGTH = {"swift": 200, "jackdaw": 10, "jackdaw2": 20}
 
-OUTPUT_DIR = os.path.join(os.getcwd(), "experiments", "animations")
 FPS = 15                    # frames per second in the output video
 DPI = 150                   # output resolution
 MAX_POINTS = 5_000          # downsample scatter per frame when N exceeds this
@@ -387,8 +389,15 @@ def _precompute_density_frames(
             )
             continue
 
-        grid = _build_grid(positions, scale, voxel_res_factor=voxel_res_factor, device=device)
-        density_flat = _precompute_gt_density(positions, scale, grid, batch_size=batch_size, device=device)
+        grid = build_isotropic_density_grid(
+            positions,
+            scale,
+            voxel_res_fraction=voxel_res_factor,
+            device=device,
+        )
+        density_flat = sample_isotropic_density_grid(
+            positions, scale, grid, batch_size=batch_size, device=device
+        )
         density_3d = density_flat.numpy().reshape(grid["nx"], grid["ny"], grid["nz"])
 
         frames.append(
@@ -408,7 +417,12 @@ def _precompute_density_frames(
 # ──────────────────────────────────────────────────────────────────────
 
 
-def generate_density_field_animation(run_params: dict) -> Optional[str]:
+def generate_density_field_animation(
+    run_params: dict,
+    *,
+    project_root: Path,
+    output_dir: Path,
+) -> Optional[Path]:
     """Generate and save an MP4 of the GT density field for one dataset.
 
     The density field is rendered as nested semi-transparent shells (viridis
@@ -422,13 +436,13 @@ def generate_density_field_animation(run_params: dict) -> Optional[str]:
     print(f"\n{'=' * 60}\n  {name} (density field)\n{'=' * 60}")
 
     # ── 1. Load config & dataset ──────────────────────────────────────
-    scenario_path = os.path.join(os.getcwd(), "scenarios", name)
-    config_path = os.path.join(scenario_path, "config.yaml")
-    if not os.path.exists(config_path):
+    scenario_path = project_root / "scenarios" / name
+    config_path = scenario_path / "config.yaml"
+    if not config_path.exists():
         print(f"  [SKIP] config not found: {config_path}")
         return None
 
-    config = SimulationConfig(config_path)
+    config = SimulationConfig(str(config_path))
     factory = DatasetFactory()
     dataset = factory.get_dataset(config.data_file)
     steps = _step_range(dataset, run_params)
@@ -448,8 +462,8 @@ def generate_density_field_animation(run_params: dict) -> Optional[str]:
     )
 
     # ── 2. Load GT scales ─────────────────────────────────────────────
-    scale_path = os.path.join(scenario_path, "reconstruction_scale.npz")
-    if not os.path.exists(scale_path):
+    scale_path = scenario_path / "reconstruction_scale.npz"
+    if not scale_path.exists():
         print(f"  [SKIP] reconstruction_scale.npz not found: {scale_path}")
         return None
     gt_data = np.load(scale_path)
@@ -506,10 +520,11 @@ def generate_density_field_animation(run_params: dict) -> Optional[str]:
         _draw_camera_frustum(ax, cam, color=cam_colors[idx % len(cam_colors)])
 
     # ── 6. Animation loop ─────────────────────────────────────────────
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
-    out_path = os.path.join(OUTPUT_DIR, f"{name}_density.mp4")
+    out_path = output_dir / f"{name}_density.mp4"
+    if out_path.exists():
+        raise FileExistsError(f"Animation already exists: {out_path}")
     writer = FFMpegWriter(fps=FPS, bitrate=4000)
-    writer.setup(fig, out_path, dpi=DPI)
+    writer.setup(fig, str(out_path), dpi=DPI)
 
     # Per-dataset colours for agent markers (same palette as trajectory anims)
     PALETTE = {
@@ -610,7 +625,12 @@ def generate_density_field_animation(run_params: dict) -> Optional[str]:
 # ──────────────────────────────────────────────────────────────────────
 
 
-def generate_animation(run_params: dict) -> Optional[str]:
+def generate_animation(
+    run_params: dict,
+    *,
+    project_root: Path,
+    output_dir: Path,
+) -> Optional[Path]:
     """Generate and save an MP4 for one dataset entry.
 
     Returns the output path on success, or ``None`` if skipped.
@@ -619,13 +639,13 @@ def generate_animation(run_params: dict) -> Optional[str]:
     print(f"\n{'=' * 60}\n  {name}\n{'=' * 60}")
 
     # ── 1. Load config & dataset ──────────────────────────────────────
-    scenario_path = os.path.join(os.getcwd(), "scenarios", name)
-    config_path = os.path.join(scenario_path, "config.yaml")
-    if not os.path.exists(config_path):
+    scenario_path = project_root / "scenarios" / name
+    config_path = scenario_path / "config.yaml"
+    if not config_path.exists():
         print(f"  [SKIP] config not found: {config_path}")
         return None
 
-    config = SimulationConfig(config_path)
+    config = SimulationConfig(str(config_path))
     factory = DatasetFactory()
     dataset = factory.get_dataset(config.data_file)
     steps = _step_range(dataset, run_params)
@@ -695,10 +715,11 @@ def generate_animation(run_params: dict) -> Optional[str]:
         _draw_camera_frustum(ax, cam, color=cam_colors[idx % len(cam_colors)])
 
     # ── 5. Animation loop ─────────────────────────────────────────────
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
-    out_path = os.path.join(OUTPUT_DIR, f"{name}.mp4")
+    out_path = output_dir / f"{name}.mp4"
+    if out_path.exists():
+        raise FileExistsError(f"Animation already exists: {out_path}")
     writer = FFMpegWriter(fps=FPS, bitrate=4000)
-    writer.setup(fig, out_path, dpi=DPI)
+    writer.setup(fig, str(out_path), dpi=DPI)
 
     scatter_handle: Optional[object] = None
     trail_handle: Optional[object] = None
@@ -769,10 +790,49 @@ def generate_animation(run_params: dict) -> Optional[str]:
 # ──────────────────────────────────────────────────────────────────────
 
 
-def main() -> None:
-    _setup_mpl_style()
+def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
+    """Parse the explicit dataset and managed-output options for this study."""
+    known_datasets = sorted(
+        {run["name"] for run in DATASET_RUNS + DENSITY_FIELD_RUNS}
+    )
+    parser = argparse.ArgumentParser(
+        description="Render configured trajectory and density-field MP4 animations."
+    )
+    parser.add_argument("dataset", nargs="?", choices=known_datasets)
+    parser.add_argument("--project-root", type=Path, default=default_project_root())
+    parser.add_argument("--output-root", type=Path, default=Path("outputs"))
+    parser.add_argument("--run-id", default=None)
+    policy = parser.add_mutually_exclusive_group()
+    policy.add_argument("--resume", action="store_true")
+    policy.add_argument("--overwrite-run", action="store_true")
+    return parser.parse_args(argv)
 
-    target = sys.argv[1] if len(sys.argv) > 1 else None
+
+def main(argv: Optional[List[str]] = None) -> None:
+    args = parse_args(argv)
+    _setup_mpl_style()
+    target = args.dataset
+    project_root = args.project_root.expanduser().resolve()
+    artifacts = RunArtifacts.create(
+        OutputConfig(
+            workflow="animations",
+            name="scene-animations",
+            root=args.output_root,
+            run_id=args.run_id,
+            project_root=project_root,
+            resume=args.resume,
+            overwrite=args.overwrite_run,
+        ),
+        resolved_config={
+            "entrypoint": "experiments.generate_scene_animations",
+            "dataset": target,
+            "trajectory_runs": DATASET_RUNS,
+            "density_field_runs": DENSITY_FIELD_RUNS,
+            "fps": FPS,
+            "dpi": DPI,
+        },
+        device="cuda",
+    )
 
     # ── Trajectory animations ──────────────────────────────────────────
     traj_runs = (
@@ -789,7 +849,9 @@ def main() -> None:
 
     for run in traj_runs:
         try:
-            generate_animation(run)
+            generate_animation(
+                run, project_root=project_root, output_dir=artifacts.figures_dir
+            )
         except Exception as exc:
             print(f"  [FAIL] {run['name']}: {exc}")
             import traceback
@@ -809,13 +871,15 @@ def main() -> None:
     else:
         for run in dens_runs:
             try:
-                generate_density_field_animation(run)
+                generate_density_field_animation(
+                    run, project_root=project_root, output_dir=artifacts.figures_dir
+                )
             except Exception as exc:
                 print(f"  [FAIL] {run['name']} density: {exc}")
                 import traceback
                 traceback.print_exc()
 
-    print(f"\nDone.  Output directory: {OUTPUT_DIR}")
+    print(f"\nDone. Output directory: {artifacts.figures_dir}")
 
 
 if __name__ == "__main__":

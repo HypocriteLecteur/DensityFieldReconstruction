@@ -103,7 +103,10 @@ The ordinary angle reconstruction uses `ScenarioRunSpec`; measured flock
 detections and UE4 image detections remain legacy specializations until the
 package exposes a typed external-observation workflow.
 
-- Rendering/animation tools: `generate_scene_animations.py`.
+- Rendering/animation tools: `generate_scene_animations.py`, a managed CLI
+  that writes MP4 files under `outputs/animations/<run-id>/figures/`; use
+  `python -m experiments.generate_scene_animations --help` before launching
+  the configured CUDA/FFmpeg study.
 - Reconstruction workflows: `reconstruct_one_frame.py` and all
   `run_scenarios*.py` files. Historical checkpoint evaluation and unmanaged
   hyperparameter-search scripts were retired in Phase 8; use package

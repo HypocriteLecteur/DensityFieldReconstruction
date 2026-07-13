@@ -29,7 +29,7 @@ artifacts belong in `outputs/`.
 | Legacy plot catalog | `experiments.plot_catalog`, `experiments.DFR_PLOT_CATALOG.md` | Standalone catalog command for historical public function names. The retired source remains available through local Git history and `v0.1.0`; it is not an active import surface. |
 | Specialized workflows | `run_scenarios_angle_sweep`, `run_scenarios_flock`, `run_scenarios_ue4`, `RUNNER_SPECIALIZATIONS.md` | Explicit-dispatch special cases. Promote reusable camera/external-observation logic into `dfr.reconstruction` when generalized. |
 | Legacy studies | `power_law`, `reconstruction_scale_determination` | Explicit subcommand required. Migrate active reusable analysis into `dfr.analysis` before adding new callers. |
-| Diagnostics/viewers | `dataset_viewer_test`, `inspect_scenarios`, `inspect_3d_error`, `investigate_initialization`, `visualize`, `generate_scene_animations` | Interactive or configured-in-source tools. Keep out of pytest discovery unless converted into tests. |
+| Animation workflow | `generate_scene_animations`, `dfr.evaluation.density` | Managed MP4 rendering over configured studies. Keep the density-grid computation reusable and file-free in `dfr.evaluation`; the CLI owns `outputs/animations/<run-id>/figures/`. |
 
 ## Output ownership
 

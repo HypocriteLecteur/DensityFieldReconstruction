@@ -27,6 +27,7 @@ from scipy.spatial import cKDTree
 from experiments.common import setup_logger, setup_camera_system, print_global_metrics
 from dfr import CameraConfig, OutputConfig, ScenarioRunSpec, run_scenario
 from dfr.config import ReconstructionParams, TrainingParams
+from dfr.evaluation import build_isotropic_density_grid, sample_isotropic_density_grid
 
 import matplotlib.pyplot as plt
 
@@ -345,58 +346,6 @@ def _build_angled_cam_system(center, D, baseline_deg, config):
 
 # ---- GT density caching (avoids re-evaluating GT GMM on every angle) ----
 
-def _build_grid(positions, gt_scale, voxel_res_factor=2.5e-2, device='cuda'):
-    """Create the 3D voxel grid parameters shared by GT and pred evaluations."""
-    min_c = np.min(positions, axis=0)
-    max_c = np.max(positions, axis=0)
-    extent = np.max(max_c - min_c)
-    voxel_res = extent * voxel_res_factor
-    bounds = np.vstack((min_c - 3 * gt_scale, max_c + 3 * gt_scale)).T
-
-    x_ticks = torch.arange(bounds[0, 0], bounds[0, 1], voxel_res, device=device)
-    y_ticks = torch.arange(bounds[1, 0], bounds[1, 1], voxel_res, device=device)
-    z_ticks = torch.arange(bounds[2, 0], bounds[2, 1], voxel_res, device=device)
-
-    return {
-        'x_ticks': x_ticks, 'y_ticks': y_ticks, 'z_ticks': z_ticks,
-        'nx': len(x_ticks), 'ny': len(y_ticks), 'nz': len(z_ticks),
-        'voxel_res': voxel_res, 'total_voxels': len(x_ticks) * len(y_ticks) * len(z_ticks),
-    }
-
-
-def _precompute_gt_density(positions, gt_scale, grid, batch_size=50000, device='cuda'):
-    """
-    Evaluate the GT GMM (one isotropic Gaussian per 3D point) on the full voxel
-    grid.  Returns a flat float32 tensor of density values, stored on CPU to
-    avoid exhausting GPU memory across many frames.
-    """
-    N = positions.shape[0]
-    gt_means = torch.from_numpy(positions).float().to(device)
-    gt_weights = torch.full((N,), 1.0, device=device, dtype=torch.float)
-    gt_sigmas = torch.full((N,), gt_scale, device=device, dtype=torch.float)
-
-    x_t = grid['x_ticks']
-    y_t = grid['y_ticks']
-    z_t = grid['z_ticks']
-    nx, ny, nz = grid['nx'], grid['ny'], grid['nz']
-    total = grid['total_voxels']
-
-    density_flat = torch.empty(total, dtype=torch.float32, device='cpu')
-
-    for start in range(0, total, batch_size):
-        end = min(start + batch_size, total)
-        idx = torch.arange(start, end, device=device)
-        ix = idx // (ny * nz)
-        iy = (idx // nz) % ny
-        iz = idx % nz
-        coords = torch.stack([x_t[ix], y_t[iy], z_t[iz]], dim=-1)
-
-        from dfr.utils import eval_isotropic_gmm_torch
-        dens = eval_isotropic_gmm_torch(coords, gt_means, gt_weights, gt_sigmas)
-        density_flat[start:end] = dens.cpu()
-
-    return density_flat  # on CPU
-
 
 def _compute_metrics_cached(pred_means, pred_weights, pred_radius,
                             gt_density_flat, grid, batch_size=50000, device='cuda'):
@@ -479,8 +428,10 @@ def _build_gt_cache_for_frames(step_list, dataset, gt_scales, voxel_res_factor=2
                 f"(voxel_res_factor={voxel_res_factor})…")
     for idx, time_step in enumerate(tqdm(step_list, desc="Caching GT densities")):
         positions = dataset.positions_at_time_step(time_step)
-        grid = _build_grid(positions, gt_scales[idx], voxel_res_factor)
-        density = _precompute_gt_density(positions, gt_scales[idx], grid)
+        grid = build_isotropic_density_grid(
+            positions, gt_scales[idx], voxel_res_fraction=voxel_res_factor
+        )
+        density = sample_isotropic_density_grid(positions, gt_scales[idx], grid)
         cache.append({'density': density, 'grid': grid})
     logger.info(f"GT cache built: {len(cache)} frames, "
                 f"~{cache[0]['density'].numel() * 4 / 1024**2:.0f} MB/frame")
@@ -763,8 +714,10 @@ def test_voxel_coarsening():
     N = positions.shape[0]
 
     for factor in factors:
-        grid = _build_grid(positions, gt_scale, voxel_res_factor=factor)
-        density = _precompute_gt_density(positions, gt_scale, grid)
+        grid = build_isotropic_density_grid(
+            positions, gt_scale, voxel_res_fraction=factor
+        )
+        density = sample_isotropic_density_grid(positions, gt_scale, grid)
 
         t0 = time.perf_counter()
         tp, fp, fn = _compute_metrics_cached(
@@ -925,8 +878,8 @@ def run_training_convergence():
         positions = dataset.positions_at_time_step(ts)
         scale_idx = (ts - start_step) // step_length
         gt_scale = gt_scales_all[scale_idx]
-        grid = _build_grid(positions, gt_scale)
-        density = _precompute_gt_density(positions, gt_scale, grid)
+        grid = build_isotropic_density_grid(positions, gt_scale)
+        density = sample_isotropic_density_grid(positions, gt_scale, grid)
         gt_caches.append({
             'positions': positions,
             'gt_scale': gt_scale,
@@ -1182,8 +1135,8 @@ def diagnose_slow_convergence():
         gt_scale = gt_scales_all[scale_idx]
 
         # Pre-compute GT density
-        grid = _build_grid(positions, gt_scale)
-        gt_density = _precompute_gt_density(positions, gt_scale, grid)
+        grid = build_isotropic_density_grid(positions, gt_scale)
+        gt_density = sample_isotropic_density_grid(positions, gt_scale, grid)
 
         # ---- Run with checkpointing ----
         with tempfile.TemporaryDirectory() as tmpdir:

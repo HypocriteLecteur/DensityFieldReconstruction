@@ -643,7 +643,7 @@ execution.
 | `common.py` | Compatibility adapters over package scenario/camera/evaluation services plus runner logging/noise helpers. |
 | `plot_catalog.py` | Standalone CLI for listing public function names from the frozen historical plot catalog; it does not import legacy plotting code. |
 | `fit_dra_multiframe.py` | CLI for multi-frame DRA/model-order fitting, caches, reports, and fit figures using shared save defaults. |
-| `generate_scene_animations.py` | Generate trajectory and ground-truth density MP4 animations; datasets configured in source. |
+| `generate_scene_animations.py` | Managed MP4 animation CLI for configured trajectory and ground-truth density studies; writes to `outputs/animations/<run-id>/figures/`. |
 | `mechanistic_derivation.py` | Managed CUDA CLI for analytical mode-count scaling comparisons using shared save defaults. |
 | `parameter_manifold.py` | Managed 3PL fit/clustering/publication CLI using package manifold computation, style, and save defaults. |
 | `parameter_manifold_2pl.py` | Managed symmetric-2PL manifold and temporal/N-dependence CLI using package style and save defaults. |

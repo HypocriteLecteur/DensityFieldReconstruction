@@ -203,3 +203,17 @@ def test_specialized_runner_clis_expose_only_managed_primary_paths():
         assert f'choices=("{active_study}",)' in source
         assert "compute_metrics_multi_scenarios()" not in main
         assert "plot_time_multi_scenarios()" not in main
+
+
+def test_scene_animations_use_package_density_grid_and_managed_output():
+    source = (
+        Path(__file__).resolve().parents[1]
+        / "experiments"
+        / "generate_scene_animations.py"
+    ).read_text(encoding="utf-8")
+
+    assert "from dfr.evaluation import build_isotropic_density_grid" in source
+    assert "from experiments.run_scenarios_angle_sweep import" not in source
+    assert 'workflow="animations"' in source
+    assert "artifacts.figures_dir" in source
+    assert '"experiments", "animations"' not in source

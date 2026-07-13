@@ -460,8 +460,9 @@ reading implementation or experiment source.
 
 The next agent should continue Phase 8 generated-output cleanup:
 
-1. Review historical `results/` directory content for removal or external
-   archival now that active code no longer reads it by default.
+1. Leave historical `figs/` and `results/` directory contents untouched unless
+   the owner explicitly revisits that decision; active code must continue to
+   avoid them by default.
 2. Audit remaining `scenarios/*/logs/` readers; retain only documented
    historical readers or redirect active paths to managed `outputs/` runs.
 3. Update the inventory, archive policy, ownership docs, tests, and `TODO.md`
@@ -495,6 +496,10 @@ The next agent should continue Phase 8 generated-output cleanup:
   artifacts. Reason: "results" is ambiguous and `outputs/` already has an ignore
   policy; per-run subdirectories retain the distinctions between data, metrics,
   figures, checkpoints, logs, and cache.
+- **2026-07-11 - Historical artifact preservation:** leave the existing
+  `figs/` and `results/` directory contents in place. Reason: the owner
+  explicitly requested preservation while Phase 8 redirects active writers and
+  readers to managed `outputs/` paths.
 - **2026-07-06 - Migration style:** incrementally add package APIs and adapters
   before deleting experiment code. Reason: CUDA-dependent scientific behavior
   needs comparison points and cannot safely survive a big-bang rewrite.
@@ -841,8 +846,8 @@ known failures, and the exact next step.
 
 - Removed four unimported interactive/benchmark diagnostics: the dataset
   viewer, scenario inspector, initialization viewer, and rasterizer benchmark.
-  `generate_scene_animations` remains active because it uses retained reusable
-  angle-sweep helpers.
+  `generate_scene_animations` remained active pending its own managed-output
+  migration.
 - Added absence coverage for the retired diagnostics and updated the script
   catalogs/test-discovery note.
 - Verification: focused inventory/docs/specialized-runner tests passed with 27
@@ -853,6 +858,25 @@ known failures, and the exact next step.
 - Next step: review historical helpers still embedded in specialized runner
   modules, or move to Phase 8 release validation once no active output writer
   remains.
+
+### 2026-07-11 - Phase 8 animation workflow consolidated
+
+- Moved reusable isotropic-density voxel-grid construction and sampling from
+  the historical angle-sweep runner into `dfr.evaluation.density`, with a
+  CPU-safe characterization test.
+- Changed `generate_scene_animations` into a managed CLI: it now accepts the
+  standard project/output/run policy arguments and writes MP4 files under
+  `outputs/animations/<run-id>/figures/`, rather than
+  `experiments/animations/`. It no longer imports the angle-sweep runner.
+- Verification: animation `--help` passed; focused density/specialized-runner/
+  Phase 8 inventory/docs tests passed with 30 tests; `compileall dfr
+  experiments tests examples` and `git diff --check` passed (with Windows
+  line-ending warnings only); `pytest -m "not cuda"` passed with 187 tests and
+  7 deselected; `pytest -m cuda` passed with 6 tests, 1 skipped
+  rasterizer-extension test, and 187 deselected.
+- Next step: classify the remaining historical helpers embedded in specialized
+  runners; keep historical `figs/` and `results/` contents untouched by owner
+  direction.
 
 ### 2026-07-10 - Phase 8 legacy plot archive removed
 

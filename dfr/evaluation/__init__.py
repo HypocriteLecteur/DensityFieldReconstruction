@@ -17,6 +17,10 @@ from dfr.evaluation.metrics import (
     compute_density_overlap_masses,
     evaluate_isotropic_gmm,
 )
+from dfr.evaluation.density import (
+    build_isotropic_density_grid,
+    sample_isotropic_density_grid,
+)
 from dfr.evaluation.pipeline import evaluate
 from dfr.evaluation.results import EvaluationRun, EvaluationSummary, FrameEvaluation
 
@@ -25,7 +29,9 @@ __all__ = [
     "EvaluationSummary",
     "FrameEvaluation",
     "automatic_evaluation_bounds",
+    "build_isotropic_density_grid",
     "compute_density_overlap_masses",
     "evaluate",
     "evaluate_isotropic_gmm",
+    "sample_isotropic_density_grid",
 ]

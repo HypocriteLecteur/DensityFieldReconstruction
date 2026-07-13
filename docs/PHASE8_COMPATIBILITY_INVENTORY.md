@@ -116,8 +116,9 @@ specialized study paths:
   they had no active imports or managed-output migration path.
 - the isolated `dataset_viewer_test`, `inspect_scenarios`,
   `investigate_initialization`, and `rasterizer_optimize` diagnostics were
-  removed on 2026-07-11 for the same reason; `generate_scene_animations`
-  remains because it reuses supported angle-sweep helper functions.
+  removed on 2026-07-11 for the same reason; `generate_scene_animations` is
+  retained as a managed `outputs/animations/` workflow and now reuses the
+  package `dfr.evaluation` density-grid helpers rather than angle-sweep code.
 
 Do not add new scenario-log producers. Remove or archive readers only after a
 managed-run replacement exists or the owner confirms the study is historical.
