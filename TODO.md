@@ -6,7 +6,7 @@ on chat history.
 
 ## Status
 
-- **Current phase:** Phase 8 release validation is in progress. The
+- **Current phase:** Phase 8 is complete. The
   compatibility inventory and archive policy now document active/archive
   boundaries and deletion rules. `experiments/dfr_plot.py` and
   `experiments/plotting_utils.py` have been removed as one archive surface;
@@ -33,7 +33,7 @@ on chat history.
   catalog preserves the former compatibility/archive classifications and their
   named replacement owners. Phase 8 has removed the archived scenario-log
   runner bodies and redirects active managed workflows away from legacy output
-  roots; only clean-checkout verification and the local release remain.
+  roots; clean-archive verification and the local release notes are complete.
 - **Stable baseline:** annotated tag `v0.1.0`, commit `7cde21e`.
 - **Version storage:** local Git repository only; do not push unless the owner
   explicitly changes this policy.
@@ -457,20 +457,21 @@ reading implementation or experiment source.
   - The CPU toy workflow, managed CLI help/dispatch checks, full CPU tier, and
     CUDA smoke tier passed on 2026-07-13. One rasterizer-extension test skips
     cleanly when that optional compiled extension is unavailable.
-- [ ] Review docs from a clean clone and verify output paths are reproducible.
-- [ ] Tag the completed refactor as the next semantic version and write release
+- [x] Review docs from a clean clone and verify output paths are reproducible.
+  - A Git archive of the committed tree compiled successfully, ran the CPU toy
+    workflow, passed managed runner help checks, and passed Phase 8/docs tests
+    on 2026-07-13.
+- [x] Tag the completed refactor as the next semantic version and write release
   notes with migration examples from `v0.1.0`.
+  - Release notes live in `docs/RELEASE_NOTES_v0.2.0.md`; the local `v0.2.0`
+    tag is created immediately after this release-closure record is committed.
 
 ## Immediate Next Actions
 
-The next agent should finish Phase 8 release closure:
-
-1. Verify the committed source from a clean Git archive using the documented
-   CPU example and selected help commands.
-2. Leave historical `figs/` and `results/` contents untouched unless the owner
-   explicitly revisits that decision; active code must continue to avoid them.
-3. Write migration-focused release notes, update the package version, and tag
-   the completed refactor locally.
+Phase 8 is complete. Future maintenance should preserve managed output paths,
+leave historical `figs/` and `results/` contents untouched unless the owner
+changes that decision, and add new scientific workflows through the documented
+package and artifact boundaries.
 
 ## Decisions
 
@@ -900,9 +901,12 @@ known failures, and the exact next step.
   focused guards passed with 38 tests; `compileall dfr experiments tests
   examples` passed; `pytest -m "not cuda"` passed with 187 tests and 7
   deselected; `pytest -m cuda` passed with 6 tests, 1 skipped
-  rasterizer-extension test, and 187 deselected.
-- Next step: commit this cleanup, verify a clean Git archive, then create the
-  local `v0.2.0` release tag and notes.
+  rasterizer-extension test, and 187 deselected. The committed Git archive
+  additionally compiled, ran the toy workflow and selected managed help paths,
+  and passed 18 Phase 8/docs tests without workspace-only files.
+- Release closure: committed as `dffea4c`; `docs/RELEASE_NOTES_v0.2.0.md`
+  records migration from `v0.1.0`, and the local `v0.2.0` tag follows this
+  release-closure record.
 
 ### 2026-07-10 - Phase 8 legacy plot archive removed
 

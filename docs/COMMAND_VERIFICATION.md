@@ -1,6 +1,6 @@
 # Command Verification Notes
 
-Last reviewed: 2026-07-10.
+Last reviewed: 2026-07-13.
 
 This page records which README/docs commands were actually run during Phase 7
 documentation closure and which commands remain intentionally unexecuted
