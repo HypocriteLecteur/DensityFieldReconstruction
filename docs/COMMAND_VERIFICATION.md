@@ -25,8 +25,6 @@ python -m experiments.parameter_manifold_2pl --help
 python -m experiments.mechanistic_derivation --help
 python -m experiments.synthetic_benchmark --help
 python -m experiments.validate_mode_counting --help
-python -m experiments.power_law --help
-python -m experiments.reconstruction_scale_determination --help
 python -m experiments.plot_catalog --list-functions
 python -m experiments.reconstruct_one_frame --help
 python -m experiments.run_scenarios_table_2 reconstruct --help
@@ -37,6 +35,7 @@ python -m experiments.plot_publication_time_efficiency --help
 python -m experiments.plot_publication_noise_robustness --help
 python -m experiments.run_scenarios_angle_sweep --help
 python -m experiments.run_scenarios_flock --help
+python -m experiments.generate_scene_animations --help
 python -m experiments.run_scenarios_ue4 --help
 ```
 
@@ -52,7 +51,6 @@ image/detection assets, or long-running study settings:
 - `python -m experiments.run_scenarios_table_4 run --noise-levels 0 1 2 --camera-counts 2`
 - `python -m experiments.reconstruct_one_frame --dataset jackdaw2 --frame 2800 --camera-count 2 --scale 1.0 --iterations 100 --run-id jackdaw2-frame-2800`
 - `python -m experiments.run_scenarios`
-- `python -m experiments.compute_metrics_from_pretrained`
 - In-memory CUDA snippets using `dfr.reconstruct`, `dfr.run_scenario`,
   `dfr.evaluate(..., device="cuda")`, or `dfr.analyze(..., kind="dra")`
 

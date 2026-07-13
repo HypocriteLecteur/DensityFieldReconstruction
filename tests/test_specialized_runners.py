@@ -45,7 +45,7 @@ def test_angle_ordinary_legacy_body_was_removed():
         / "run_scenarios_angle_sweep.py"
     ).read_text(encoding="utf-8")
     ordinary = source.split("def run_single_scenario", 1)[1].split(
-        "def run_multi_scenarios_baseline", 1
+        "def create_parser", 1
     )[0]
 
     assert "_run_single_scenario_legacy" not in source
@@ -179,17 +179,31 @@ def test_ordinary_scenario_runner_is_managed_only():
     assert "OutputConfig(" in source
 
 
-def test_explicit_scenario_log_writers_are_archived():
-    for writer in (
-        flock_runner.visualize_trained_model_interactive,
-        flock_runner.run_single_scenario_baseline,
-        angle_runner.run_multi_scenarios_baseline,
-        angle_runner.run_single_scenario_baseline,
-        angle_runner.run_training_convergence,
-        angle_runner.run_baseline_angle_sweep,
+def test_archived_scenario_log_writers_are_physically_absent():
+    root = Path(__file__).resolve().parents[1] / "experiments"
+    for filename, names in (
+        (
+            "run_scenarios_angle_sweep.py",
+            (
+                "run_multi_scenarios_baseline",
+                "run_single_scenario_baseline",
+                "run_training_convergence",
+                "run_baseline_angle_sweep",
+                "compute_metrics_multi_scenarios",
+            ),
+        ),
+        (
+            "run_scenarios_flock.py",
+            (
+                "visualize_trained_model_interactive",
+                "run_single_scenario_baseline",
+                "compute_metrics_multi_scenarios",
+            ),
+        ),
     ):
-        with pytest.raises(RuntimeError, match="archived and disabled"):
-            writer() if writer is not angle_runner.run_single_scenario_baseline else writer({})
+        source = (root / filename).read_text(encoding="utf-8")
+        for name in names:
+            assert f"def {name}" not in source
 
 
 def test_specialized_runner_clis_expose_only_managed_primary_paths():

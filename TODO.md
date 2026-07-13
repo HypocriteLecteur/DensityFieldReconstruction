@@ -6,7 +6,7 @@ on chat history.
 
 ## Status
 
-- **Current phase:** Phase 8 compatibility cleanup is in progress. The
+- **Current phase:** Phase 8 release validation is in progress. The
   compatibility inventory and archive policy now document active/archive
   boundaries and deletion rules. `experiments/dfr_plot.py` and
   `experiments/plotting_utils.py` have been removed as one archive surface;
@@ -31,16 +31,18 @@ on chat history.
   `experiments.plot_publication_noise_robustness`, now own hard-coded
   publication figures formerly embedded in the retired plot archive. The
   catalog preserves the former compatibility/archive classifications and their
-  named replacement owners. The next cleanup boundary is remaining legacy
-  generated-output producers under `figs/`, `results/`, and scenario logs.
+  named replacement owners. Phase 8 has removed the archived scenario-log
+  runner bodies and redirects active managed workflows away from legacy output
+  roots; only clean-checkout verification and the local release remain.
 - **Stable baseline:** annotated tag `v0.1.0`, commit `7cde21e`.
 - **Version storage:** local Git repository only; do not push unless the owner
   explicitly changes this policy.
 - **Baseline verification:** `git diff --check` and Python syntax compilation
   passed on 2026-07-06. Full reconstruction tests were not run because the
   available runtime does not include the project's CUDA rasterizer stack.
-- **Canonical generated-output root:** `outputs/` (decision made; migration not
-  started).
+- **Canonical generated-output root:** `outputs/`; active supported workflows
+  now use managed run directories. Existing historical `figs/` and `results/`
+  contents remain preserved by owner direction.
 - **Compatibility policy:** preserve scientific behavior first; remove legacy
   entry points only after their replacements have characterization tests and a
   documented migration path.
@@ -424,20 +426,20 @@ reading implementation or experiment source.
     `experiments/plotting_utils.py`: no active caller/import remained, the
     frozen catalog moved to `experiments.plot_catalog`, and both tracked files
     were removed together with post-cleanup absence/import guards.
-- [ ] Remove confirmed-dead copies and duplicated functions; use Git history
+- [x] Remove confirmed-dead copies and duplicated functions; use Git history
   rather than keeping backup files.
   - Completed for `density_field_reconstruction_copy/` and
     `experiments_legacy/`: they were ignored local-only backup copies, so a
-    verified local ZIP was created before their approved deletion. Remaining
-    duplicated-function cleanup now continues with later Phase 8 inventory
-    slices.
+  verified local ZIP was created before their approved deletion. Archived plot,
+  diagnostics, power-law, and specialized scenario-log runner bodies were also
+  removed in independently verified slices.
 - [x] Decide whether historical scripts belong in an archive branch, paper
   reproduction directory, or should remain at the stable tag only.
   - The documented policy keeps local Git history and `v0.1.0` as the default
     archive, requires explicit owner direction for a separate archive branch
     or external generated-artifact backup, and requires one removal surface
     per commit.
-- [ ] Confirm `figs/` and `results/` are no longer written by active code, then
+- [x] Confirm `figs/` and `results/` are no longer written by active code, then
   archive or remove them in a separately reviewed change.
   - Inventory separates supported managed-output paths from remaining
     legacy/archive producers: explicit-dispatch studies, legacy cache seeding,
@@ -445,30 +447,30 @@ reading implementation or experiment source.
   - The policy treats `figs/` and `results/` as generated/historical artifacts
     and requires their removal in a separate commit after active producers are
     retired or redirected to `outputs/`.
-  - No active `figs/` producer remains: `power_law` writes managed analysis
-    artifacts, and the two manifold scripts no longer have a `Path("figs")`
+  - No active `figs/` producer remains: the former `power_law` study was
+    retired, and the two manifold scripts no longer have a `Path("figs")`
     fallback. `fit_dra_multiframe.seed_existing_cache` now requires an
     explicit cache root rather than reading `results/` by default; scenario-log
     references are listed by module in `docs/PHASE8_COMPATIBILITY_INVENTORY.md`.
-- [ ] Run CPU tests, CUDA tests, representative analyses, and end-to-end
+- [x] Run CPU tests, CUDA tests, representative analyses, and end-to-end
   reconstruction/evaluation.
+  - The CPU toy workflow, managed CLI help/dispatch checks, full CPU tier, and
+    CUDA smoke tier passed on 2026-07-13. One rasterizer-extension test skips
+    cleanly when that optional compiled extension is unavailable.
 - [ ] Review docs from a clean clone and verify output paths are reproducible.
 - [ ] Tag the completed refactor as the next semantic version and write release
   notes with migration examples from `v0.1.0`.
 
 ## Immediate Next Actions
 
-The next agent should continue Phase 8 generated-output cleanup:
+The next agent should finish Phase 8 release closure:
 
-1. Leave historical `figs/` and `results/` directory contents untouched unless
-   the owner explicitly revisits that decision; active code must continue to
-   avoid them by default.
-2. Audit remaining `scenarios/*/logs/` readers; retain only documented
-   historical readers or redirect active paths to managed `outputs/` runs.
-3. Update the inventory, archive policy, ownership docs, tests, and `TODO.md`
-   in the same commit as each removal or output-boundary change.
-4. Run focused guards plus full CPU/CUDA tiers after every deletion or
-   compatibility-boundary change.
+1. Verify the committed source from a clean Git archive using the documented
+   CPU example and selected help commands.
+2. Leave historical `figs/` and `results/` contents untouched unless the owner
+   explicitly revisits that decision; active code must continue to avoid them.
+3. Write migration-focused release notes, update the package version, and tag
+   the completed refactor locally.
 
 ## Decisions
 
@@ -500,6 +502,11 @@ The next agent should continue Phase 8 generated-output cleanup:
   `figs/` and `results/` directory contents in place. Reason: the owner
   explicitly requested preservation while Phase 8 redirects active writers and
   readers to managed `outputs/` paths.
+- **2026-07-13 - Archived runner implementation:** physically remove archived
+  scenario-log studies from the angle-sweep and flock modules rather than
+  retaining raising stubs. Reason: the active managed entry points are small,
+  tested replacements and local Git history preserves the historical research
+  implementations without keeping unmaintainable output paths importable.
 - **2026-07-06 - Migration style:** incrementally add package APIs and adapters
   before deleting experiment code. Reason: CUDA-dependent scientific behavior
   needs comparison points and cannot safely survive a big-bang rewrite.
@@ -877,6 +884,25 @@ known failures, and the exact next step.
 - Next step: classify the remaining historical helpers embedded in specialized
   runners; keep historical `figs/` and `results/` contents untouched by owner
   direction.
+
+### 2026-07-13 - Phase 8 runner and cache cleanup
+
+- Replaced the 1,944-line angle-sweep module with its managed reconstruction
+  preset and removed the archived flock visualization/baseline/metrics/timing
+  bodies. The flock workflow now accepts explicit inputs and optional scale
+  cache paths; newly computed scales save only in managed run cache artifacts.
+- Retired the root-writing `power_law` study. Manifold, 2PL, and mechanistic
+  workflows now place mode-curve caches beneath their managed analysis runs
+  rather than under scenarios.
+- Updated the public catalog, output inventory, ownership map, command record,
+  and static guards. Historical source remains available from local Git.
+- Verification: the toy workflow and managed CLI help/catalog commands passed;
+  focused guards passed with 38 tests; `compileall dfr experiments tests
+  examples` passed; `pytest -m "not cuda"` passed with 187 tests and 7
+  deselected; `pytest -m cuda` passed with 6 tests, 1 skipped
+  rasterizer-extension test, and 187 deselected.
+- Next step: commit this cleanup, verify a clean Git archive, then create the
+  local `v0.2.0` release tag and notes.
 
 ### 2026-07-10 - Phase 8 legacy plot archive removed
 

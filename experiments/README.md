@@ -31,25 +31,11 @@ Common options on the newly migrated manifold/synthetic/validation commands:
 - `--resume` or `--overwrite-run`: explicit collision policy.
 - `--no-display`: suppress interactive Matplotlib windows where figures exist.
 
-The manifold workflows still read the historic `modes.npy`,
-`scale_range.npy`, and `nn_dists.npy` files under each scenario. If these
-expensive caches are absent, the 3PL workflow may generate them in place for
-compatibility. Fitted results and all newly selected figures use managed output.
-
-## Legacy studies with explicit dispatch
-
-These modules preserve research-history functions that have not yet been
-promoted to stable package APIs. They no longer run an arbitrary hard-coded
-study merely because the file was executed. A subcommand is required:
-
-- `python -m experiments.power_law --help`
-- `python -m experiments.reconstruction_scale_determination --help`
-
-They may still read legacy scenario caches or logs and are not a supported
-scientific API. `power_law.py` now writes its explicit study figures through a
-managed analysis run; use the remaining legacy commands only to reproduce an
-identified historical study, then migrate that study separately if it remains
-scientifically active.
+The manifold workflows cache `modes.npy`, `scale_range.npy`, and `nn_dists.npy`
+inside each managed analysis run. Resume that run to continue an expensive
+calculation; they do not create scenario-local caches. Historical power-law and
+reconstruction-scale studies were retired in Phase 8 and remain recoverable
+from local Git history only.
 
 ## Deferred plotting decomposition
 

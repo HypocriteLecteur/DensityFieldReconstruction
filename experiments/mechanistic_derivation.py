@@ -130,7 +130,9 @@ def main():
     empirical_curves = {}
     for rp in DATASET_RUNS:
         name = rp["name"]
-        sr, Na, scr, am, _ = load_cached_data(rp, project_root=args.project_root)
+        sr, Na, scr, am, _ = load_cached_data(
+            rp, project_root=args.project_root, cache_root=artifacts.cache_dir
+        )
         if sr is None: continue
         # Take the first few frames as examples
         dataset = load_dataset(name, project_root=args.project_root)

@@ -67,11 +67,9 @@ reader/writer classification before migration or deletion.
 
 Active supported compatibility wrappers no longer default to `figs/`; they
 save only when a caller supplies an explicit directory. Remaining `figs/`
-There are no remaining active `figs/` producers:
-
-- `experiments.power_law` was the only literal writer and now creates managed
-  analysis artifacts under `outputs/analysis/<run-id>/figures/`;
-- `experiments.parameter_manifold` and `experiments.parameter_manifold_2pl`
+There are no remaining active `figs/` producers. `experiments.power_law` was
+retired on 2026-07-13, and `experiments.parameter_manifold` and
+`experiments.parameter_manifold_2pl`
   no longer use `Path("figs")` as an import-time fallback. Their
   figure-producing helpers require the managed CLI to set the artifact figure
   directory.
@@ -103,12 +101,14 @@ specialized study paths:
 - `experiments.run_scenarios` is now a thin managed-only reconstruction CLI;
   its historical baseline/metric/timing scenario-log helpers were removed on
   2026-07-11 and remain recoverable through local Git history;
-- `experiments.run_scenarios_angle_sweep` now exposes only managed
-  `reconstruct` at its CLI boundary; its baseline, profile, convergence,
-  diagnostic, projection, and metric studies are historical helpers only;
-- `experiments.run_scenarios_flock` now exposes only managed `run` at its CLI
-  boundary; its visualization, baseline, metrics, and timing helpers are
-  historical helpers only;
+- `experiments.run_scenarios_angle_sweep` is now a thin managed
+  `reconstruct` preset; its historical baseline, profile, convergence,
+  diagnostic, projection, and metric studies were physically removed on
+  2026-07-13;
+- `experiments.run_scenarios_flock` now retains only managed external-detection
+  reconstruction; its visualization, baseline, metrics, and timing helpers
+  were physically removed on 2026-07-13. Its scale cache is explicit or stored
+  under managed artifacts, never written into a scenario;
 - the isolated historical `visualize`, `inspect_3d_error`,
   `run_post_processing`, `reconstruction_scale_determination`,
   `search_learning_parameters`, `search_regularization_parameters`, and

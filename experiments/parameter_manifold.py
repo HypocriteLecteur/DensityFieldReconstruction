@@ -16,7 +16,7 @@ Usage:
   python experiments/parameter_manifold.py --no-display  # headless, figures to disk
 """
 
-import sys, os
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -106,21 +106,26 @@ def set_style():
     )
 
 
-def load_cached_data(run_params, project_root=None):
+def load_cached_data(run_params, project_root=None, cache_root: Path | None = None):
     """Load cached modes.npy, scale_range.npy, and nn_dists.npy for a dataset.
-    If cache is missing, compute the scaling law on-the-fly and save it.
+    If cache is missing, compute the scaling law on-the-fly and save it under
+    the caller's managed run cache.
     """
     name = run_params["name"]
     num_test_scale = 40
     save_every = 50
     nn_dists = None  # populated if cache exists or computed fresh
     root = Path(project_root or Path.cwd()).expanduser().resolve()
-    sp = root / "scenarios" / name
-    os.makedirs(sp, exist_ok=True)
+    if cache_root is None:
+        raise ValueError(
+            "cache_root is required so manifold caches are never written into scenarios/."
+        )
+    sp = Path(cache_root).expanduser().resolve() / name
+    sp.mkdir(parents=True, exist_ok=True)
 
-    mp = os.path.join(sp, "modes.npy")
-    srp = os.path.join(sp, "scale_range.npy")
-    nnp = os.path.join(sp, "nn_dists.npy")
+    mp = sp / "modes.npy"
+    srp = sp / "scale_range.npy"
+    nnp = sp / "nn_dists.npy"
 
     dataset = load_dataset(name, project_root=root)
 
@@ -137,7 +142,7 @@ def load_cached_data(run_params, project_root=None):
         if len(step_range) < n_before:
             print(f"  [FILTER] min_N={min_N}: kept {len(step_range)}/{n_before} steps")
 
-    cache_exists = os.path.exists(mp) and os.path.exists(srp)
+    cache_exists = mp.exists() and srp.exists()
 
     # Detect incomplete (partial) saves: rows that are all zero are unprocessed
     if cache_exists:
@@ -242,7 +247,7 @@ def load_cached_data(run_params, project_root=None):
         np.save(srp, scale_range)  # final save (re-save in case s_start was extended)
 
         # Also cache nn_dists for downstream analysis (sigma_half vs physical spacing)
-        if not os.path.exists(nnp):
+        if not nnp.exists():
             nn_dists = np.array([compute_avg_nn_dist(dataset.positions_at_time_step(s))
                                  for s in tqdm(step_range, desc=f"  NN dist [{name}]")])
             np.save(nnp, nn_dists)
@@ -1072,7 +1077,7 @@ def main():
         name = rp["name"]
         print(f"\n{'='*60}\nDataset: {name}\n{'='*60}")
         sr, Na, scr, am, nn_dists = load_cached_data(
-            rp, project_root=args.project_root
+            rp, project_root=args.project_root, cache_root=artifacts.cache_dir
         )
         if sr is None:
             continue
@@ -1155,7 +1160,7 @@ def main():
     plot_pca_scree(embeddings["pca_model"], embeddings["scaler"])
     # Synthetic point processes for shape curve comparison
     synthetic_params, synthetic_labels = compute_synthetic_params(
-        args.project_root / "scenarios" / "_synthetic"
+        artifacts.cache_dir / "synthetic"
     )
     plot_intrinsic_manifold(all_params, all_names, all_N, shape_fit, k_proj,
                             synthetic_params, synthetic_labels)

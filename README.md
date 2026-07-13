@@ -40,6 +40,8 @@ scripts still resolve paths relative to the current working directory.
 - [`docs/COMMAND_VERIFICATION.md`](docs/COMMAND_VERIFICATION.md) records which
   README/docs command snippets were run during Phase 7 and which examples are
   intentionally CUDA/data-dependent.
+- [`docs/RELEASE_NOTES_v0.2.0.md`](docs/RELEASE_NOTES_v0.2.0.md) summarizes the
+  refactor release and migration from the local `v0.1.0` baseline.
 
 ## Supported environment
 
@@ -289,10 +291,9 @@ python -m experiments.fit_dra_multiframe --datasets jackdaw2 --frames-per-datase
 
 These analyses are CUDA-intensive and cache intermediate `.npz` data so a run
 can resume. The parameter-manifold, mechanistic, synthetic, and validation
-analyses now expose explicit managed CLIs. `power_law.py` remains a legacy
-study collection and requires a named experiment subcommand, but its figures
-now write through a managed analysis run; see `experiments/README.md` before
-running it.
+analyses expose explicit managed CLIs. The historical `power_law.py` study was
+retired in Phase 8; recover it from local Git history only if it is re-owned as
+a documented workflow.
 
 Reusable DRA computation and fitting now live under `dfr.analysis`, including
 `ScaleAnalysisResult`, `create_scale_analysis`,
@@ -506,34 +507,17 @@ for `starling`). `reconstruct` creates managed reconstruction runs; `run` also
 evaluates each result into a matching managed evaluation run. No study starts
 merely by importing one of these modules.
 
-The transitional general multi-scenario path remains available:
-
-1. Edit `CAM_NUM`, `LOG_NAME`, `DATASET_RUNS`, and relevant flags near the top
-   of `experiments/run_scenarios.py`.
-2. Confirm every selected scenario's `config.yaml` and `data_file`.
-3. Run from the repository root:
-
-   ```powershell
-   python -m experiments.run_scenarios
-   ```
-
-Its active reconstruction path now resolves datasets/cameras through package
-services and calls `dfr.run_scenario`. When `IS_LOGGING` is enabled, final frame
-artifacts and aggregate statistics use managed reconstruction output rather
-than scenario log directories. Baseline and metric helpers in that module
-remain transitional. This path requires CUDA and
-`gaussian_rasterizer_simple_large`.
-
-To evaluate already generated checkpoints with the current fixed dataset and
-camera combinations:
+For the managed multi-scenario preset, first confirm each selected scenario's
+`config.yaml` and `data_file`, then run for one dataset or all configured
+presets:
 
 ```powershell
-python -m experiments.compute_metrics_from_pretrained
+python -m experiments.run_scenarios reconstruct --dataset jackdaw2
 ```
 
-This evaluator reads the hard-coded `DATASET_RUNS` and camera counts in its
-source, but now delegates density overlap and aggregate metric equations to
-`dfr.evaluation`. Review its legacy dataset/checkpoint settings before running.
+It calls `dfr.run_scenario` and writes managed reconstruction artifacts by
+default. Evaluate reconstructed results through `dfr.evaluate(...)`; the former
+hard-coded checkpoint evaluator was retired in Phase 8.
 
 ## Generated outputs
 
@@ -651,11 +635,10 @@ execution.
 | `plot_publication_noise_robustness.py` | Explicit publication figure CLI for the hard-coded noise-robustness table formerly embedded in `dfr_plot.py`. |
 | `plot_publication_table2.py` | Explicit publication figure CLI for the hard-coded Table 2 capacity/tradeoff figures formerly embedded in `dfr_plot.py`. |
 | `plot_publication_time_efficiency.py` | Explicit publication figure CLI for the hard-coded training-time scaling table formerly embedded in `dfr_plot.py`. |
-| `power_law.py` | Legacy exploratory mode-count scaling studies; requires an explicit experiment subcommand and writes figures through managed analysis artifacts. |
 | `reconstruct_one_frame.py` | Thin one-frame wrapper over `dfr.reconstruct`, with managed config, checkpoint, arrays, and metrics. |
 | `run_scenarios.py` | Main multi-scenario runner; active reconstruction dispatches through `dfr.reconstruct`, while legacy baseline/metric helpers remain. |
-| `run_scenarios_angle_sweep.py` | Explicit-dispatch camera-angle/convergence studies; ordinary reconstruction is consolidated through `ScenarioRunSpec`. |
-| `run_scenarios_flock.py` | Explicit external-detection flock workflow with required data/calibration paths; primary run uses `dfr.reconstruct_observations`. |
+| `run_scenarios_angle_sweep.py` | Managed camera-angle reconstruction preset over `ScenarioRunSpec`; historical sweep studies are archived. |
+| `run_scenarios_flock.py` | Managed external-detection flock workflow with explicit data/calibration and optional scale-cache inputs. |
 | `publication_scenarios.py` | Shared typed presets/CLI implementation for publication Tables 2–4. |
 | `run_scenarios_table_2.py` | Thin managed Table 2 (100-iteration camera-count) entry point. |
 | `run_scenarios_table_3.py` | Thin managed Table 3 (500-iteration camera-count) entry point. |
@@ -670,4 +653,4 @@ execution.
 See [`CONTRIBUTING.md`](CONTRIBUTING.md) for test tiers and artifact rules.
 [`TODO.md`](TODO.md) is the handoff document and must be updated in every
 refactor commit. The local annotated tag `v0.1.0` is the pre-refactor stable
-baseline.
+baseline; `v0.2.0` is the completed refactor release.

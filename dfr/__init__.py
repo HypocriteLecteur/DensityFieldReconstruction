@@ -63,7 +63,7 @@ from dfr.reconstruction.scenarios import ScenarioRunSpec, run_scenario, run_scen
 from dfr.evaluation.pipeline import evaluate
 from dfr.evaluation.results import EvaluationRun, EvaluationSummary, FrameEvaluation
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = [
     "AnalysisConfig",

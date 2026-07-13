@@ -10,6 +10,24 @@ def test_readme_links_phase_7_docs():
     assert "docs/WORKFLOW.md" in readme
     assert "docs/MODULE_OWNERSHIP.md" in readme
     assert "docs/COMMAND_VERIFICATION.md" in readme
+    assert "docs/RELEASE_NOTES_v0.2.0.md" in readme
+
+
+def test_release_notes_document_managed_migration():
+    notes = (ROOT / "docs" / "RELEASE_NOTES_v0.2.0.md").read_text(
+        encoding="utf-8"
+    )
+
+    for snippet in (
+        "dfr.load_dataset",
+        "dfr.analyze",
+        "dfr.reconstruct",
+        "dfr.evaluate",
+        "outputs/<workflow>/<run-id>/",
+        "v0.1.0",
+        "v0.2.0",
+    ):
+        assert snippet in notes
 
 
 def test_workflow_docs_cover_public_path_and_output_policy():

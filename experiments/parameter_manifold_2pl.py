@@ -87,7 +87,7 @@ def set_style():
 # 1. Fit 2PL to all cached data
 # ======================================================================
 
-def fit_2pl_all(project_root=None):
+def fit_2pl_all(project_root=None, cache_root: Path | None = None):
     """Load cached mode-count data, fit 2PL, return per-frame parameters."""
     all_params_list, all_N_list, all_names_list = [], [], []
     raw_data = {}
@@ -98,7 +98,9 @@ def fit_2pl_all(project_root=None):
     for rp in DATASET_RUNS:
         name = rp["name"]
         print(f"\n{'='*60}\nDataset: {name}\n{'='*60}")
-        sr, Na, scr, am, _ = load_cached_data(rp, project_root=project_root)
+        sr, Na, scr, am, _ = load_cached_data(
+            rp, project_root=project_root, cache_root=cache_root
+        )
         if sr is None: continue
 
         fitted = fit_symmetric_2pl_curves(
@@ -331,7 +333,9 @@ def main():
     print("Parameter Manifold — 2PL model (symmetric sigmoid, gamma=1)")
     print("=" * 60)
 
-    all_params, all_N, all_names, raw_data = fit_2pl_all(args.project_root)
+    all_params, all_N, all_names, raw_data = fit_2pl_all(
+        args.project_root, cache_root=artifacts.cache_dir
+    )
     k, sh = all_params[:, 0], all_params[:, 1]
     artifacts.save_npz(
         "manifold_2pl_fits.npz",

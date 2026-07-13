@@ -76,6 +76,30 @@ def test_isolated_interactive_diagnostics_are_absent():
         assert not (ROOT / "experiments" / name).exists()
 
 
+def test_retired_legacy_studies_are_absent():
+    for name in ("power_law.py", "reconstruction_scale_determination.py"):
+        assert not (ROOT / "experiments" / name).exists()
+
+
+def test_remaining_manifold_and_runner_workflows_use_managed_cache_roots():
+    experiments = ROOT / "experiments"
+    manifold = (experiments / "parameter_manifold.py").read_text(encoding="utf-8")
+    manifold_2pl = (experiments / "parameter_manifold_2pl.py").read_text(
+        encoding="utf-8"
+    )
+    mechanistic = (experiments / "mechanistic_derivation.py").read_text(
+        encoding="utf-8"
+    )
+    flock = (experiments / "run_scenarios_flock.py").read_text(encoding="utf-8")
+
+    assert "cache_root is required" in manifold
+    assert "cache_root=artifacts.cache_dir" in manifold
+    assert "cache_root=artifacts.cache_dir" in manifold_2pl
+    assert "cache_root=artifacts.cache_dir" in mechanistic
+    assert "computed_ground_truth_scales.npz" in flock
+    assert '"reconstruction_scale.npz"' not in flock
+
+
 def test_phase8_inventory_documents_cleanup_boundaries():
     text = (ROOT / "docs" / "PHASE8_COMPATIBILITY_INVENTORY.md").read_text(
         encoding="utf-8"
